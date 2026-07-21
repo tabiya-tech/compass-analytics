@@ -1,0 +1,243 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap");
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ---- Tabiya design tokens ----
+   Source: Tabiya Design System (tokens/colors.css, fonts.css, shape.css,
+   spacing.css, typography.css). Two brand anchors: Oxford/Tabiya Blue
+   (authority + text) and Tabiya Green (the single vivid accent). */
+:root {
+  /* ---- Core brand ---- */
+  --tabiya-blue: #002147;
+  --tabiya-green: #00ff91;
+  --light-green: #e4f8e2;
+  --tabiya-grey: #f8f5f0;
+
+  /* ---- Tonal greens ---- */
+  --green-2: #26b87d;
+  --green-3: #247066;
+  --fold-navy: #032147;
+
+  /* ---- Neutrals & text ---- */
+  --white: #ffffff;
+  --grey-text: #757575;
+  --black: #000000;
+
+  /* ---- Semantic aliases ---- */
+  --text-strong: var(--tabiya-blue);
+  --text-muted: var(--grey-text);
+  --text-inverse: var(--white);
+  --text-eyebrow: var(--green-3);
+
+  --surface-page: var(--white);
+  --surface-card: var(--tabiya-grey);
+  --surface-info: var(--light-green);
+  --surface-feature: var(--green-3);
+  --surface-dark: var(--tabiya-blue);
+
+  --accent: var(--tabiya-green);
+  --accent-on: var(--tabiya-blue);
+
+  --border-subtle: rgba(0, 33, 71, 0.08);
+  --border-strong: var(--tabiya-blue);
+
+  --gradient-brand: linear-gradient(90deg, #00ff91 0%, #26b87d 45%, #247066 75%, #002147 100%);
+
+  /* ---- Fonts ---- */
+  --font-primary: "DM Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "DM Mono", "SF Mono", ui-monospace, monospace;
+  --font-display: var(--font-primary);
+  --font-body: var(--font-primary);
+  --font-label: var(--font-mono);
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --text-display: 72px;
+  --text-h1: 56px;
+  --text-h2: 40px;
+  --text-h3: 26px;
+  --text-h4: 18px;
+  --text-lead: 18px;
+  --text-body: 16px;
+  --text-small: 14px;
+  --text-eyebrow-size: 13px;
+  --text-stat: 48px;
+
+  --leading-display: 1.05;
+  --leading-heading: 1.15;
+  --leading-body: 1.6;
+  --leading-tight: 1.25;
+
+  --tracking-display: -1px;
+  --tracking-heading: -0.5px;
+  --tracking-h4: -0.4px;
+  --tracking-eyebrow: 2px;
+  --tracking-eyebrow-wide: 3px;
+
+  /* ---- Radii ---- */
+  --radius-pill: 50px;
+  --radius-tab: 30px;
+  --radius-card: 16px;
+  --radius-card-lg: 22px;
+  --radius-sm: 12px;
+  --radius-full: 9999px;
+
+  /* base radius shadcn components key off (Panel/Card default) */
+  --radius: 16px;
+
+  /* ---- Borders ---- */
+  --border-width: 1px;
+  --border-width-strong: 1.5px;
+
+  /* ---- Soft shadows ---- */
+  --shadow-sm: 0 1px 3px rgba(0, 33, 71, 0.06);
+  --shadow-md: 0 8px 24px rgba(0, 33, 71, 0.08);
+  --shadow-lg: 0 20px 48px rgba(0, 33, 71, 0.1);
+
+  /* ---- Motion ---- */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+  --duration-base: 250ms;
+  --duration-slow: 400ms;
+
+  /* ---- Spacing scale (~1.5x ratio) ---- */
+  --space-3xs: 0.44rem;
+  --space-2xs: 0.67rem;
+  --space-xs: 1rem;
+  --space-sm: 1.5rem;
+  --space-md: 2.25rem;
+  --space-lg: 3.38rem;
+  --space-xl: 5.06rem;
+
+  --section-padding-y: 70px;
+  --section-padding-y-lg: 120px;
+  --content-padding: 60px;
+
+  --content-max: 1080px;
+  --content-wide: 1200px;
+  --measure: 760px;
+
+  --header-height: 76px;
+  --sidebar-width: 256px;
+
+  /* ---- shadcn/ui semantic palette (mapped onto Tabiya tokens) ---- */
+  --background: var(--white);
+  --foreground: var(--tabiya-blue);
+
+  --card: var(--white);
+  --card-foreground: var(--tabiya-blue);
+
+  --popover: var(--white);
+  --popover-foreground: var(--tabiya-blue);
+
+  --primary: var(--tabiya-blue);
+  --primary-foreground: var(--white);
+
+  --secondary: var(--tabiya-grey);
+  --secondary-foreground: var(--tabiya-blue);
+
+  --muted: var(--tabiya-grey);
+  /* --grey-text (#757575) is 4.24:1 on --tabiya-grey — just under WCAG AA's
+     4.5:1 for normal text. Darkened here for this pairing only; the brand
+     --grey-text token itself is unchanged for use against --white. */
+  --muted-foreground: #666666;
+
+  --accent-foreground: var(--tabiya-blue);
+
+  --destructive: #c0522f;
+  --destructive-foreground: var(--white);
+
+  --border: var(--border-subtle);
+  --input: var(--border-subtle);
+  --ring: var(--tabiya-green);
+
+  --sidebar: var(--tabiya-blue);
+  --sidebar-foreground: var(--white);
+  --sidebar-primary: var(--tabiya-green);
+  --sidebar-primary-foreground: var(--tabiya-blue);
+  --sidebar-accent: rgba(255, 255, 255, 0.12);
+  --sidebar-accent-foreground: var(--white);
+  --sidebar-border: rgba(255, 255, 255, 0.12);
+  --sidebar-ring: var(--tabiya-green);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Tabiya brand colors, exposed directly as utilities (bg-tabiya-blue, text-tabiya-green, ...) */
+  --color-tabiya-blue: var(--tabiya-blue);
+  --color-tabiya-green: var(--tabiya-green);
+  --color-light-green: var(--light-green);
+  --color-tabiya-grey: var(--tabiya-grey);
+  --color-green-2: var(--green-2);
+  --color-green-3: var(--green-3);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 4px);
+  --radius-sm: calc(var(--radius) - 8px);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-pill: var(--radius-pill);
+  --radius-tab: var(--radius-tab);
+  --radius-card: var(--radius-card);
+  --radius-card-lg: var(--radius-card-lg);
+  --radius-full: var(--radius-full);
+
+  --font-sans: var(--font-primary);
+  --font-mono: var(--font-mono);
+
+  --shadow-color-sm: var(--shadow-sm);
+  --shadow-color-md: var(--shadow-md);
+  --shadow-color-lg: var(--shadow-lg);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-primary);
+  }
+}
