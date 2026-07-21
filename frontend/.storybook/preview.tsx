@@ -2,6 +2,7 @@ import type { Preview } from "@storybook/react-vite";
 import { initialize, mswLoader } from "msw-storybook-addon";
 import "../src/index.css";
 import { handlers } from "../src/mocks/handlers";
+import { loadBrandingConfig } from "../src/branding/brandingConfig";
 
 initialize({ onUnhandledRequest: "bypass" });
 
@@ -27,7 +28,7 @@ const preview: Preview = {
       handlers,
     },
   },
-  loaders: [mswLoader],
+  loaders: [mswLoader, async () => ({ branding: await loadBrandingConfig() })],
 };
 
 export default preview;

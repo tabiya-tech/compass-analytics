@@ -21,7 +21,7 @@ type Story = StoryObj<typeof meta>;
 export const Expanded: Story = {
   play: async ({ canvas }) => {
     await expect(canvas.getByText("Compass Analytics")).toBeVisible();
-    await expect(canvas.getByAltText("Tabiya")).toBeVisible();
+    await expect(canvas.getByAltText("Compass Analytics")).toBeVisible();
   },
 };
 

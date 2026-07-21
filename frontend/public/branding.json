@@ -1,0 +1,21 @@
+{
+  "appName": "Compass Analytics",
+  "browserTabTitle": "Compass Analytics",
+  "metaDescription": "Central analytics dashboard for Tabiya's products, giving reach, engagement, and outcome data to implementers and funders.",
+  "assets": {
+    "logo": "/logos/tabiya-logo-color.svg",
+    "logoInverse": "/logos/tabiya-logo-white.svg",
+    "favicon": "/logos/tabiya-logo-color.svg"
+  },
+  "theme": {
+    "tabiya-blue": "#002147",
+    "tabiya-green": "#00ff91",
+    "light-green": "#e4f8e2",
+    "tabiya-grey": "#f8f5f0",
+    "green-2": "#26b87d",
+    "green-3": "#247066",
+    "grey-text": "#757575",
+    "font-primary": "'DM Sans', system-ui, -apple-system, sans-serif",
+    "font-mono": "'DM Mono', 'SF Mono', ui-monospace, monospace"
+  }
+}

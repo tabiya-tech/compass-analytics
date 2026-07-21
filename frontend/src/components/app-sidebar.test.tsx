@@ -12,6 +12,6 @@ describe("AppSidebar", () => {
     );
 
     expect(screen.getByText("Compass Analytics")).toBeInTheDocument();
-    expect(screen.getByAltText("Tabiya")).toBeInTheDocument();
+    expect(screen.getByAltText("Compass Analytics")).toBeInTheDocument();
   });
 });
