@@ -12,5 +12,12 @@
       "label": "Language",
       "srDescription": "Change the display language for {{appName}}"
     }
+  },
+  "error": {
+    "errorPage": {
+      "title": "Something went wrong",
+      "defaultMessage": "{{appName}} ran into an unexpected error. Try reloading the page.",
+      "reload": "Reload page"
+    }
   }
 }

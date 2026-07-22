@@ -18,6 +18,9 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  optimizeDeps: {
+    include: ["@sentry/react"],
+  },
   // Exposes the CI env var to browser-mode tests (Storybook a11y gating),
   // since Vite only auto-forwards VITE_-prefixed vars to import.meta.env.
   define: {

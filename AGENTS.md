@@ -38,6 +38,7 @@ root [`run-before-merge.sh`](run-before-merge.sh) script.
 | Testing        | Vitest (jsdom "unit" project + browser-mode "storybook" project), Testing Library, MSW |
 | Linting        | oxlint                                                                  |
 | Formatting     | Prettier                                                                |
+| Error tracking | `@sentry/react` (frontend)                                              |
 | Backend        | Python 3.11, FastAPI, Pydantic v2, Motor (async MongoDB), Poetry        |
 | Backend testing| pytest (pytest-asyncio, pytest-mock, pytest-repeat), in-memory MongoDB via `pymongo_inmemory` |
 | Backend linting| pylint (+ pylint-pydantic), bandit                                      |
@@ -80,6 +81,23 @@ plus one entry each in `SupportedLocales` and `LocalesLabels` (`src/i18n/constan
   approach: `.storybook/preview.tsx` wires the real i18next instance through `I18nextProvider`, with a toolbar
   `globalTypes.locale` dropdown to preview other locales live.
 - **Language switcher**: `src/i18n/languageSwitcher/LanguageSwitcher.tsx`, in the sidebar footer.
+
+## Error tracking (Sentry)
+
+`src/sentry/sentryInit.ts` initializes `@sentry/react` — first thing in `main.tsx`, before branding/i18n/render, so
+errors during boot are still captured. Unlike branding/i18n (fetched/loaded at runtime), Sentry config is read from
+build-time Vite env vars (`VITE_SENTRY_ENABLED`, `VITE_SENTRY_DSN`, `VITE_SENTRY_TRACES_SAMPLE_RATE`,
+`VITE_TARGET_ENVIRONMENT_NAME` — see `frontend/.env.example`), since a Sentry DSN is tied to a specific
+build/deployment rather than something that should be swappable without a rebuild. `VITE_SENTRY_ENABLED` must be
+the literal string `"true"` to enable — any other value (including unset) leaves it off, so a local/unconfigured
+build never reports.
+
+`Sentry.ErrorBoundary` wraps `<App />` in `main.tsx`, falling back to `src/sentry/ErrorFallback.tsx` on an uncaught
+render error. This is intentionally a minimal core setup (init + error boundary only) — no router instrumentation
+(no router exists yet), no feedback widget, no sourcemap upload pipeline. Add those later if/when they're needed,
+following compass's `frontend-new/src/sentryInit.ts` for reference, but note compass's setup includes some
+product-specific pieces (a custom Brotli-compressing transport, and a deliberate anti-PII-scrubbing trick for
+auth/token log text) that were a deliberate choice *not* to carry over here.
 
 ## Backend
 

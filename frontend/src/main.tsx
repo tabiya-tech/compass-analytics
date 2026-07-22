@@ -1,9 +1,16 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import * as Sentry from "@sentry/react";
 import "./index.css";
 import App from "./App.tsx";
 import { applyBranding } from "./branding/applyBranding";
 import { initI18n } from "./i18n/i18n";
+import { initSentry } from "./sentry/sentryInit";
+import { ErrorFallback } from "./sentry/ErrorFallback";
+
+// Sentry init happens first, before anything else, so errors during the
+// earliest boot steps below are still captured.
+initSentry();
 
 async function enableMocking() {
   if (!import.meta.env.DEV) return;
@@ -20,7 +27,9 @@ async function boot() {
 
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
-      <App />
+      <Sentry.ErrorBoundary fallback={<ErrorFallback />}>
+        <App />
+      </Sentry.ErrorBoundary>
     </StrictMode>
   );
 }
