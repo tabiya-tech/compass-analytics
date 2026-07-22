@@ -8,7 +8,7 @@ visibility into deployment reach, module engagement, and jobseeker outcomes acro
 ## Table of Contents
 
 - **[Frontend](frontend)**: Explore the Frontend directory for detailed insights about the frontend React project.
-- **[Backend](backend)**: Not yet implemented.
+- **[Backend](backend)**: Explore the Backend directory for detailed insights about the FastAPI backend project.
 - **[Infrastructure As Code (IaC)](iac)**: Not yet implemented.
 - **[Contribution Guidelines](#contribution-guidelines)**: Help us improve the project by contributing to various aspects.
 - **[Getting Started](#getting-started)**: Easy steps to set up your environment and start contributing.
@@ -34,6 +34,8 @@ visibility into deployment reach, module engagement, and jobseeker outcomes acro
 
 ### Code Formatting
 
+#### Frontend
+
 We follow the **[Prettier](https://prettier.io/)** code formatting guidelines to make sure the code is properly
 formatted in a uniform way.
 
@@ -42,6 +44,12 @@ You can find the configuration in the **[.prettierrc.json](frontend/.prettierrc.
 > **Note:**
 > For IntelliJ IDEA, if you make changes to the Prettier config, you may need to restart the IDE before formatting
 > code using the IDE's formatting function.
+
+#### Backend
+
+We use **pylint** (with `pylint-pydantic`) as our linting tool for the Python backend.
+
+You can find the configuration in the **[.pylintrc](backend/.pylintrc)** file.
 
 ### Conventional Commits
 

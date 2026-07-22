@@ -20,12 +20,13 @@ This is a monorepo with three top-level packages:
 ```
 compass-analytics/
 ├── frontend/          # React/TypeScript SPA (the dashboard itself)
-├── backend/           # Not yet implemented
+├── backend/           # FastAPI + Pydantic API
 └── iac/               # Not yet implemented
 ```
 
 There is no root-level orchestration tool (no Turborepo/Nx) — each subproject is a self-contained package with its
-own `package.json` and tooling, wired together only by the root [`run-before-merge.sh`](run-before-merge.sh) script.
+own dependency manifest and tooling (`frontend/package.json`, `backend/pyproject.toml`), wired together only by the
+root [`run-before-merge.sh`](run-before-merge.sh) script.
 
 ## Tech Stack
 
@@ -37,7 +38,9 @@ own `package.json` and tooling, wired together only by the root [`run-before-mer
 | Testing        | Vitest (jsdom "unit" project + browser-mode "storybook" project), Testing Library, MSW |
 | Linting        | oxlint                                                                  |
 | Formatting     | Prettier                                                                |
-| Backend        | Not yet decided                                                        |
+| Backend        | Python 3.11, FastAPI, Pydantic v2, Motor (async MongoDB), Poetry        |
+| Backend testing| pytest (pytest-asyncio, pytest-mock, pytest-repeat), in-memory MongoDB via `pymongo_inmemory` |
+| Backend linting| pylint (+ pylint-pydantic), bandit                                      |
 | Infrastructure | Not yet decided                                                        |
 
 ## Design System
@@ -78,6 +81,39 @@ plus one entry each in `SupportedLocales` and `LocalesLabels` (`src/i18n/constan
   `globalTypes.locale` dropdown to preview other locales live.
 - **Language switcher**: `src/i18n/languageSwitcher/LanguageSwitcher.tsx`, in the sidebar footer.
 
+## Backend
+
+FastAPI + Pydantic, modeled on the tooling conventions in the `compass` repo's backend (Poetry, pylint, bandit,
+pytest + in-memory Mongo), but scoped down: no LLM/chat code, and a single database instead of compass's four.
+
+- **Entrypoint**: [`backend/app/server.py`](backend/app/server.py) — builds a module-level `ApplicationConfig` from
+  environment variables (fails fast with a clear error if a required var is missing), sets it as a process-wide
+  singleton (`app/app_config.py`), configures logging and Sentry, then constructs the `FastAPI` app with a
+  `lifespan` that connects to Mongo and runs index initialization on startup.
+- **Config**: two patterns coexist, matching compass — a hand-built `ApplicationConfig` (plain Pydantic `BaseModel`,
+  populated from `os.getenv()` in `server.py`) for app-wide settings, and narrower `pydantic_settings.BaseSettings`
+  subclasses (e.g. `common_libs/environment_settings/mongo_db_settings.py`) for settings a specific module owns —
+  instantiated lazily so importing the module doesn't require the env vars to already be set.
+- **Database**: `AnalyticsDBProvider` (`app/server_dependencies/db_dependencies.py`) is a lazily-initialized,
+  async-lock-guarded singleton wrapping a single Motor `AsyncIOMotorDatabase` — `get_db()`, `initialize_mongo_db()`
+  (idempotent index creation, called on startup and from test fixtures), `clear_cache()` (test teardown).
+- **Health check**: `GET /version` (`app/version/`) doubles as the health/readiness endpoint, returning build info
+  (`VersionInfo`). There's no separate `/health` route — this is the same pattern compass uses, and what the smoke
+  test and any future deploy pipeline should poll.
+- **Logging**: structured JSON in production (`app/logging.cfg.yaml`, via `app/logger.py`'s `JsonLogFormatter`),
+  human-readable console + rotating file in dev (`app/logging.cfg.dev.yaml`). A `SessionIdLogFilter` injects
+  request-scoped `session_id`/`user_id` from `contextvars` (`app/context_vars.py`) into every log record.
+- **Testing**: colocated `*_test.py` files next to source, not a separate `tests/` directory. Root `conftest.py`
+  provides `in_memory_analytics_database` (a real, ephemeral MongoDB via `pymongo_inmemory`, not a mock) and
+  `setup_application_config`. A `smoke_test` marker (`pytest -m "not smoke_test"` to exclude) is reserved for tests
+  that hit a *deployed* environment, e.g. `smoke_test/test_version.py` checking `/version` matches an expected build.
+- **Linting**: `poetry run pylint --exit-zero --recursive=y .` (informational — CI never fails on lint findings,
+  same as compass) and `poetry run bandit -c bandit.yaml -r .` (security scan, this one blocks). No auto-formatter —
+  style is enforced by convention (160-char line length in `.pylintrc`), matching compass exactly.
+- **Docker**: two-stage build (`backend/Dockerfile`) — Poetry installs production deps only in the builder stage,
+  the final `python:3.11-slim` image just copies `site-packages` + `app/` + `common_libs/` and runs
+  `uvicorn app.server:app`.
+
 ## Testing
 
 - **Unit tests** (`frontend/src/**/*.test.tsx`) run under jsdom via `yarn test`, with MSW's Node server intercepting
@@ -93,9 +129,9 @@ plus one entry each in `SupportedLocales` and `LocalesLabels` (`src/i18n/constan
 
 ### Pipeline Flow
 
-Every push runs Frontend CI (format check, lint, compile, unit tests, Storybook tests, build) and a separate
-Accessibility job (Storybook tests with axe assertions set to fail) in parallel. There is no deploy pipeline yet —
-`iac/` and a hosting target haven't been decided.
+Every push runs, in parallel: Frontend CI (format check, lint, compile, unit tests, Storybook tests, build) with a
+separate Accessibility job (Storybook tests with axe assertions set to fail), and Backend CI (bandit, pylint, pytest,
+Docker build). There is no deploy pipeline yet — `iac/` and a hosting target haven't been decided.
 
 ### Key Workflows
 
@@ -103,6 +139,7 @@ Accessibility job (Storybook tests with axe assertions set to fail) in parallel.
 | ------------------ | ------------------------------------------- |
 | `main.yml`         | Orchestrates CI jobs on every push           |
 | `frontend-ci.yml`  | Frontend checks (test job + accessibility job) |
+| `backend-ci.yml`   | Backend checks (bandit, pylint, pytest, Docker build) |
 
 ## Development Guidelines
 
@@ -123,3 +160,6 @@ Accessibility job (Storybook tests with axe assertions set to fail) in parallel.
 
 - Frontend: see `frontend/.env.example`. No variables are defined yet — Vite only exposes `VITE_`-prefixed vars to
   the client bundle.
+- Backend: see `backend/.env.example`, grouped by concern (app identity/CORS, database, observability). Required
+  vars are validated at startup in `server.py` — a missing one raises immediately rather than failing later at
+  first use.

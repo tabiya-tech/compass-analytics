@@ -1,0 +1,21 @@
+version: 1
+disable_existing_loggers: false
+
+filters:
+  session_filter:
+    (): app.logger.SessionIdLogFilter
+
+formatters:
+  json_formatter:
+    (): app.logger.JsonLogFormatter
+
+handlers:
+  console:
+    class: logging.StreamHandler
+    formatter: json_formatter
+    filters: [session_filter]
+    stream: ext://sys.stdout
+
+root:
+  level: INFO
+  handlers: [console]

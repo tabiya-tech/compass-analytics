@@ -1,0 +1,28 @@
+version: 1
+disable_existing_loggers: false
+
+filters:
+  session_filter:
+    (): app.logger.SessionIdLogFilter
+
+formatters:
+  standard:
+    format: "%(asctime)s [%(levelname)s] %(name)s (session=%(session_id)s user=%(user_id)s): %(message)s"
+
+handlers:
+  console:
+    class: logging.StreamHandler
+    formatter: standard
+    filters: [session_filter]
+    stream: ext://sys.stdout
+  file:
+    class: logging.handlers.RotatingFileHandler
+    formatter: standard
+    filters: [session_filter]
+    filename: logs/logfile.log
+    maxBytes: 1000000
+    backupCount: 10
+
+root:
+  level: INFO
+  handlers: [console, file]

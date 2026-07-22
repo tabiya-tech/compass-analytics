@@ -12,6 +12,17 @@ function frontend() {
   printSuccess "${project}"
 }
 
+function backend() {
+  local project="backend"
+  printTitle "${project}"
+  (cd backend/ && poetry sync --no-interaction && poetry run bandit -c bandit.yaml -r . && poetry run pylint --exit-zero --recursive=y . && poetry run pytest -m "not smoke_test")
+  if [ $? -ne 0 ]; then
+    printError "${project}"
+    exit 1
+  fi
+  printSuccess "${project}"
+}
+
 function printTitle() {
   local blue='\033[1;30;44m'
   local title="Begin to build the ${1}"
@@ -42,20 +53,23 @@ function printError() {
 
 PS3="Select what you want to build and test: "
 
-# NOTE: backend and iac are not implemented yet. Add functions for them here
-# (following the `frontend` function above as a template) once they exist,
-# and add matching options below.
-OPTIONS="All Frontend"
+# NOTE: iac is not implemented yet. Add a function for it here (following the
+# `frontend`/`backend` functions above as a template) once it exists, and add
+# a matching option below.
+OPTIONS="All Frontend Backend"
 
 select opt in $OPTIONS; do
   if [ "$REPLY" = "1" ]; then
     echo "******************"
     echo "Building all"
     echo "******************"
-    frontend
+    frontend && backend
     exit $?
   elif [ "$REPLY" = "2" ]; then
     frontend
+    exit $?
+  elif [ "$REPLY" = "3" ]; then
+    backend
     exit $?
   else
     clear

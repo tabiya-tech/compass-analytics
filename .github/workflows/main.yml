@@ -13,6 +13,9 @@ jobs:
   frontend-ci:
     uses: ./.github/workflows/frontend-ci.yml
 
-  # NOTE: backend and iac are not implemented yet. Add a backend-ci.yml /
-  # deploy.yml (see the taxonomy-model-application and compass repos for
-  # reference shapes) and wire them in here once those subprojects exist.
+  backend-ci:
+    uses: ./.github/workflows/backend-ci.yml
+
+  # NOTE: iac is not implemented yet. Add a deploy.yml (see the
+  # taxonomy-model-application and compass repos for reference shapes) and
+  # wire it in here once that subproject exists.
