@@ -1,5 +1,6 @@
-import { Sidebar, SidebarContent, SidebarHeader } from "@/components/ui/sidebar";
+import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from "@/components/ui/sidebar";
 import { getAppName, getLogoInverseUrl } from "@/branding/brandingConfig";
+import { LanguageSwitcher } from "@/i18n/languageSwitcher/LanguageSwitcher";
 
 export function AppSidebar() {
   return (
@@ -11,6 +12,9 @@ export function AppSidebar() {
         </span>
       </SidebarHeader>
       <SidebarContent />
+      <SidebarFooter className="group-data-[collapsible=icon]:hidden">
+        <LanguageSwitcher />
+      </SidebarFooter>
     </Sidebar>
   );
 }

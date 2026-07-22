@@ -48,6 +48,36 @@ Mono), wired into Tailwind v4's `@theme inline` and mapped onto shadcn's semanti
 mapping (e.g. `--muted-foreground`) over the raw brand token (e.g. `--grey-text`) — the brand token may be reused
 elsewhere against a different background.
 
+## Branding
+
+App name, logos, and theme colors/fonts are configurable at runtime without a rebuild, so the same build can be
+deployed under different partner branding. `frontend/public/branding.json` is fetched once at boot
+([`src/branding/applyBranding.ts`](frontend/src/branding/applyBranding.ts)) and applied by writing CSS custom
+properties onto `:root` (overriding the defaults in `index.css`), plus `document.title`, the meta description, and
+the favicon. Read values through the typed getters in `src/branding/brandingConfig.ts` (e.g. `getAppName()`) rather
+than hardcoding copy — every getter has a fallback, so a missing/malformed config never breaks rendering.
+
+## Internationalization (i18n)
+
+UI strings go through i18next + react-i18next, not hardcoded literals. Only `en-GB` exists today
+(`frontend/src/i18n/locales/en-GB/translation.json`); adding a locale means a new `locales/<locale>/translation.json`
+plus one entry each in `SupportedLocales` and `LocalesLabels` (`src/i18n/constants.ts`).
+
+- **Init** (`src/i18n/i18n.ts`) runs after branding loads, in `main.tsx` — it captures the app name as a default
+  interpolation variable (`{{appName}}`) available in every translation string.
+- **Language detection** is `localStorage` → browser `navigator`, cached to `localStorage` (key `i18nextLng`); there's
+  no backend to sync a per-user preference to yet.
+- **Typed keys**: `src/i18n/react-i18next.d.ts` derives a `TranslationKey` union from `en-GB/translation.json`'s
+  shape, so `t("bad.key")` is a compile error.
+- **Consistency test** (`src/i18n/locales/locales.test.ts`) deep-compares every supported locale's key shape against
+  the first entry in `SupportedLocales` — catches missing/extra keys the moment a second locale is added.
+- **Testing**: unit tests never hit the real i18next instance — `src/test/setup.ts` mocks `react-i18next` via
+  `src/i18n/i18nMock.tsx`, which renders the *real* `en-GB` strings synchronously and throws on a missing key (so
+  tests assert against real copy, not placeholder keys, without needing async init). Storybook takes the opposite
+  approach: `.storybook/preview.tsx` wires the real i18next instance through `I18nextProvider`, with a toolbar
+  `globalTypes.locale` dropdown to preview other locales live.
+- **Language switcher**: `src/i18n/languageSwitcher/LanguageSwitcher.tsx`, in the sidebar footer.
+
 ## Testing
 
 - **Unit tests** (`frontend/src/**/*.test.tsx`) run under jsdom via `yarn test`, with MSW's Node server intercepting

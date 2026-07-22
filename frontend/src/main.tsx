@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.tsx";
 import { applyBranding } from "./branding/applyBranding";
+import { initI18n } from "./i18n/i18n";
 
 async function enableMocking() {
   if (!import.meta.env.DEV) return;
@@ -10,10 +11,18 @@ async function enableMocking() {
   return worker.start({ onUnhandledRequest: "bypass" });
 }
 
-Promise.all([applyBranding(), enableMocking()]).then(() => {
+async function boot() {
+  await enableMocking();
+  // Branding must resolve before i18n init, since i18n captures the app name
+  // as a default interpolation variable available to every translation.
+  await applyBranding();
+  await initI18n();
+
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
       <App />
     </StrictMode>
   );
-});
+}
+
+boot();

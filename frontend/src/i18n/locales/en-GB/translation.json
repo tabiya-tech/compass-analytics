@@ -1,0 +1,16 @@
+{
+  "common": {
+    "loading": "Loading…",
+    "error": "Something went wrong.",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "save": "Save",
+    "close": "Close"
+  },
+  "i18n": {
+    "languageSwitcher": {
+      "label": "Language",
+      "srDescription": "Change the display language for {{appName}}"
+    }
+  }
+}
