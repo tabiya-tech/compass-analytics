@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import type { Preview } from "@storybook/react-vite";
 import { initialize, mswLoader } from "msw-storybook-addon";
 import { I18nextProvider } from "react-i18next";
+import { HashRouter } from "react-router-dom";
 import "../src/index.css";
 import { handlers } from "../src/mocks/handlers";
 import { loadBrandingConfig } from "../src/branding/brandingConfig";
@@ -49,9 +50,11 @@ const preview: Preview = {
       }, [i18n, context.globals.locale]);
 
       return (
-        <I18nextProvider i18n={i18n}>
-          <Story />
-        </I18nextProvider>
+        <HashRouter>
+          <I18nextProvider i18n={i18n}>
+            <Story />
+          </I18nextProvider>
+        </HashRouter>
       );
     },
   ],

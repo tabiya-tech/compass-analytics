@@ -19,5 +19,62 @@
       "defaultMessage": "{{appName}} ran into an unexpected error. Try reloading the page.",
       "reload": "Reload page"
     }
+  },
+  "auth": {
+    "brand": {
+      "eyebrow": "{{appName}}",
+      "headline": "The dashboard behind every deployment.",
+      "subcopy": "See who you're reaching, how engaged they are, and how each module of the suite is performing — for your cohort, your institution, or across all of them.",
+      "footer": "Open-source digital public infrastructure for jobs."
+    },
+    "fields": {
+      "fullName": { "label": "Full name", "placeholder": "Full name" },
+      "organization": { "label": "Organization", "placeholder": "Organization" },
+      "email": { "label": "Email", "placeholder": "Email" },
+      "password": { "label": "Password", "placeholder": "Password" },
+      "newPassword": { "label": "Password", "placeholder": "Password" },
+      "confirmPassword": { "label": "Confirm password", "placeholder": "Confirm password" }
+    },
+    "login": {
+      "title": "Sign in",
+      "subtitle": "Welcome back. Enter your details to continue.",
+      "forgotPassword": "Forgot password?",
+      "submit": "Sign in",
+      "footerPrompt": "New to {{appName}}?",
+      "footerAction": "Create an account"
+    },
+    "register": {
+      "title": "Create your account",
+      "subtitle": "Set up access to your deployment dashboard.",
+      "submit": "Create account",
+      "footerPrompt": "Already have an account?",
+      "footerAction": "Sign in"
+    },
+    "social": {
+      "divider": "OR",
+      "google": "Continue with Google"
+    },
+    "validation": {
+      "emailRequired": "Email is required.",
+      "emailInvalid": "Enter a valid email address.",
+      "passwordRequired": "Password is required.",
+      "fullNameRequired": "Full name is required.",
+      "organizationRequired": "Organization is required.",
+      "confirmPasswordRequired": "Please confirm your password.",
+      "passwordsMismatch": "Passwords do not match."
+    },
+    "passwordRules": {
+      "length": "Password must be at least 8 characters long.",
+      "lowercase": "Password must include at least one lowercase letter.",
+      "uppercase": "Password must include at least one uppercase letter.",
+      "number": "Password must include at least one number.",
+      "special": "Password must include at least one special character such as: !@#$%*& etc."
+    },
+    "errors": {
+      "invalidCredentials": "Email or password is incorrect.",
+      "emailTaken": "An account with that email already exists.",
+      "generic": "Something went wrong. Please try again."
+    },
+    "signOut": "Sign out"
   }
 }
