@@ -76,5 +76,53 @@
       "generic": "Something went wrong. Please try again."
     },
     "signOut": "Sign out"
+  },
+  "nav": {
+    "overview": "Overview",
+    "jobseekers": "Jobseekers",
+    "modules": "Modules",
+    "modulesSection": {
+      "buildYourProfile": "Build Your Profile",
+      "jobReadiness": "Job readiness",
+      "careerExplorer": "Career Explorer",
+      "jobs": "Jobs"
+    },
+    "userMenu": {
+      "label": "My account",
+      "trigger": "Open account menu",
+      "accountSettings": "Account settings"
+    }
+  },
+  "filters": {
+    "activeLabel": "Active filters",
+    "clearAll": "Clear all",
+    "none": "No filters applied",
+    "remove": "Remove {{filter}} filter",
+    "labels": {
+      "institution": "Institution",
+      "audienceSegment": "Audience segment",
+      "loginMethod": "Login method"
+    },
+    "audienceSegments": {
+      "youth": "Youth",
+      "women": "Women",
+      "rural": "Rural",
+      "firstTimeJobseeker": "First-time jobseeker"
+    },
+    "loginMethods": {
+      "email": "Email",
+      "google": "Google",
+      "anonymous": "Anonymous"
+    },
+    "time": {
+      "startLabel": "Start date",
+      "endLabel": "End date",
+      "granularityLabel": "Grouped by {{granularity}}"
+    },
+    "granularity": {
+      "day": "day",
+      "week": "week",
+      "month": "month"
+    }
   }
 }
