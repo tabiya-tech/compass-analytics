@@ -1,10 +1,15 @@
 import type { ReactElement, ReactNode } from "react";
 import { render as rtlRender, type RenderOptions } from "@testing-library/react";
 import { HashRouter } from "react-router-dom";
+import { AccessProvider } from "@/access/AccessContext";
 
-// Wraps components under test in app-wide providers
-export const AllTheProviders = ({ children }: { children: ReactNode }) => {
-  return <HashRouter>{children}</HashRouter>;
+// Session-wide providers only. Filter tests mount their own FiltersProvider, with a fixed date.
+export const AllTheProviders = ({ children }: Readonly<{ children: ReactNode }>) => {
+  return (
+    <AccessProvider>
+      <HashRouter>{children}</HashRouter>
+    </AccessProvider>
+  );
 };
 
 function render(ui: ReactElement, options?: Omit<RenderOptions, "wrapper">) {

@@ -1,8 +1,7 @@
 import { createHashRouter, Navigate, RouterProvider } from "react-router-dom";
 import ProtectedRoute from "@/app/ProtectedRoute/ProtectedRoute";
-import { routerPaths } from "@/app/routerPaths";
 import { Layout } from "@/app/Layout";
-import { HomePage } from "@/pages/HomePage";
+import { routerPaths } from "@/app/routerPaths";
 import { Login } from "@/pages/Login/Login";
 import { Register } from "@/pages/Register/Register";
 
@@ -29,11 +28,23 @@ const router = createHashRouter([
     children: [
       {
         index: true,
-        element: (
-          <ProtectedRoute>
-            <HomePage />
-          </ProtectedRoute>
-        ),
+        element: <ProtectedRoute>Overview</ProtectedRoute>,
+      },
+      {
+        path: routerPaths.JOBSEEKERS,
+        element: <ProtectedRoute>Jobseekers</ProtectedRoute>,
+      },
+      {
+        path: routerPaths.MODULES,
+        element: <ProtectedRoute>Modules</ProtectedRoute>,
+      },
+      {
+        path: routerPaths.MODULE,
+        element: <ProtectedRoute>Module</ProtectedRoute>,
+      },
+      {
+        path: routerPaths.SETTINGS,
+        element: <ProtectedRoute>Settings</ProtectedRoute>,
       },
     ],
   },
