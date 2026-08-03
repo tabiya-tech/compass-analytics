@@ -24,6 +24,8 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
   play: async ({ canvas }) => {
-    await expect(canvas.getByRole("button", { name: "Open account menu" })).toBeVisible();
+    const trigger = canvas.getByRole("button", { name: "Open account menu" });
+    await expect(trigger).toBeVisible();
+    await expect(trigger.querySelector("svg")).toBeInTheDocument();
   },
 };
