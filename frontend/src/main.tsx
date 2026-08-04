@@ -25,10 +25,14 @@ async function boot() {
   await applyBranding();
   await initI18n();
 
+  const { AuthProvider } = await import("./auth/AuthContext");
+
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
       <Sentry.ErrorBoundary fallback={<ErrorFallback />}>
-        <App />
+        <AuthProvider>
+          <App />
+        </AuthProvider>
       </Sentry.ErrorBoundary>
     </StrictMode>
   );

@@ -8,17 +8,25 @@ bridge which causes a different-loop error with Motor).
 Authentication uses local mode (TARGET_ENVIRONMENT_TYPE=local), so any
 HS256-signed JWT is accepted without signature verification — same behaviour
 as running the server locally.
+
+The Compass API is not available in tests, so we use httpx.MockTransport to
+control what the repository's http client receives. Tests that expect empty
+data simply let the transport raise a connection error (API unavailable).
 """
+import json
+
 import httpx
 import jwt as pyjwt
 import pytest
 from fastapi import FastAPI
 
 from app.analytics.dependencies import get_analytics_service
-from app.analytics.repositories import StubAnalyticsRepository
+from app.analytics.repositories import CompassAnalyticsRepository
 from app.analytics.routes import add_analytics_routes
 from app.analytics.services import AnalyticsService
+from app.analytics.types import ReachResponse, ReachSummary, TimeSeriesPoint
 from app.auth.firebase import Authentication
+from common_libs.http_client.base import AsyncHttpClient
 
 _TEST_SECRET = "test-secret-key-long-enough-for-hs256"
 
@@ -36,9 +44,41 @@ def _make_firebase_token(user_id: str = "u1", email: str = "user@example.com") -
 _VALID_TOKEN = _make_firebase_token()
 _AUTH_HEADER = {"Authorization": f"Bearer {_VALID_TOKEN}"}
 
+_STUB_REACH_PAYLOAD = {
+    "summary": {
+        "total_users": 5000,
+        "active_users_30d": 1200,
+        "total_logins": 20000,
+        "avg_logins_per_user": 4.0,
+        "avg_session_minutes": 18,
+    },
+    "series": [
+        {"label": "Jan", "cumulative": 5000, "added": 500, "new_users": 400, "returning": 100, "logins": 800},
+    ],
+}
+
+
+def _make_mock_transport(payload: dict | None = None, status_code: int = 200):
+    """Returns an httpx transport that responds with the given payload, or raises ConnectError if payload is None."""
+    if payload is None:
+        def handler(_request):
+            raise httpx.ConnectError("Compass API not available")
+        return httpx.MockTransport(handler)
+
+    body = json.dumps(payload).encode()
+    def handler(_request):
+        return httpx.Response(status_code, content=body, headers={"content-type": "application/json"})
+    return httpx.MockTransport(handler)
+
+
+def _make_service(transport) -> AnalyticsService:
+    http_client = AsyncHttpClient.__new__(AsyncHttpClient)
+    http_client._client = httpx.AsyncClient(transport=transport, base_url="http://compass-mock")
+    return AnalyticsService(repository=CompassAnalyticsRepository(http_client))
+
 
 @pytest.fixture()
-async def async_client(monkeypatch):
+async def client_with_data(monkeypatch):
     # GIVEN the server runs in local mode (no Firebase signature verification)
     monkeypatch.setenv("TARGET_ENVIRONMENT_TYPE", "local")
 
@@ -46,11 +86,27 @@ async def async_client(monkeypatch):
     auth = Authentication()
     add_analytics_routes(app, auth)
 
-    service = AnalyticsService(repository=StubAnalyticsRepository())
+    service = _make_service(_make_mock_transport(_STUB_REACH_PAYLOAD))
     app.dependency_overrides[get_analytics_service] = lambda: service
 
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
-        yield client
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
+        yield c
+
+
+@pytest.fixture()
+async def client_no_api(monkeypatch):
+    # GIVEN the server runs in local mode and the Compass API is unreachable
+    monkeypatch.setenv("TARGET_ENVIRONMENT_TYPE", "local")
+
+    app = FastAPI()
+    auth = Authentication()
+    add_analytics_routes(app, auth)
+
+    service = _make_service(_make_mock_transport(None))
+    app.dependency_overrides[get_analytics_service] = lambda: service
+
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
+        yield c
 
 
 def _reach_url(start: str, end: str, granularity: str = "month", **kwargs) -> str:
@@ -61,21 +117,21 @@ def _reach_url(start: str, end: str, granularity: str = "month", **kwargs) -> st
 
 
 class TestReachAuth:
-    async def test_should_reject_request_with_no_auth_header(self, async_client):
+    async def test_should_reject_request_with_no_auth_header(self, client_with_data):
         # GIVEN no Authorization header is sent
 
         # WHEN the reach endpoint is called without a token
-        actual_response = await async_client.get(_reach_url("2026-01-01", "2026-06-30"))
+        actual_response = await client_with_data.get(_reach_url("2026-01-01", "2026-06-30"))
 
         # THEN expect the request to be rejected with 401
         assert actual_response.status_code == 401
 
-    async def test_should_reject_request_with_an_invalid_token(self, async_client):
+    async def test_should_reject_request_with_an_invalid_token(self, client_with_data):
         # GIVEN an invalid (non-JWT) bearer token
         given_headers = {"Authorization": "Bearer not-a-jwt"}
 
         # WHEN the reach endpoint is called with the invalid token
-        actual_response = await async_client.get(
+        actual_response = await client_with_data.get(
             _reach_url("2026-01-01", "2026-06-30"),
             headers=given_headers,
         )
@@ -85,31 +141,31 @@ class TestReachAuth:
 
 
 class TestReachResponse:
-    async def test_should_return_200_with_valid_token_and_params(self, async_client):
+    async def test_should_return_200_with_valid_token_and_params(self, client_with_data):
         # GIVEN a valid Firebase token and valid date range params
 
         # WHEN the reach endpoint is called
-        actual_response = await async_client.get(_reach_url("2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)
+        actual_response = await client_with_data.get(_reach_url("2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)
 
         # THEN expect a successful response
         assert actual_response.status_code == 200
 
-    async def test_should_include_summary_and_series_in_response(self, async_client):
+    async def test_should_include_summary_and_series_in_response(self, client_with_data):
         # GIVEN a valid request
 
         # WHEN the reach endpoint is called
-        actual_body = (await async_client.get(_reach_url("2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)).json()
+        actual_body = (await client_with_data.get(_reach_url("2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)).json()
 
         # THEN expect the response to contain both summary and series sections
         assert "summary" in actual_body
         assert "series" in actual_body
 
-    async def test_should_include_all_required_summary_fields(self, async_client):
+    async def test_should_include_all_required_summary_fields(self, client_with_data):
         # GIVEN a valid request
 
         # WHEN the reach endpoint is called
         actual_summary = (
-            await async_client.get(_reach_url("2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)
+            await client_with_data.get(_reach_url("2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)
         ).json()["summary"]
 
         # THEN expect all required summary fields to be present
@@ -118,25 +174,24 @@ class TestReachResponse:
             for k in ("total_users", "active_users_30d", "total_logins", "avg_logins_per_user", "avg_session_minutes")
         )
 
-    async def test_should_return_positive_summary_values(self, async_client):
-        # GIVEN a valid request
+    async def test_should_return_data_from_compass_api(self, client_with_data):
+        # GIVEN the Compass API returns stub data
 
         # WHEN the reach endpoint is called
         actual_summary = (
-            await async_client.get(_reach_url("2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)
+            await client_with_data.get(_reach_url("2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)
         ).json()["summary"]
 
-        # THEN expect all key counts to be positive numbers
-        assert actual_summary["total_users"] > 0
-        assert actual_summary["total_logins"] > 0
-        assert actual_summary["active_users_30d"] > 0
+        # THEN expect the summary values to match what the Compass API returned
+        assert actual_summary["total_users"] == 5000
+        assert actual_summary["active_users_30d"] == 1200
 
-    async def test_should_include_all_required_fields_in_each_series_point(self, async_client):
+    async def test_should_include_all_required_fields_in_each_series_point(self, client_with_data):
         # GIVEN a valid request
 
         # WHEN the reach endpoint is called
         actual_series = (
-            await async_client.get(_reach_url("2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)
+            await client_with_data.get(_reach_url("2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)
         ).json()["series"]
 
         # THEN expect at least one point in the series
@@ -145,56 +200,57 @@ class TestReachResponse:
         for point in actual_series:
             assert all(k in point for k in ("label", "cumulative", "added", "new_users", "returning", "logins"))
 
-    async def test_should_produce_one_point_per_month_for_monthly_granularity(self, async_client):
-        # GIVEN a 6-month date range with monthly granularity
+
+class TestReachWhenApiUnavailable:
+    async def test_should_return_200_with_empty_data_when_compass_api_is_unreachable(self, client_no_api):
+        # GIVEN the Compass API is unreachable
+
+        # WHEN the reach endpoint is called
+        actual_response = await client_no_api.get(_reach_url("2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)
+
+        # THEN expect a successful response (not an error)
+        assert actual_response.status_code == 200
+
+    async def test_should_return_zero_summary_when_compass_api_is_unreachable(self, client_no_api):
+        # GIVEN the Compass API is unreachable
+
+        # WHEN the reach endpoint is called
+        actual_summary = (
+            await client_no_api.get(_reach_url("2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)
+        ).json()["summary"]
+
+        # THEN expect all summary values to be zero
+        assert actual_summary["total_users"] == 0
+        assert actual_summary["total_logins"] == 0
+
+    async def test_should_return_empty_series_when_compass_api_is_unreachable(self, client_no_api):
+        # GIVEN the Compass API is unreachable
 
         # WHEN the reach endpoint is called
         actual_series = (
-            await async_client.get(_reach_url("2026-01-01", "2026-06-30", granularity="month"), headers=_AUTH_HEADER)
+            await client_no_api.get(_reach_url("2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)
         ).json()["series"]
 
-        # THEN expect exactly 6 data points — one per month
-        assert len(actual_series) == 6
-
-    async def test_should_produce_one_point_per_day_for_daily_granularity(self, async_client):
-        # GIVEN a 7-day date range with daily granularity
-
-        # WHEN the reach endpoint is called
-        actual_series = (
-            await async_client.get(_reach_url("2026-06-01", "2026-06-07", granularity="day"), headers=_AUTH_HEADER)
-        ).json()["series"]
-
-        # THEN expect exactly 7 data points — one per day
-        assert len(actual_series) == 7
-
-    async def test_should_return_identical_data_on_repeated_calls(self, async_client):
-        # GIVEN the same query parameters for two separate requests
-
-        # WHEN the reach endpoint is called twice
-        given_url = _reach_url("2026-01-01", "2026-03-31", granularity="month")
-        actual_first = (await async_client.get(given_url, headers=_AUTH_HEADER)).json()
-        actual_second = (await async_client.get(given_url, headers=_AUTH_HEADER)).json()
-
-        # THEN expect both responses to be identical (stub data is deterministic)
-        assert actual_first == actual_second
+        # THEN expect an empty series
+        assert actual_series == []
 
 
 class TestReachValidation:
-    async def test_should_return_422_when_required_params_are_missing(self, async_client):
+    async def test_should_return_422_when_required_params_are_missing(self, client_with_data):
         # GIVEN no query parameters
 
         # WHEN the reach endpoint is called without required params
-        actual_response = await async_client.get("/api/analytics/reach", headers=_AUTH_HEADER)
+        actual_response = await client_with_data.get("/api/analytics/reach", headers=_AUTH_HEADER)
 
         # THEN expect a validation error
         assert actual_response.status_code == 422
 
-    async def test_should_return_422_for_invalid_granularity_value(self, async_client):
+    async def test_should_return_422_for_invalid_granularity_value(self, client_with_data):
         # GIVEN an unsupported granularity value
         given_url = _reach_url("2026-01-01", "2026-06-30", granularity="quarter")
 
         # WHEN the reach endpoint is called with the invalid value
-        actual_response = await async_client.get(given_url, headers=_AUTH_HEADER)
+        actual_response = await client_with_data.get(given_url, headers=_AUTH_HEADER)
 
         # THEN expect a validation error
         assert actual_response.status_code == 422

@@ -88,6 +88,7 @@ def setup_application_config():
         analytics_mongodb_uri="mongodb://localhost:27017",
         analytics_database_name="test",
         service_api_keys={ExternalService.COMPASS: "test-compass-api-key"},
+        compass_base_url="http://localhost:9999",
     )
     set_application_config(config)
     yield config
