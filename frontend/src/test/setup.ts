@@ -45,6 +45,37 @@ vi.mock("@/i18n/i18n", () => ({
   initI18n: () => Promise.resolve(mockI18nInstance),
 }));
 
+// jsdom has no ResizeObserver, so a measuring chart sees width 0 and draws
+// nothing. Report a fixed box; Storybook's browser tests use the real thing.
+export const TEST_CONTAINER_WIDTH = 600;
+export const TEST_CONTAINER_HEIGHT = 300;
+
+vi.stubGlobal(
+  "ResizeObserver",
+  class {
+    private readonly callback: ResizeObserverCallback;
+    constructor(callback: ResizeObserverCallback) {
+      this.callback = callback;
+    }
+    observe(target: Element) {
+      const size = { inlineSize: TEST_CONTAINER_WIDTH, blockSize: TEST_CONTAINER_HEIGHT };
+      this.callback(
+        [
+          {
+            target,
+            contentRect: { width: TEST_CONTAINER_WIDTH, height: TEST_CONTAINER_HEIGHT },
+            borderBoxSize: [size],
+            contentBoxSize: [size],
+          } as unknown as ResizeObserverEntry,
+        ],
+        this as unknown as ResizeObserver
+      );
+    }
+    unobserve() {}
+    disconnect() {}
+  }
+);
+
 // jsdom doesn't implement matchMedia; shadcn's use-mobile hook needs it.
 Object.defineProperty(window, "matchMedia", {
   writable: true,

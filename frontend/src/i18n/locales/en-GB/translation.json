@@ -154,5 +154,29 @@
     "completionRing": {
       "label": "{{value}}% complete"
     }
+  },
+  "charts": {
+    "empty": "No data to show for this selection.",
+    "table": {
+      "period": "Period",
+      "category": "Category",
+      "value": "Value",
+      "share": "Share",
+      "total": "Total",
+      "range": "Range",
+      "count": "Count"
+    },
+    "sparkline": {
+      "up": "Trend rising, from {{from}} to {{to}}",
+      "down": "Trend falling, from {{from}} to {{to}}",
+      "flat": "Trend flat at {{to}}"
+    },
+    "gaugeBar": {
+      "oneValue": "{{value}} {{valueLabel}}",
+      "twoValues": "{{value}} {{valueLabel}} · {{secondaryValue}} {{secondaryLabel}}"
+    },
+    "histogram": {
+      "range": "{{from}} to {{to}}"
+    }
   }
 }
