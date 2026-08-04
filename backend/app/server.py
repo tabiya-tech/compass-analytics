@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.app_config import ApplicationConfig, set_application_config
+from app.auth.api_key import ApiKeyAuth, ExternalService
 from app.sentry_init import init_sentry, set_sentry_contexts
 from app.server_dependencies.db_dependencies import AnalyticsDBProvider
 from app.version.routes import add_version_routes
@@ -69,6 +70,9 @@ def _build_application_config() -> ApplicationConfig:
         sentry_config=sentry_config,
         analytics_mongodb_uri=analytics_mongodb_uri,
         analytics_database_name=analytics_database_name,
+        service_api_keys={
+            ExternalService.COMPASS: _require_env("COMPASS_API_KEY"),
+        },
     )
 
 
@@ -109,6 +113,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+api_key_auth = ApiKeyAuth(keys=application_config.service_api_keys)
 
 add_version_routes(app)
 

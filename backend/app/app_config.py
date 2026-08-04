@@ -2,6 +2,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from app.auth.api_key import ExternalService
 from app.version.types import VersionInfo
 
 
@@ -28,6 +29,8 @@ class ApplicationConfig(BaseModel):
 
     analytics_mongodb_uri: str
     analytics_database_name: str
+
+    service_api_keys: dict[ExternalService, str]
 
 
 _application_config: Optional[ApplicationConfig] = None

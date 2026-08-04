@@ -13,6 +13,7 @@ from pymongo_inmemory import Mongod
 from pymongo_inmemory.context import Context
 
 from app.app_config import ApplicationConfig, clear_application_config, set_application_config
+from app.auth.api_key import ExternalService
 from app.server_dependencies.db_dependencies import AnalyticsDBProvider
 from app.version.types import VersionInfo
 
@@ -86,6 +87,7 @@ def setup_application_config():
         enable_sentry=False,
         analytics_mongodb_uri="mongodb://localhost:27017",
         analytics_database_name="test",
+        service_api_keys={ExternalService.COMPASS: "test-compass-api-key"},
     )
     set_application_config(config)
     yield config
