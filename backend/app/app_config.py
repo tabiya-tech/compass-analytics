@@ -32,6 +32,7 @@ class ApplicationConfig(BaseModel):
 
     firebase_project_id: Optional[str] = None
     service_api_keys: dict[ExternalService, str]
+    compass_base_url: str
 
 
 _application_config: Optional[ApplicationConfig] = None

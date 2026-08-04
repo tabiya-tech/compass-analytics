@@ -4,23 +4,16 @@ import { Layout } from "@/app/Layout";
 import { routerPaths } from "@/app/routerPaths";
 import { Login } from "@/pages/Login/Login";
 import { Register } from "@/pages/Register/Register";
+import { Overview } from "@/pages/Overview/Overview";
 
 const router = createHashRouter([
   {
     path: routerPaths.LOGIN,
-    element: (
-      <ProtectedRoute>
-        <Login />
-      </ProtectedRoute>
-    ),
+    element: <Login />,
   },
   {
     path: routerPaths.REGISTER,
-    element: (
-      <ProtectedRoute>
-        <Register />
-      </ProtectedRoute>
-    ),
+    element: <Register />,
   },
   {
     path: routerPaths.ROOT,
@@ -28,7 +21,11 @@ const router = createHashRouter([
     children: [
       {
         index: true,
-        element: <ProtectedRoute>Overview</ProtectedRoute>,
+        element: (
+          <ProtectedRoute>
+            <Overview />
+          </ProtectedRoute>
+        ),
       },
       {
         path: routerPaths.JOBSEEKERS,

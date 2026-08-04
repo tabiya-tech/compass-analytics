@@ -3,6 +3,32 @@ import { afterAll, afterEach, beforeAll, vi } from "vitest";
 import { server } from "@/mocks/server";
 import { MockTrans, mockI18nInstance, useTranslationMock } from "@/i18n/i18nMock";
 
+// Mock Firebase Auth so tests never hit the real Firebase SDK or network.
+// AuthContext and AuthenticationService are both covered by unit tests that
+// mock firebase/auth directly; this global ensures any component that renders
+// under AuthProvider gets a signed-in stub user without needing Firebase config.
+vi.mock("firebase/auth", () => {
+  const mockUser = { uid: "test-uid", email: "test@example.com", getIdToken: async () => "test-id-token" };
+  class MockGoogleAuthProvider {}
+  return {
+    getAuth: vi.fn(() => ({})),
+    onAuthStateChanged: vi.fn((_auth: unknown, callback: (user: unknown) => void) => {
+      callback(mockUser);
+      return () => {};
+    }),
+    signInWithEmailAndPassword: vi.fn(async () => ({ user: mockUser })),
+    createUserWithEmailAndPassword: vi.fn(async () => ({ user: mockUser })),
+    signInWithPopup: vi.fn(async () => ({ user: mockUser })),
+    GoogleAuthProvider: MockGoogleAuthProvider,
+    signOut: vi.fn(async () => {}),
+  };
+});
+
+vi.mock("firebase/app", () => ({
+  initializeApp: vi.fn(() => ({})),
+  getApps: vi.fn(() => [{}]),
+}));
+
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());

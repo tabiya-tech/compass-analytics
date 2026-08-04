@@ -76,6 +76,7 @@ def _build_application_config() -> ApplicationConfig:
         service_api_keys={
             ExternalService.COMPASS: _require_env("COMPASS_API_KEY"),
         },
+        compass_base_url=_require_env("COMPASS_BASE_URL"),
     )
 
 

@@ -1,4 +1,14 @@
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
+  signOut,
+  type UserCredential,
+} from "firebase/auth";
 import type { LoginRequest, RegisterRequest } from "@/auth/auth.types";
+import { getFirebaseApp } from "@/auth/firebase";
 
 export const AUTH_API_BASE = "/api/auth";
 
@@ -14,6 +24,17 @@ export class AuthApiError extends Error {
   }
 }
 
+function mapFirebaseError(error: unknown): AuthApiError {
+  const code = (error as { code?: string }).code ?? "";
+  if (code === "auth/user-not-found" || code === "auth/wrong-password" || code === "auth/invalid-credential") {
+    return new AuthApiError(401, "invalid_credentials", "Invalid email or password.");
+  }
+  if (code === "auth/email-already-in-use") {
+    return new AuthApiError(409, "email_taken", "An account with this email already exists.");
+  }
+  return new AuthApiError(500, "unknown", "An unexpected error occurred.");
+}
+
 export class AuthenticationService {
   private static instance: AuthenticationService | null = null;
 
@@ -22,19 +43,35 @@ export class AuthenticationService {
     return AuthenticationService.instance;
   }
 
-  async login(_request: LoginRequest): Promise<void> {
-    // TODO: call the auth API.
+  private get _auth() {
+    return getAuth(getFirebaseApp());
   }
 
-  async register(_request: RegisterRequest): Promise<void> {
-    // TODO: call the auth API.
+  async login(request: LoginRequest): Promise<UserCredential> {
+    try {
+      return await signInWithEmailAndPassword(this._auth, request.email, request.password);
+    } catch (error) {
+      throw mapFirebaseError(error);
+    }
   }
 
-  async loginWithGoogle(): Promise<void> {
-    // TODO: call the auth API.
+  async register(request: RegisterRequest): Promise<UserCredential> {
+    try {
+      return await createUserWithEmailAndPassword(this._auth, request.email, request.password);
+    } catch (error) {
+      throw mapFirebaseError(error);
+    }
   }
 
-  logout(): void {
-    // TODO: clear the session.
+  async loginWithGoogle(): Promise<UserCredential> {
+    try {
+      return await signInWithPopup(this._auth, new GoogleAuthProvider());
+    } catch (error) {
+      throw mapFirebaseError(error);
+    }
+  }
+
+  logout(): Promise<void> {
+    return signOut(this._auth);
   }
 }
