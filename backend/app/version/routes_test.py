@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.app_config import ApplicationConfig, clear_application_config, set_application_config
+from app.auth.api_key import ExternalService
 from app.version.routes import add_version_routes
 from app.version.types import VersionInfo
 
@@ -20,6 +21,7 @@ class TestVersionRoutes:
                 enable_sentry=False,
                 analytics_mongodb_uri="mongodb://localhost:27017",
                 analytics_database_name="test",
+                service_api_keys={ExternalService.COMPASS: "test-compass-api-key"},
             )
         )
 
