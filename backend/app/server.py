@@ -9,8 +9,10 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.analytics.routes import add_analytics_routes
 from app.app_config import ApplicationConfig, set_application_config
 from app.auth.api_key import ApiKeyAuth, ExternalService
+from app.auth.firebase import Authentication
 from app.sentry_init import init_sentry, set_sentry_contexts
 from app.server_dependencies.db_dependencies import AnalyticsDBProvider
 from app.version.routes import add_version_routes
@@ -70,6 +72,7 @@ def _build_application_config() -> ApplicationConfig:
         sentry_config=sentry_config,
         analytics_mongodb_uri=analytics_mongodb_uri,
         analytics_database_name=analytics_database_name,
+        firebase_project_id=os.getenv("FIREBASE_PROJECT_ID") or None,
         service_api_keys={
             ExternalService.COMPASS: _require_env("COMPASS_API_KEY"),
         },
@@ -115,8 +118,10 @@ app.add_middleware(
 )
 
 api_key_auth = ApiKeyAuth(keys=application_config.service_api_keys)
+firebase_auth = Authentication(firebase_project_id=application_config.firebase_project_id)
 
 add_version_routes(app)
+add_analytics_routes(app, firebase_auth)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080)  # nosec B104 # this will be run in a container

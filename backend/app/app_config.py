@@ -30,6 +30,7 @@ class ApplicationConfig(BaseModel):
     analytics_mongodb_uri: str
     analytics_database_name: str
 
+    firebase_project_id: Optional[str] = None
     service_api_keys: dict[ExternalService, str]
 
 

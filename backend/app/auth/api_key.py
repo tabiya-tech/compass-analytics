@@ -50,6 +50,7 @@ class ApiKeyAuth:
 
         return _check
 
+
     def key_for(self, service: ExternalService) -> str:
         """Return the configured key for a specific service (for outbound requests)."""
         key = self._keys.get(service)
