@@ -93,6 +93,19 @@
       "accountSettings": "Account settings"
     }
   },
+  "overview": {
+    "title": "Overview",
+    "reach": {
+      "error": "Failed to load reach data.",
+      "cards": {
+        "totalUsers": "Total Users",
+        "activeUsers30d": "Active (30d)",
+        "totalLogins": "Total Logins",
+        "avgLoginsPerUser": "Avg Logins / User",
+        "avgSessionMinutes": "Avg Session (min)"
+      }
+    }
+  },
   "filters": {
     "activeLabel": "Active filters",
     "clearAll": "Clear all",

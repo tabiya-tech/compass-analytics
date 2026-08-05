@@ -5,9 +5,7 @@ import { AnalyticsService } from "@/analytics/Analytics.service";
 import type { ReachResponse } from "@/analytics/analytics.types";
 
 export type ReachState =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "success"; data: ReachResponse };
+  { status: "loading" } | { status: "error"; message: string } | { status: "success"; data: ReachResponse };
 
 export function useReach(): ReachState {
   const { getIdToken } = useAuth();
