@@ -56,7 +56,4 @@ export const brandingHandler = http.get("/branding.json", () => HttpResponse.jso
  * Full handler list for tests and Storybook — includes all API stubs so
  * components render with realistic data without needing the backend running.
  */
-export const handlers: HttpHandler[] = [
-  brandingHandler,
-  http.get("/api/analytics/reach", () => HttpResponse.json(stubReach)),
-];
+export const handlers: HttpHandler[] = [brandingHandler, http.get("/api/reach", () => HttpResponse.json(stubReach))];

@@ -48,7 +48,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Success: Story = {
   parameters: {
-    msw: { handlers: [http.get("/api/analytics/reach", () => HttpResponse.json(stubReach))] },
+    msw: { handlers: [http.get("/api/reach", () => HttpResponse.json(stubReach))] },
   },
 };
 
@@ -56,7 +56,7 @@ export const Loading: Story = {
   parameters: {
     msw: {
       handlers: [
-        http.get("/api/analytics/reach", async () => {
+        http.get("/api/reach", async () => {
           await delay("infinite");
           return HttpResponse.json(stubReach);
         }),
@@ -67,6 +67,6 @@ export const Loading: Story = {
 
 export const Error: Story = {
   parameters: {
-    msw: { handlers: [http.get("/api/analytics/reach", () => HttpResponse.error())] },
+    msw: { handlers: [http.get("/api/reach", () => HttpResponse.error())] },
   },
 };

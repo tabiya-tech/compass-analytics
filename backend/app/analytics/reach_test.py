@@ -1,5 +1,5 @@
 """
-End-to-end tests for GET /api/analytics/reach.
+End-to-end tests for GET /api/reach.
 
 Uses httpx.AsyncClient with ASGI transport so the Motor DB fixture and the
 route handler share the same asyncio event loop (TestClient uses a sync thread
@@ -28,7 +28,7 @@ from app.analytics.types import ReachResponse, ReachSummary, TimeSeriesPoint
 from app.auth.firebase import Authentication
 from common_libs.http_client.base import AsyncHttpClient
 
-_TEST_SECRET = "test-secret-key-long-enough-for-hs256"
+_TEST_SECRET = "test-secret-key-long-enough-for-hs256"  # nosec B105 — HS256 signing key for forged test JWTs, not a credential
 
 
 def _make_firebase_token(user_id: str = "u1", email: str = "user@example.com") -> str:
@@ -113,7 +113,7 @@ def _reach_url(start: str, end: str, granularity: str = "month", **kwargs) -> st
     params = f"start_date={start}&end_date={end}&granularity={granularity}"
     for k, v in kwargs.items():
         params += f"&{k}={v}"
-    return f"/api/analytics/reach?{params}"
+    return f"/api/reach?{params}"
 
 
 class TestReachAuth:
@@ -240,7 +240,7 @@ class TestReachValidation:
         # GIVEN no query parameters
 
         # WHEN the reach endpoint is called without required params
-        actual_response = await client_with_data.get("/api/analytics/reach", headers=_AUTH_HEADER)
+        actual_response = await client_with_data.get("/api/reach", headers=_AUTH_HEADER)
 
         # THEN expect a validation error
         assert actual_response.status_code == 422

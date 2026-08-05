@@ -1,6 +1,6 @@
 import type { AnalyticsParams, ReachResponse } from "@/analytics/analytics.types";
 
-export const ANALYTICS_API_BASE = "/api/analytics";
+export const ANALYTICS_API_BASE = "/api";
 
 export class AnalyticsApiError extends Error {
   readonly status: number;
