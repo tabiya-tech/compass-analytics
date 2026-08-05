@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect } from "storybook/test";
-import { GlobalFilters } from "./global-filters";
+import { GlobalFilters } from "./GlobalFilters";
 import { AccessProvider } from "@/access/AccessContext";
 import { FiltersProvider } from "@/filters/FiltersContext";
 import { createInitialFilters, type FiltersState } from "@/filters/filters";

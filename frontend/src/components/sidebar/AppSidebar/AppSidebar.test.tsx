@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@/_test_utilities/test-utils";
-import { AppSidebar } from "./app-sidebar";
+import { AppSidebar } from "./AppSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AccessProvider } from "@/access/AccessContext";
 

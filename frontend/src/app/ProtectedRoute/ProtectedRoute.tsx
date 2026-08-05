@@ -7,12 +7,10 @@ interface ProtectedRouteProps {
   children: ReactNode;
 }
 
-const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
+export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
 
   if (loading) return null;
   if (!user) return <Navigate to={routerPaths.LOGIN} replace />;
   return <>{children}</>;
-};
-
-export default ProtectedRoute;
+}
