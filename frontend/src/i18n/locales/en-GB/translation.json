@@ -124,5 +124,22 @@
       "week": "week",
       "month": "month"
     }
+  },
+  "shared": {
+    "statTile": {
+      "trendUp": "Up {{value}}%",
+      "trendDown": "Down {{value}}%",
+      "trendFlat": "No change"
+    },
+    "filterMenu": {
+      "trigger": "Filter by {{label}}",
+      "heading": "Filter · {{label}}",
+      "selectedCount": "{{value}} selected",
+      "clear": "Clear",
+      "noOptions": "No filter options available"
+    },
+    "completionRing": {
+      "label": "{{value}}% complete"
+    }
   }
 }

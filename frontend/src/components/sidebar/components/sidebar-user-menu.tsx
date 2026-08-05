@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ChevronsUpDown, CircleUser } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ChevronsUpDown } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,9 +10,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { routerPaths } from "@/app/routerPaths";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 
 export function SidebarUserMenu({ onSignOut }: Readonly<{ onSignOut: () => void }>) {
   const { t } = useTranslation();
+  const label = t("nav.userMenu.label");
 
   return (
     <SidebarMenu>
@@ -21,12 +22,8 @@ export function SidebarUserMenu({ onSignOut }: Readonly<{ onSignOut: () => void 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton size="lg" aria-label={t("nav.userMenu.trigger")}>
-              <Avatar className="size-8 rounded-full">
-                <AvatarFallback className="rounded-full bg-tabiya-green text-tabiya-blue">
-                  <CircleUser className="size-4" />
-                </AvatarFallback>
-              </Avatar>
-              <span className="flex-1 truncate text-left font-medium">{t("nav.userMenu.label")}</span>
+              <UserAvatar name={label} className="bg-tabiya-green text-tabiya-blue" />
+              <span className="flex-1 truncate text-left font-medium">{label}</span>
               <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
