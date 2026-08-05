@@ -3,7 +3,7 @@ import pytest
 
 from app.auth.firebase import Authentication, SignInProvider, _get_user_info
 
-_TEST_SECRET = "test-secret-key-long-enough-for-hs256"
+_TEST_SECRET = "test-secret-key-long-enough-for-hs256"  # nosec B105 — HS256 signing key for forged test JWTs, not a credential
 
 
 def _make_token(claims: dict) -> str:

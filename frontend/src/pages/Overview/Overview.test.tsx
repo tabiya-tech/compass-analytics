@@ -29,7 +29,7 @@ describe("Overview", () => {
   describe("Reach summary", () => {
     it("should show the loading state while the reach data is being fetched", () => {
       // GIVEN the reach endpoint has not yet responded
-      server.use(http.get("/api/analytics/reach", async () => new Promise(() => {})));
+      server.use(http.get("/api/reach", async () => new Promise(() => {})));
 
       // WHEN the overview is rendered
       renderOverview();
@@ -40,7 +40,7 @@ describe("Overview", () => {
 
     it("should display the reach summary cards after a successful fetch", async () => {
       // GIVEN the reach endpoint returns stub data
-      server.use(http.get("/api/analytics/reach", () => HttpResponse.json(givenReach)));
+      server.use(http.get("/api/reach", () => HttpResponse.json(givenReach)));
 
       // WHEN the overview is rendered
       renderOverview();
@@ -55,7 +55,7 @@ describe("Overview", () => {
 
     it("should display an error message when the reach fetch fails", async () => {
       // GIVEN the reach endpoint returns a server error
-      server.use(http.get("/api/analytics/reach", () => HttpResponse.error()));
+      server.use(http.get("/api/reach", () => HttpResponse.error()));
 
       // WHEN the overview is rendered
       renderOverview();

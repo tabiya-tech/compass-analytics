@@ -16,7 +16,7 @@ from app.auth.firebase import Authentication, UserInfo
 
 logger = logging.getLogger(__name__)
 
-_ANALYTICS_PREFIX = "/api/analytics"
+_API_PREFIX = "/api"
 
 
 def _filters(
@@ -41,7 +41,7 @@ def add_analytics_routes(app: FastAPI, auth: Authentication) -> None:
     get_user_info = auth.get_user_info()
 
     router = APIRouter(
-        prefix=_ANALYTICS_PREFIX,
+        prefix=_API_PREFIX,
         tags=["Analytics"],
     )
 
