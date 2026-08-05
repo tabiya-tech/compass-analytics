@@ -1,9 +1,9 @@
 import { createHashRouter, Navigate, RouterProvider } from "react-router-dom";
-import ProtectedRoute from "@/app/ProtectedRoute/ProtectedRoute";
+import { ProtectedRoute } from "@/app/ProtectedRoute";
 import { Layout } from "@/app/Layout";
 import { routerPaths } from "@/app/routerPaths";
-import { Login } from "@/pages/Login/Login";
-import { Register } from "@/pages/Register/Register";
+import { Login } from "@/pages/Login";
+import { Register } from "@/pages/Register";
 import { Overview } from "@/pages/Overview/Overview";
 
 const router = createHashRouter([

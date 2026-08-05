@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn } from "storybook/test";
-import { SidebarUserMenu } from "./sidebar-user-menu";
+import { SidebarUserMenu } from "./SidebarUserMenu";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
 const meta = {

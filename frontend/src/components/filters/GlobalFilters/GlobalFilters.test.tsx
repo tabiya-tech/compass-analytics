@@ -5,7 +5,7 @@ import type { AccessState } from "@/access/AccessContext";
 import { AccessProvider } from "@/access/AccessContext";
 import { FiltersProvider } from "@/filters/FiltersContext";
 import { createInitialFilters, type FiltersState } from "@/filters/filters";
-import { GlobalFilters } from "./global-filters";
+import { GlobalFilters } from "./GlobalFilters";
 
 const GIVEN_TODAY = new Date(2026, 5, 15);
 const ALL_INSTITUTIONS: Partial<AccessState> = { scope: { type: "all" } };

@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { render, screen } from "@/_test_utilities/test-utils";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { DATA_TEST_ID as USER_AVATAR_TEST_ID } from "@/components/shared/UserAvatar";
-import { SidebarUserMenu } from "./sidebar-user-menu";
+import { SidebarUserMenu } from "./SidebarUserMenu";
 
 function renderMenu() {
   const onSignOut = vi.fn();
