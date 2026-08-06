@@ -173,6 +173,12 @@ Docker build). There is no deploy pipeline yet — `iac/` and a hosting target h
 
 - TypeScript, formatted with Prettier (`frontend/.prettierrc.json`), linted with oxlint.
 - Path alias `@/*` resolves to `frontend/src/*`.
+- **`data-testid`s are UUID-suffixed, on purpose — keep it.** Every component defines a module-level
+  `const uniqueId = "<uuid>"` and builds its test ids as `` `foo-${uniqueId}` `` via a `DATA_TEST_ID` map (see
+  `Overview.tsx`, `Login.tsx`, and the `auth/components/*`). The UUID guards against silent test-id collisions: if a
+  component is copy-pasted (or two components pick the same human-readable id), the tests can't accidentally match the
+  wrong element and pass for the wrong reason. This looks like noise but is deliberate — do **not** strip it, and give
+  every new component its own fresh `uniqueId` (a new UUID, not a copied one — copying defeats the point).
 
 ### Environment Variables
 

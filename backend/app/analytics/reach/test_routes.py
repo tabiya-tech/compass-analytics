@@ -20,11 +20,10 @@ import jwt as pyjwt
 import pytest
 from fastapi import FastAPI
 
-from app.analytics.dependencies import get_analytics_service
-from app.analytics.repositories import CompassAnalyticsRepository
+from app.analytics.dependencies import get_reach_service
+from app.analytics.reach.repository import CompassReachRepository
+from app.analytics.reach.service import ReachService
 from app.analytics.routes import add_analytics_routes
-from app.analytics.services import AnalyticsService
-from app.analytics.types import ReachResponse, ReachSummary, TimeSeriesPoint
 from app.auth.firebase import Authentication, UserInfo
 from app.users.service import IUserService, ScopeResolution
 from app.users.types import MeResponse, UserRole
@@ -42,6 +41,7 @@ class _FakeUserService(IUserService):
     async def resolve_scope(self, user_info: UserInfo, requested_institution_id: str | None) -> ScopeResolution:
         institution_ids = [requested_institution_id] if requested_institution_id else None
         return ScopeResolution(role=UserRole.FUNDER, institution_ids=institution_ids)
+
 
 _TEST_SECRET = "test-secret-key-long-enough-for-hs256"  # nosec B105 — HS256 signing key for forged test JWTs, not a credential
 
@@ -86,11 +86,10 @@ def _make_mock_transport(payload: dict | None = None, status_code: int = 200):
     return httpx.MockTransport(handler)
 
 
-def _make_service(transport) -> AnalyticsService:
-    http_client = AsyncHttpClient.__new__(AsyncHttpClient)
-    http_client._client = httpx.AsyncClient(transport=transport, base_url="http://compass-mock")
-    return AnalyticsService(
-        repository=CompassAnalyticsRepository(http_client),
+def _make_service(transport) -> ReachService:
+    http_client = AsyncHttpClient(base_url="http://compass-mock", transport=transport)
+    return ReachService(
+        repository=CompassReachRepository(http_client),
         user_service=_FakeUserService(),
     )
 
@@ -105,7 +104,7 @@ async def client_with_data(monkeypatch):
     add_analytics_routes(app, auth)
 
     service = _make_service(_make_mock_transport(_STUB_REACH_PAYLOAD))
-    app.dependency_overrides[get_analytics_service] = lambda: service
+    app.dependency_overrides[get_reach_service] = lambda: service
 
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
         yield c
@@ -121,7 +120,7 @@ async def client_no_api(monkeypatch):
     add_analytics_routes(app, auth)
 
     service = _make_service(_make_mock_transport(None))
-    app.dependency_overrides[get_analytics_service] = lambda: service
+    app.dependency_overrides[get_reach_service] = lambda: service
 
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
         yield c
