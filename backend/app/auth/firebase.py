@@ -8,6 +8,8 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
+from common_libs.environment_settings.environment_type import EnvironmentType
+
 logger = logging.getLogger(__name__)
 
 _BEARER = HTTPBearer(scheme_name="firebase")
@@ -56,19 +58,24 @@ class Authentication:
       using google-auth.
     """
 
-    def __init__(self, firebase_project_id: Optional[str] = None):
+    def __init__(self, firebase_project_id: Optional[str] = None, environment_type: Optional[str] = None):
         self.provider = _BEARER
         self._firebase_project_id = firebase_project_id
+        # Read from ApplicationConfig at construction (fail-fast) rather than
+        # os.getenv per request; falls back to the env var only when not supplied
+        # (e.g. tests that construct Authentication() directly). An unknown value
+        # resolves to PROD (verifying), so a misspelling can't disable auth.
+        raw_env = environment_type if environment_type is not None else os.getenv("TARGET_ENVIRONMENT_TYPE")
+        self._environment_type = EnvironmentType.from_string(raw_env)
 
     def get_user_info(self) -> Callable[[Request, HTTPAuthorizationCredentials], UserInfo]:
         def construct_user_info(
             request: Request,  # noqa: ARG001
             credentials: HTTPAuthorizationCredentials = Depends(self.provider),
         ) -> UserInfo:
-            target_env = os.getenv("TARGET_ENVIRONMENT_TYPE")
             token = credentials.credentials
             try:
-                if target_env == "local":
+                if self._environment_type == EnvironmentType.LOCAL:
                     if not token:
                         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized, missing credentials")
                     token_info = jwt.decode(token, options={"verify_signature": False})

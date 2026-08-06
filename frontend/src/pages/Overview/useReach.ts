@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import * as Sentry from "@sentry/react";
 import { useAuth } from "@/auth/AuthContext";
 import { useFilters } from "@/filters/FiltersContext";
 import { AnalyticsService } from "@/analytics/Analytics.service";
@@ -31,7 +32,9 @@ export function useReach(): ReachState {
           token
         );
         if (!cancelled) setState({ status: "success", data });
-      } catch {
+      } catch (error) {
+        // Surface the real failure to Sentry; show the user a generic message.
+        Sentry.captureException(error);
         if (!cancelled) setState({ status: "error", message: "Failed to load reach data." });
       }
     })();

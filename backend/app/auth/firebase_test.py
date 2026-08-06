@@ -1,7 +1,9 @@
 import jwt as pyjwt
 import pytest
+from fastapi import HTTPException
+from fastapi.security import HTTPAuthorizationCredentials
 
-from app.auth.firebase import Authentication, SignInProvider, _get_user_info
+from app.auth.firebase import Authentication, SignInProvider, UserInfo, _get_user_info
 
 _TEST_SECRET = "test-secret-key-long-enough-for-hs256"  # nosec B105 — HS256 signing key for forged test JWTs, not a credential
 
@@ -66,53 +68,91 @@ class TestGetUserInfo:
         assert actual_user_info.sign_in_provider == SignInProvider.GOOGLE
 
 
+def _bearer(token: str) -> HTTPAuthorizationCredentials:
+    return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+
+
+def _call_dependency(auth: Authentication, credentials: HTTPAuthorizationCredentials) -> UserInfo:
+    """Invoke the actual FastAPI dependency callable (request is unused by it)."""
+    return auth.get_user_info()(request=None, credentials=credentials)
+
+
 class TestAuthenticationLocal:
-    def test_should_decode_jwt_without_signature_verification_in_local_mode(self, monkeypatch):
-        # GIVEN the environment is set to local
-        monkeypatch.setenv("TARGET_ENVIRONMENT_TYPE", "local")
-        # AND a JWT token signed with a test secret
-        given_claims = {
+    def test_should_decode_unsigned_jwt_and_return_user_info_in_local_mode(self):
+        # GIVEN local mode (env passed explicitly, no signature verification)
+        given_auth = Authentication(environment_type="local")
+        # AND a self-signed JWT
+        given_token = _make_token({
             "sub": "uid-local",
             "email": "local@example.com",
             "name": "Local User",
             "firebase": {"sign_in_provider": "password"},
-        }
-        given_token = _make_token(given_claims)
+        })
 
-        # WHEN the token is decoded without signature verification
-        actual_decoded = pyjwt.decode(given_token, options={"verify_signature": False})
+        # WHEN the auth dependency resolves the request
+        actual_user_info = _call_dependency(given_auth, _bearer(given_token))
 
-        # THEN expect the decoded claims to match the original claims
-        assert actual_decoded["sub"] == "uid-local"
+        # THEN expect the mapped UserInfo (dependency, not a raw decode)
+        assert actual_user_info.user_id == "uid-local"
+        assert actual_user_info.email == "local@example.com"
+        assert actual_user_info.sign_in_provider == SignInProvider.PASSWORD
 
-    def test_should_store_firebase_project_id_when_provided(self, monkeypatch):
-        # GIVEN a non-local environment
-        monkeypatch.setenv("TARGET_ENVIRONMENT_TYPE", "staging")
-        # AND a Firebase project ID
-        given_project_id = "my-project"
+    def test_should_401_when_local_token_is_not_a_jwt(self):
+        # GIVEN local mode
+        given_auth = Authentication(environment_type="local")
 
-        # WHEN Authentication is constructed with the given project ID
-        actual_auth = Authentication(firebase_project_id=given_project_id)
+        # WHEN a non-JWT bearer token is presented
+        # THEN the dependency raises 401 (the except-Exception → 401 path)
+        with pytest.raises(HTTPException) as exc_info:
+            _call_dependency(given_auth, _bearer("not-a-jwt"))
+        assert exc_info.value.status_code == 401
 
-        # THEN expect the project ID to be stored
-        assert actual_auth._firebase_project_id == given_project_id
+    def test_should_default_unknown_environment_to_verifying_mode(self):
+        # GIVEN a misspelled environment type (should NOT be treated as local)
+        given_auth = Authentication(firebase_project_id="p", environment_type="Local")
+
+        # WHEN a self-signed token is presented, verification is attempted (and
+        # fails since it isn't a real Firebase token) → 401, NOT a silent accept.
+        with pytest.raises(HTTPException) as exc_info:
+            _call_dependency(given_auth, _bearer(_make_token({"sub": "x", "firebase": {"sign_in_provider": "password"}})))
+        assert exc_info.value.status_code == 401
 
 
 class TestAuthenticationProduction:
-    def test_should_call_firebase_token_verification_in_production_mode(self, monkeypatch, mocker):
-        # GIVEN a non-local environment
-        monkeypatch.setenv("TARGET_ENVIRONMENT_TYPE", "staging")
-        # AND a fake decoded token returned by the Firebase verifier
-        given_claims = {
-            "sub": "uid-prod",
-            "email": "prod@example.com",
-            "firebase": {"sign_in_provider": "google.com"},
-        }
-        mocker.patch("app.auth.firebase._verify_firebase_token", return_value=given_claims)
+    def test_should_verify_token_and_return_user_info_in_non_local_mode(self, mocker):
+        # GIVEN a non-local environment with a project id
+        given_auth = Authentication(firebase_project_id="my-project", environment_type="prod")
+        # AND the Firebase verifier returns decoded claims
+        verify = mocker.patch(
+            "app.auth.firebase._verify_firebase_token",
+            return_value={"sub": "uid-prod", "email": "prod@example.com", "firebase": {"sign_in_provider": "google.com"}},
+        )
 
-        # WHEN the Firebase token verifier is called
-        from app.auth.firebase import _verify_firebase_token
-        actual_claims = _verify_firebase_token("fake-token", "my-project")
+        # WHEN the auth dependency resolves the request
+        actual_user_info = _call_dependency(given_auth, _bearer("real-firebase-token"))
 
-        # THEN expect the returned claims to match the fake decoded token
-        assert actual_claims["sub"] == "uid-prod"
+        # THEN the verifier was called with the token + project id
+        verify.assert_called_once_with("real-firebase-token", "my-project")
+        # AND the mapped UserInfo comes back
+        assert actual_user_info.user_id == "uid-prod"
+        assert actual_user_info.sign_in_provider == SignInProvider.GOOGLE
+
+    def test_should_401_in_non_local_mode_when_project_id_missing(self):
+        # GIVEN a non-local environment with NO project id configured
+        given_auth = Authentication(firebase_project_id=None, environment_type="prod")
+
+        # WHEN a token is presented, the ValueError is mapped to 401
+        with pytest.raises(HTTPException) as exc_info:
+            _call_dependency(given_auth, _bearer("any-token"))
+        assert exc_info.value.status_code == 401
+
+    def test_should_401_when_verifier_raises(self, mocker):
+        # GIVEN a non-local environment where verification raises
+        given_auth = Authentication(firebase_project_id="my-project", environment_type="prod")
+        mocker.patch("app.auth.firebase._verify_firebase_token", side_effect=ValueError("bad token"))
+
+        # WHEN the dependency resolves the request
+        # THEN the exception is mapped to 401
+        with pytest.raises(HTTPException) as exc_info:
+            _call_dependency(given_auth, _bearer("bad-token"))
+        assert exc_info.value.status_code == 401
