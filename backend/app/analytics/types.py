@@ -1,45 +1,8 @@
-from datetime import date
-from typing import Literal
+"""
+Shared, cross-slice analytics types.
 
-from pydantic import BaseModel
-
-# ---- Query filters ----
-
-Granularity = Literal["day", "week", "month"]
-AudienceSegment = Literal["youth", "women", "rural", "first-time-jobseeker"]
-LoginMethod = Literal["email", "google", "anonymous"]
-
-
-class AnalyticsFilters(BaseModel):
-    start_date: date
-    end_date: date
-    granularity: Granularity
-    audience_segment: AudienceSegment | None = None
-    login_method: LoginMethod | None = None
-    institution_id: str | None = None  # None = all institutions in the caller's scope
-
-    model_config = {"extra": "forbid"}
-
-
-# ---- Reach ----
-
-class ReachSummary(BaseModel):
-    total_users: int
-    active_users_30d: int
-    total_logins: int
-    avg_logins_per_user: float
-    avg_session_minutes: int
-
-
-class TimeSeriesPoint(BaseModel):
-    label: str
-    cumulative: int
-    added: int
-    new_users: int
-    returning: int
-    logins: int
-
-
-class ReachResponse(BaseModel):
-    summary: ReachSummary
-    series: list[TimeSeriesPoint]
+Slice-specific models live in their own subpackage (e.g. app/analytics/reach/types.py).
+This module is for types reused across slices (e.g. a future Institution,
+PaginatedListResponse[T], or common filter enums) — intentionally near-empty
+while reach is the only slice.
+"""

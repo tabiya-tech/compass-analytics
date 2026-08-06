@@ -9,15 +9,17 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.analytics.dependencies import close_reach_service
 from app.analytics.routes import add_analytics_routes
 from app.app_config import ApplicationConfig, set_application_config
-from app.auth.api_key import ApiKeyAuth, ExternalService
+from app.auth.api_key import ExternalService
 from app.auth.firebase import Authentication
 from app.sentry_init import init_sentry, set_sentry_contexts
 from app.server_dependencies.db_dependencies import AnalyticsDBProvider
 from app.users.routes import add_users_routes
 from app.version.routes import add_version_routes
 from app.version.types import VersionInfo
+from common_libs.environment_settings.environment_type import EnvironmentType
 from common_libs.logging.log_utilities import setup_logging_config
 
 load_dotenv()
@@ -93,6 +95,7 @@ async def lifespan(_app: FastAPI):
     await AnalyticsDBProvider.initialize_mongo_db(db)
     logger.info("Startup complete.")
     yield
+    await close_reach_service()
     AnalyticsDBProvider.clear_cache()
     logger.info("Shutdown complete.")
 
@@ -107,8 +110,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-_cors_origins = [application_config.frontend_url, application_config.backend_url + "/docs"]
-if application_config.environment_type in ("dev", "local"):
+_cors_origins = [application_config.frontend_url]
+if EnvironmentType.from_string(application_config.environment_type) in (EnvironmentType.DEV, EnvironmentType.LOCAL):
     _cors_origins.append("*")
 
 app.add_middleware(
@@ -119,8 +122,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-api_key_auth = ApiKeyAuth(keys=application_config.service_api_keys)
-firebase_auth = Authentication(firebase_project_id=application_config.firebase_project_id)
+firebase_auth = Authentication(
+    firebase_project_id=application_config.firebase_project_id,
+    environment_type=application_config.environment_type,
+)
 
 add_version_routes(app)
 add_users_routes(app, firebase_auth)

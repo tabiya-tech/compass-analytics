@@ -20,11 +20,20 @@ class AsyncHttpClient:
     Intended as the base for future external API clients (e.g. CompassApiClient).
     """
 
-    def __init__(self, base_url: str, headers: dict[str, str] | None = None, timeout: float = 30.0):
+    def __init__(
+        self,
+        base_url: str,
+        headers: dict[str, str] | None = None,
+        timeout: float = 30.0,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ):
+        # `transport` lets tests inject an httpx.MockTransport without reaching
+        # into the private _client; it's None in production.
         self._client = httpx.AsyncClient(
             base_url=base_url,
             headers=headers or {},
             timeout=timeout,
+            transport=transport,
         )
 
     async def get(self, path: str, params: dict[str, Any] | None = None) -> Any:

@@ -10,8 +10,6 @@ import {
 import type { LoginRequest, RegisterRequest } from "@/auth/auth.types";
 import { getFirebaseApp } from "@/auth/firebase";
 
-export const AUTH_API_BASE = "/api/auth";
-
 export class AuthApiError extends Error {
   readonly status: number;
   readonly code: string;
