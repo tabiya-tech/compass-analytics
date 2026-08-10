@@ -9,6 +9,11 @@
       "label": "Language"
     }
   },
+  "access": {
+    "loading": "Loading your workspace…",
+    "unprovisioned": "Your access hasn't been set up yet. Please contact your administrator.",
+    "error": "We couldn't load your profile. Try reloading the page."
+  },
   "error": {
     "errorPage": {
       "title": "Something went wrong",
