@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@/_test_utilities/test-utils";
 import { FiltersProvider } from "@/filters/FiltersContext";
 import { createInitialFilters } from "@/filters/filters";
-import { TimeFilterBar, type TimeFilterBarProps } from "./time-filter-bar";
+import { TimeFilterBar, type TimeFilterBarProps } from "./TimeFilterBar";
 
 const GIVEN_TODAY = new Date(2026, 5, 15);
 

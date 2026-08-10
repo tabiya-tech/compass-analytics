@@ -1,8 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from "@/components/ui/sidebar";
 import { getAppName, getLogoInverseUrl } from "@/branding/brandingConfig";
-import { SidebarNav } from "@/components/sidebar/components/sidebar-nav";
-import { SidebarUserMenu } from "@/components/sidebar/components/sidebar-user-menu";
+import { SidebarNav } from "@/components/sidebar/components/SidebarNav";
+import { SidebarUserMenu } from "@/components/sidebar/components/SidebarUserMenu";
 import { AuthenticationServiceFactory } from "@/auth/services/Authentication.service.factory";
 import { routerPaths } from "@/app/routerPaths";
 
