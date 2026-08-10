@@ -5,6 +5,7 @@ from app.analytics.repositories import CompassAnalyticsRepository
 from app.analytics.services import AnalyticsService, IAnalyticsService
 from app.app_config import get_application_config
 from app.auth.api_key import ExternalService
+from app.users.dependencies import get_user_service
 from common_libs.http_client.base import AsyncHttpClient
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,11 @@ async def get_analytics_service() -> IAnalyticsService:
                     base_url=config.compass_base_url,
                     headers={"X-API-Key": api_key},
                 )
-                _singleton = AnalyticsService(repository=CompassAnalyticsRepository(http_client))
+                user_service = await get_user_service()
+                _singleton = AnalyticsService(
+                    repository=CompassAnalyticsRepository(http_client),
+                    user_service=user_service,
+                )
     return _singleton
 
 

@@ -15,6 +15,7 @@ from app.auth.api_key import ApiKeyAuth, ExternalService
 from app.auth.firebase import Authentication
 from app.sentry_init import init_sentry, set_sentry_contexts
 from app.server_dependencies.db_dependencies import AnalyticsDBProvider
+from app.users.routes import add_users_routes
 from app.version.routes import add_version_routes
 from app.version.types import VersionInfo
 from common_libs.logging.log_utilities import setup_logging_config
@@ -122,6 +123,7 @@ api_key_auth = ApiKeyAuth(keys=application_config.service_api_keys)
 firebase_auth = Authentication(firebase_project_id=application_config.firebase_project_id)
 
 add_version_routes(app)
+add_users_routes(app, firebase_auth)
 add_analytics_routes(app, firebase_auth)
 
 if __name__ == "__main__":

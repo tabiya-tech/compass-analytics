@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { render as renderWithoutProviders } from "@testing-library/react";
-import { render, screen } from "@/_test_utilities/test-utils";
+import { http, HttpResponse } from "msw";
+import { render, screen, waitFor } from "@/_test_utilities/test-utils";
+import { server } from "@/mocks/server";
 import { MODULE_IDS, PERMISSIONS } from "@/access/AccessContext";
-import { AccessProvider, useAccess } from "./AccessContext";
+import { AccessGate, AccessProvider, useAccess } from "./AccessContext";
+import type { MeResponse } from "@/user/user.types";
 
 function AccessProbe() {
   const access = useAccess();
@@ -85,6 +88,81 @@ describe("AccessProvider", () => {
 
     // THEN drilling down would be a no-op
     expect(screen.getByTestId("is-multi-institution")).toHaveTextContent("false");
+  });
+});
+
+describe("AccessGate", () => {
+  const givenMe: MeResponse = {
+    user_id: "u1",
+    email: "u@example.com",
+    name: "U",
+    role: "funder",
+    scope: { type: "all", institution_ids: [] },
+    active_modules: ["build-your-profile"],
+  };
+
+  it("should show the loading state while /api/me is in flight", () => {
+    // GIVEN /api/me has not yet responded
+    server.use(http.get("/api/me", async () => new Promise(() => {})));
+
+    // WHEN the gate is rendered
+    render(
+      <AccessGate>
+        <AccessProbe />
+      </AccessGate>
+    );
+
+    // THEN the loading status is shown and children are withheld
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.queryByTestId("has-institutions")).not.toBeInTheDocument();
+  });
+
+  it("should hydrate access from /api/me and render children on success", async () => {
+    // GIVEN /api/me returns a funder profile
+    server.use(http.get("/api/me", () => HttpResponse.json(givenMe)));
+
+    // WHEN the gate is rendered
+    render(
+      <AccessGate>
+        <AccessProbe />
+      </AccessGate>
+    );
+
+    // THEN the children eventually render with the funder's resolved access
+    await waitFor(() => expect(screen.getByTestId("has-institutions")).toBeInTheDocument());
+    expect(screen.getByTestId("has-institutions")).toHaveTextContent("true");
+    expect(screen.getByTestId("active-modules")).toHaveTextContent("build-your-profile");
+  });
+
+  it("should show the unprovisioned message on a 404", async () => {
+    // GIVEN the caller has no profile yet
+    server.use(http.get("/api/me", () => new HttpResponse(null, { status: 404 })));
+
+    // WHEN the gate is rendered
+    render(
+      <AccessGate>
+        <AccessProbe />
+      </AccessGate>
+    );
+
+    // THEN an alert is shown and children are withheld
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(screen.queryByTestId("has-institutions")).not.toBeInTheDocument();
+  });
+
+  it("should show the error message when /api/me fails", async () => {
+    // GIVEN /api/me errors
+    server.use(http.get("/api/me", () => HttpResponse.error()));
+
+    // WHEN the gate is rendered
+    render(
+      <AccessGate>
+        <AccessProbe />
+      </AccessGate>
+    );
+
+    // THEN an alert is shown
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
   });
 });
 

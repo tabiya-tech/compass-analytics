@@ -6,6 +6,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from common_libs.database.get_mongo_db_connection import get_mongo_db_connection
 from common_libs.environment_settings.mongo_db_settings import MongoDbSettings
+from app.users.repository import USERS_COLLECTION
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ class AnalyticsDBProvider:
     @staticmethod
     async def initialize_mongo_db(db: AsyncIOMotorDatabase) -> None:
         """Create indexes here as collections are added. Idempotent — safe to call on every startup."""
-        _ = db
+        await db[USERS_COLLECTION].create_index("user_id", unique=True, name="user_id_unique")
 
     @classmethod
     def clear_cache(cls) -> None:
