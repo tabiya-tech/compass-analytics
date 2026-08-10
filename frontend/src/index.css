@@ -157,6 +157,16 @@
   --input: var(--border-subtle);
   --ring: var(--tabiya-green);
 
+  --chart-1: var(--green-2);
+  --chart-2: var(--green-3);
+  --chart-3: var(--tabiya-blue);
+  --chart-4: #b8c6d9;
+
+  --chart-warning: #b8761a;
+
+  --chart-progress-done: var(--green-3);
+  --chart-progress-active: #a5d9bf;
+
   --sidebar: var(--tabiya-blue);
   --sidebar-foreground: var(--white);
   --sidebar-primary: var(--tabiya-green);
@@ -212,6 +222,12 @@
   --color-tabiya-grey: var(--tabiya-grey);
   --color-green-2: var(--green-2);
   --color-green-3: var(--green-3);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-warning: var(--chart-warning);
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 4px);
