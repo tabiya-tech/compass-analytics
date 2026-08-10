@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect } from "storybook/test";
-import { TimeFilterBar } from "./time-filter-bar";
+import { TimeFilterBar } from "./TimeFilterBar";
 import { FiltersProvider } from "@/filters/FiltersContext";
 import { createInitialFilters, deriveGranularity } from "@/filters/filters";
 

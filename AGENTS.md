@@ -80,7 +80,7 @@ plus one entry each in `SupportedLocales` and `LocalesLabels` (`src/i18n/constan
   tests assert against real copy, not placeholder keys, without needing async init). Storybook takes the opposite
   approach: `.storybook/preview.tsx` wires the real i18next instance through `I18nextProvider`, with a toolbar
   `globalTypes.locale` dropdown to preview other locales live.
-- **Language switcher**: `src/i18n/languageSwitcher/LanguageSwitcher.tsx`, in the sidebar footer.
+- **Language switcher**: `src/i18n/LanguageSwitcher/LanguageSwitcher.tsx`, in the sidebar footer.
 
 ## Error tracking (Sentry)
 
@@ -92,7 +92,7 @@ build/deployment rather than something that should be swappable without a rebuil
 the literal string `"true"` to enable — any other value (including unset) leaves it off, so a local/unconfigured
 build never reports.
 
-`Sentry.ErrorBoundary` wraps `<App />` in `main.tsx`, falling back to `src/sentry/ErrorFallback.tsx` on an uncaught
+`Sentry.ErrorBoundary` wraps `<App />` in `main.tsx`, falling back to `src/sentry/ErrorFallback/ErrorFallback.tsx` on an uncaught
 render error. This is intentionally a minimal core setup (init + error boundary only) — no router instrumentation
 (no router exists yet), no feedback widget, no sourcemap upload pipeline. Add those later if/when they're needed,
 following compass's `frontend-new/src/sentryInit.ts` for reference, but note compass's setup includes some

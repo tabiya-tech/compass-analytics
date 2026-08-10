@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect } from "storybook/test";
-import { SidebarNav } from "./sidebar-nav";
+import { SidebarNav } from "./SidebarNav";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AccessProvider } from "@/access/AccessContext";
 import { MODULE_IDS, PERMISSIONS } from "@/access/AccessContext";

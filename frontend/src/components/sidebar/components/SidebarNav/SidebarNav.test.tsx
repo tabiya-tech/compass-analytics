@@ -10,7 +10,7 @@ import {
   type ModuleId,
   type PermissionKey,
 } from "@/access/AccessContext";
-import { getModuleSubItems, getVisibleNavItems, NAV_ITEMS, SidebarNav, type NavVisibilityContext } from "./sidebar-nav";
+import { getModuleSubItems, getVisibleNavItems, NAV_ITEMS, SidebarNav, type NavVisibilityContext } from "./SidebarNav";
 
 function renderNav(access: Partial<AccessState> = {}) {
   return render(
