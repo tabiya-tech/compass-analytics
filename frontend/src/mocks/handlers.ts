@@ -1,6 +1,7 @@
 import { http, HttpResponse, type HttpHandler } from "msw";
 import type { BrandingConfig } from "@/branding/brandingConfig";
 import type { ReachResponse } from "@/analytics/analytics.types";
+import type { MeResponse } from "@/user/user.types";
 
 /**
  * Mirrors public/branding.json. Kept as a plain object (not imported from
@@ -49,6 +50,15 @@ const stubReach: ReachResponse = {
   ],
 };
 
+const stubMe: MeResponse = {
+  user_id: "dev-funder",
+  email: "funder@example.com",
+  name: "Dev Funder",
+  role: "funder",
+  scope: { type: "all", institution_ids: [] },
+  active_modules: ["build-your-profile", "job-readiness", "career-explorer", "jobs"],
+};
+
 /** Exported individually so the browser dev worker can include only this one. */
 export const brandingHandler = http.get("/branding.json", () => HttpResponse.json(defaultBranding));
 
@@ -56,4 +66,8 @@ export const brandingHandler = http.get("/branding.json", () => HttpResponse.jso
  * Full handler list for tests and Storybook — includes all API stubs so
  * components render with realistic data without needing the backend running.
  */
-export const handlers: HttpHandler[] = [brandingHandler, http.get("/api/reach", () => HttpResponse.json(stubReach))];
+export const handlers: HttpHandler[] = [
+  brandingHandler,
+  http.get("/api/me", () => HttpResponse.json(stubMe)),
+  http.get("/api/reach", () => HttpResponse.json(stubReach)),
+];
