@@ -1,7 +1,16 @@
 import type { ComponentType } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Briefcase, Building2, Compass, GraduationCap, LayoutGrid, MessageCircle, Users } from "lucide-react";
+import {
+  Briefcase,
+  Building2,
+  Compass,
+  GraduationCap,
+  LayoutGrid,
+  MessageCircle,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
 import {
   SidebarGroup,
   SidebarMenu,
@@ -39,6 +48,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: { action: Action.View, subject: Subject.Dashboard },
   },
   {
+    id: "jobseekers",
+    labelKey: "nav.jobseekers",
+    path: routerPaths.JOBSEEKERS,
+    icon: Users,
+    permission: { action: Action.View, subject: Subject.Jobseekers },
+  },
+  {
     id: "institutions",
     labelKey: "nav.institutions",
     path: routerPaths.INSTITUTIONS,
@@ -46,11 +62,11 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: { action: Action.View, subject: Subject.Institutions },
   },
   {
-    id: "jobseekers",
-    labelKey: "nav.jobseekers",
-    path: routerPaths.JOBSEEKERS,
-    icon: Users,
-    permission: { action: Action.View, subject: Subject.Jobseekers },
+    id: "access",
+    labelKey: "nav.access",
+    path: routerPaths.USER_ACCESS,
+    icon: ShieldCheck,
+    permission: { action: Action.Manage, subject: Subject.AccessManagement },
   },
   {
     id: "modules",
@@ -75,7 +91,11 @@ const MODULE_NAV_ICONS: Record<ModuleId, ComponentType<{ className?: string }>> 
   [MODULE_IDS.JOBS]: Briefcase,
 };
 
-export function getVisibleNavItems(items: readonly NavItem[], ability: AppAbility, activeModules: readonly ModuleId[]): NavItem[] {
+export function getVisibleNavItems(
+  items: readonly NavItem[],
+  ability: AppAbility,
+  activeModules: readonly ModuleId[]
+): NavItem[] {
   return items.filter((item) => {
     if (item.requiresMultipleActiveModules) return activeModules.length > 1;
     if (item.permission) return ability.can(item.permission.action, item.permission.subject);

@@ -1,8 +1,8 @@
 import { createHashRouter, Navigate, RouterProvider } from "react-router-dom";
-import ProtectedRoute from "@/app/ProtectedRoute/ProtectedRoute";
+import ProtectedRoute, { PermissionRoute } from "@/app/ProtectedRoute/ProtectedRoute";
 import { Layout } from "@/app/Layout";
 import { routerPaths } from "@/app/routerPaths";
-import { PERMISSIONS } from "@/access/AccessContext";
+import { Action, Subject } from "@/access/AccessContext";
 import { Login } from "@/pages/Login/Login";
 import { Register } from "@/pages/Register/Register";
 import { Overview } from "@/pages/Overview/Overview";
@@ -30,16 +30,24 @@ const router = createHashRouter([
         ),
       },
       {
+        path: routerPaths.JOBSEEKERS,
+        element: <ProtectedRoute>Jobseekers</ProtectedRoute>,
+      },
+      {
         path: routerPaths.INSTITUTIONS,
         element: (
-          <ProtectedRoute permission={PERMISSIONS.INSTITUTIONS_VIEW}>
+          <PermissionRoute action={Action.View} subject={Subject.Institutions}>
             <Institutions />
-          </ProtectedRoute>
+          </PermissionRoute>
         ),
       },
       {
-        path: routerPaths.JOBSEEKERS,
-        element: <ProtectedRoute>Jobseekers</ProtectedRoute>,
+        path: routerPaths.USER_ACCESS,
+        element: (
+          <PermissionRoute action={Action.Manage} subject={Subject.AccessManagement}>
+            User Access
+          </PermissionRoute>
+        ),
       },
       {
         path: routerPaths.MODULES,
