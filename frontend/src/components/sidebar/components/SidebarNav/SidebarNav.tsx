@@ -11,7 +11,14 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
-import { MODULE_IDS, PERMISSIONS, useAccess, type ModuleId, type PermissionKey } from "@/access/AccessContext";
+import {
+  MODULE_IDS,
+  MODULE_LABEL_KEYS,
+  PERMISSIONS,
+  useAccess,
+  type ModuleId,
+  type PermissionKey,
+} from "@/access/AccessContext";
 import { modulePath, routerPaths } from "@/app/routerPaths";
 import type { TranslationKey } from "@/i18n/react-i18next";
 
@@ -48,13 +55,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
 ];
 
-const MODULE_NAV_LABELS: Record<ModuleId, TranslationKey> = {
-  [MODULE_IDS.BUILD_YOUR_PROFILE]: "nav.modulesSection.buildYourProfile",
-  [MODULE_IDS.JOB_READINESS]: "nav.modulesSection.jobReadiness",
-  [MODULE_IDS.CAREER_EXPLORER]: "nav.modulesSection.careerExplorer",
-  [MODULE_IDS.JOBS]: "nav.modulesSection.jobs",
-};
-
 const MODULE_NAV_ICONS: Record<ModuleId, ComponentType<{ className?: string }>> = {
   [MODULE_IDS.BUILD_YOUR_PROFILE]: MessageCircle,
   [MODULE_IDS.JOB_READINESS]: GraduationCap,
@@ -85,7 +85,7 @@ export interface ModuleSubItem {
 export function getModuleSubItems(activeModules: readonly ModuleId[]): ModuleSubItem[] {
   return activeModules.map((id) => ({
     id,
-    labelKey: MODULE_NAV_LABELS[id],
+    labelKey: MODULE_LABEL_KEYS[id],
     path: modulePath(id),
     icon: MODULE_NAV_ICONS[id],
   }));

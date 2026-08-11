@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Cell, Pie, PieChart } from "recharts";
-import { EmptyState } from "@/components/shared/EmptyState";
 import { ChartDataTable, type ChartTable } from "@/components/charts/components/ChartDataTable";
 import { ChartLegend } from "@/components/charts/DonutChart/components/ChartLegend";
 import { seriesColorAt } from "@/components/charts/chart-palette";
@@ -51,11 +50,40 @@ export function DonutChart({
   const { t } = useTranslation();
   const total = slices.reduce((sum, slice) => sum + slice.value, 0);
   const isInteractive = Boolean(onSelect);
+  const radius = size / 2;
+  const innerRadius = radius - THICKNESS;
 
   if (slices.length === 0 || total <= 0) {
     return (
-      <div data-testid={DATA_TEST_ID.EMPTY} className={className}>
-        <EmptyState message={emptyMessage ?? t("charts.empty")} />
+      <div
+        data-slot="donut-chart"
+        data-testid={DATA_TEST_ID.EMPTY}
+        className={cn("relative shrink-0", className)}
+        style={{ width: size, height: size }}
+      >
+        {/* role="img", not aria-hidden — Recharts' SVG has a focusable node aria-hidden can't legally hide. */}
+        <div role="img" aria-label={emptyMessage ?? t("charts.empty")} style={{ width: size, height: size }}>
+          <ChartContainer config={{}} className="aspect-auto" style={{ width: size, height: size }}>
+            <PieChart>
+              <Pie
+                data={[{ id: "empty", value: 1 }]}
+                dataKey="value"
+                nameKey="id"
+                cx="50%"
+                cy="50%"
+                innerRadius={innerRadius}
+                outerRadius={radius}
+                stroke="none"
+                isAnimationActive={false}
+              >
+                <Cell fill="var(--muted)" />
+              </Pie>
+            </PieChart>
+          </ChartContainer>
+        </div>
+        <div aria-hidden="true" className="absolute inset-0 flex items-center justify-center px-6 text-center">
+          <span className="text-xs text-muted-foreground">{emptyMessage ?? t("charts.empty")}</span>
+        </div>
       </div>
     );
   }
@@ -68,9 +96,6 @@ export function DonutChart({
       cells: [valueFormatter(slice.value), `${percentageOf(slice.value, total)}%`],
     })),
   };
-
-  const radius = size / 2;
-  const innerRadius = radius - THICKNESS;
 
   const colorOf = (slice: DonutSlice, index: number) => slice.color ?? seriesColorAt(index);
 

@@ -1,15 +1,27 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { expect } from "storybook/test";
+import type { User } from "firebase/auth";
 import { AppSidebar } from "./AppSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AccessProvider } from "@/access/AccessContext";
 import { PERMISSIONS, MODULE_IDS } from "@/access/AccessContext";
+import { AuthContext } from "@/auth/AuthContext";
+
+// A stub, not the real AuthProvider — Storybook runs in a real browser, with no Firebase config to resolve against.
+const SIGNED_IN_USER = { displayName: "Taylor Kimathi", email: "taylor@example.com", photoURL: null } as User;
+
+const withAuth: Decorator = (Story) => (
+  <AuthContext.Provider value={{ user: SIGNED_IN_USER, loading: false, getIdToken: async () => "storybook-token" }}>
+    <Story />
+  </AuthContext.Provider>
+);
 
 const meta = {
   title: "Sidebar/AppSidebar",
   component: AppSidebar,
   tags: ["autodocs"],
   decorators: [
+    withAuth,
     (Story) => (
       <AccessProvider>
         <SidebarProvider>
