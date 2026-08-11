@@ -1,19 +1,18 @@
 import { describe, expect, it } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { render, screen } from "@/_test_utilities/test-utils";
-import type { AccessState } from "@/access/AccessContext";
-import { AccessProvider } from "@/access/AccessContext";
+import { AccessProvider, type AccessScope } from "@/access/AccessContext";
 import { FiltersProvider } from "@/filters/FiltersContext";
 import { createInitialFilters, type FiltersState } from "@/filters/filters";
 import { GlobalFilters } from "./GlobalFilters";
 
 const GIVEN_TODAY = new Date(2026, 5, 15);
-const ALL_INSTITUTIONS: Partial<AccessState> = { scope: { type: "all" } };
+const ALL_INSTITUTIONS: AccessScope = { type: "all" };
 
-function renderGlobalFilters(filters: Partial<FiltersState> = {}, access: Partial<AccessState> = {}) {
+function renderGlobalFilters(filters: Partial<FiltersState> = {}, scope?: AccessScope) {
   const initialFilters: FiltersState = { ...createInitialFilters(GIVEN_TODAY), ...filters };
   render(
-    <AccessProvider access={access}>
+    <AccessProvider scope={scope}>
       <FiltersProvider initialFilters={initialFilters}>
         <GlobalFilters />
       </FiltersProvider>
@@ -49,7 +48,7 @@ describe("GlobalFilters", () => {
     // GIVEN a grant explicitly covering a portfolio of three institutions (scope is not "all")
     renderGlobalFilters(
       { institutionDrillDownId: "inst-1" },
-      { scope: { type: "institutions", institutionIds: ["inst-1", "inst-2", "inst-3"] } }
+      { type: "institutions", institutionIds: ["inst-1", "inst-2", "inst-3"] }
     );
 
     // THEN the drill-down chip still shows — it's meaningful whenever more than one is in scope
@@ -60,7 +59,7 @@ describe("GlobalFilters", () => {
     // GIVEN an institution drill-down set, but the grant covers only one institution
     renderGlobalFilters(
       { institutionDrillDownId: "inst-1", audienceSegment: "women" },
-      { scope: { type: "institutions", institutionIds: ["inst-1"] } }
+      { type: "institutions", institutionIds: ["inst-1"] }
     );
 
     // THEN the institution chip is hidden while the others still show

@@ -1,27 +1,15 @@
-import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect } from "storybook/test";
-import type { User } from "firebase/auth";
 import { AppSidebar } from "./AppSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { AccessProvider } from "@/access/AccessContext";
-import { PERMISSIONS, MODULE_IDS } from "@/access/AccessContext";
-import { AuthContext } from "@/auth/AuthContext";
-
-// A stub, not the real AuthProvider — Storybook runs in a real browser, with no Firebase config to resolve against.
-const SIGNED_IN_USER = { displayName: "Taylor Kimathi", email: "taylor@example.com", photoURL: null } as User;
-
-const withAuth: Decorator = (Story) => (
-  <AuthContext.Provider value={{ user: SIGNED_IN_USER, loading: false, getIdToken: async () => "storybook-token" }}>
-    <Story />
-  </AuthContext.Provider>
-);
+import { AccessProvider, MODULE_IDS } from "@/access/AccessContext";
+import { buildAbility } from "@/access/ability";
 
 const meta = {
   title: "Sidebar/AppSidebar",
   component: AppSidebar,
   tags: ["autodocs"],
   decorators: [
-    withAuth,
     (Story) => (
       <AccessProvider>
         <SidebarProvider>
@@ -75,12 +63,7 @@ export const FullAccess: Story = {
 export const MinimalAccess: Story = {
   decorators: [
     (Story) => (
-      <AccessProvider
-        access={{
-          permissions: new Set([PERMISSIONS.DASHBOARD_VIEW]),
-          activeModules: [],
-        }}
-      >
+      <AccessProvider ability={buildAbility(["dashboard:view"])} activeModules={[]}>
         <SidebarProvider>
           <Story />
         </SidebarProvider>
@@ -97,7 +80,7 @@ export const MinimalAccess: Story = {
 export const SingleActiveModule: Story = {
   decorators: [
     (Story) => (
-      <AccessProvider access={{ activeModules: [MODULE_IDS.BUILD_YOUR_PROFILE] }}>
+      <AccessProvider activeModules={[MODULE_IDS.BUILD_YOUR_PROFILE]}>
         <SidebarProvider>
           <Story />
         </SidebarProvider>

@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Building2, LayoutGrid, Users } from "lucide-react";
+import { Briefcase, Building2, Compass, GraduationCap, LayoutGrid, MessageCircle, Users } from "lucide-react";
 import {
   SidebarGroup,
   SidebarMenu,
@@ -11,17 +11,22 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
-import { PERMISSIONS, useAccess, type ModuleId, type PermissionKey } from "@/access/AccessContext";
-import { MODULE_ICONS, MODULE_LABEL_KEYS } from "@/access/moduleDisplay";
+import { Action, MODULE_IDS, Subject, useAbility, useAccess, type ModuleId } from "@/access/AccessContext";
+import type { AppAbility } from "@/access/ability";
 import { modulePath, routerPaths } from "@/app/routerPaths";
 import type { TranslationKey } from "@/i18n/react-i18next";
+
+export interface NavPermission {
+  action: Action;
+  subject: Subject;
+}
 
 export interface NavItem {
   id: string;
   labelKey: TranslationKey;
   path: string;
   icon: ComponentType<{ className?: string }>;
-  permission?: PermissionKey; // absent ⇒ always visible
+  permission?: NavPermission; // absent ⇒ always visible
   requiresMultipleActiveModules?: boolean;
 }
 
@@ -31,21 +36,21 @@ export const NAV_ITEMS: readonly NavItem[] = [
     labelKey: "nav.overview",
     path: routerPaths.ROOT,
     icon: LayoutGrid,
-    permission: PERMISSIONS.DASHBOARD_VIEW,
+    permission: { action: Action.View, subject: Subject.Dashboard },
   },
   {
     id: "institutions",
     labelKey: "nav.institutions",
     path: routerPaths.INSTITUTIONS,
     icon: Building2,
-    permission: PERMISSIONS.INSTITUTIONS_VIEW,
+    permission: { action: Action.View, subject: Subject.Institutions },
   },
   {
     id: "jobseekers",
     labelKey: "nav.jobseekers",
     path: routerPaths.JOBSEEKERS,
     icon: Users,
-    permission: PERMISSIONS.JOBSEEKERS_VIEW,
+    permission: { action: Action.View, subject: Subject.Jobseekers },
   },
   {
     id: "modules",
@@ -56,15 +61,24 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
 ];
 
-export interface NavVisibilityContext {
-  hasPermission: (permission: PermissionKey) => boolean;
-  activeModules: readonly ModuleId[];
-}
+const MODULE_NAV_LABELS: Record<ModuleId, TranslationKey> = {
+  [MODULE_IDS.BUILD_YOUR_PROFILE]: "nav.modulesSection.buildYourProfile",
+  [MODULE_IDS.JOB_READINESS]: "nav.modulesSection.jobReadiness",
+  [MODULE_IDS.CAREER_EXPLORER]: "nav.modulesSection.careerExplorer",
+  [MODULE_IDS.JOBS]: "nav.modulesSection.jobs",
+};
 
-export function getVisibleNavItems(items: readonly NavItem[], ctx: NavVisibilityContext): NavItem[] {
+const MODULE_NAV_ICONS: Record<ModuleId, ComponentType<{ className?: string }>> = {
+  [MODULE_IDS.BUILD_YOUR_PROFILE]: MessageCircle,
+  [MODULE_IDS.JOB_READINESS]: GraduationCap,
+  [MODULE_IDS.CAREER_EXPLORER]: Compass,
+  [MODULE_IDS.JOBS]: Briefcase,
+};
+
+export function getVisibleNavItems(items: readonly NavItem[], ability: AppAbility, activeModules: readonly ModuleId[]): NavItem[] {
   return items.filter((item) => {
-    if (item.requiresMultipleActiveModules) return ctx.activeModules.length > 1;
-    if (item.permission) return ctx.hasPermission(item.permission);
+    if (item.requiresMultipleActiveModules) return activeModules.length > 1;
+    if (item.permission) return ability.can(item.permission.action, item.permission.subject);
     return true;
   });
 }
@@ -79,19 +93,20 @@ export interface ModuleSubItem {
 export function getModuleSubItems(activeModules: readonly ModuleId[]): ModuleSubItem[] {
   return activeModules.map((id) => ({
     id,
-    labelKey: MODULE_LABEL_KEYS[id],
+    labelKey: MODULE_NAV_LABELS[id],
     path: modulePath(id),
-    icon: MODULE_ICONS[id],
+    icon: MODULE_NAV_ICONS[id],
   }));
 }
 
 export function SidebarNav() {
   const { t } = useTranslation();
   const location = useLocation();
-  const access = useAccess();
+  const ability = useAbility<AppAbility>();
+  const { activeModules } = useAccess();
 
-  const visibleItems = getVisibleNavItems(NAV_ITEMS, access);
-  const moduleSubItems = getModuleSubItems(access.activeModules);
+  const visibleItems = getVisibleNavItems(NAV_ITEMS, ability, activeModules);
+  const moduleSubItems = getModuleSubItems(activeModules);
 
   return (
     <SidebarGroup>
