@@ -18,30 +18,6 @@ import json
 import httpx
 import jwt as pyjwt
 import pytest
-from fastapi import FastAPI
-
-from app.analytics.dependencies import get_reach_service
-from app.analytics.reach.repository import CompassReachRepository
-from app.analytics.reach.service import ReachService
-from app.analytics.routes import add_analytics_routes
-from app.auth.firebase import Authentication, UserInfo
-from app.users.service import IUserService, ScopeResolution
-from app.users.types import MeResponse
-from common_libs.http_client.base import AsyncHttpClient
-
-
-class _FakeUserService(IUserService):
-    """A user service that treats every caller as having unrestricted scope —
-    the reach route tests care about the upstream mapping, not authz
-    (that's covered in users/service_test.py)."""
-
-    async def get_me(self, user_info: UserInfo) -> MeResponse:  # pragma: no cover - not exercised here
-        raise NotImplementedError
-
-    async def resolve_scope(self, user_info: UserInfo, requested_institution_id: str | None) -> ScopeResolution:
-        institution_ids = [requested_institution_id] if requested_institution_id else None
-        return ScopeResolution(institution_ids=institution_ids)
-
 
 _TEST_SECRET = "test-secret-key-long-enough-for-hs256"  # nosec B105 — HS256 signing key for forged test JWTs, not a credential
 
@@ -74,7 +50,6 @@ _STUB_REACH_PAYLOAD = {
 
 
 def _make_mock_transport(payload: dict | None = None, status_code: int = 200):
-    """Returns an httpx transport that responds with the given payload, or raises ConnectError if payload is None."""
     if payload is None:
         def handler(_request):
             raise httpx.ConnectError("Compass API not available")
@@ -86,51 +61,21 @@ def _make_mock_transport(payload: dict | None = None, status_code: int = 200):
     return httpx.MockTransport(handler)
 
 
-def _make_service(transport) -> ReachService:
-    http_client = AsyncHttpClient(base_url="http://compass-mock", transport=transport)
-    return ReachService(
-        repository=CompassReachRepository(http_client),
-        user_service=_FakeUserService(),
-    )
-
-
-@pytest.fixture()
-async def client_with_data(monkeypatch):
-    # GIVEN the server runs in local mode (no Firebase signature verification)
-    monkeypatch.setenv("TARGET_ENVIRONMENT_TYPE", "local")
-
-    app = FastAPI()
-    auth = Authentication()
-    add_analytics_routes(app, auth)
-
-    service = _make_service(_make_mock_transport(_STUB_REACH_PAYLOAD))
-    app.dependency_overrides[get_reach_service] = lambda: service
-
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
-        yield c
-
-
-@pytest.fixture()
-async def client_no_api(monkeypatch):
-    # GIVEN the server runs in local mode and the Compass API is unreachable
-    monkeypatch.setenv("TARGET_ENVIRONMENT_TYPE", "local")
-
-    app = FastAPI()
-    auth = Authentication()
-    add_analytics_routes(app, auth)
-
-    service = _make_service(_make_mock_transport(None))
-    app.dependency_overrides[get_reach_service] = lambda: service
-
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
-        yield c
-
-
 def _reach_url(start: str, end: str, granularity: str = "month", **kwargs) -> str:
     params = f"start_date={start}&end_date={end}&granularity={granularity}"
     for k, v in kwargs.items():
         params += f"&{k}={v}"
     return f"/api/reach?{params}"
+
+
+@pytest.fixture()
+async def client_with_data(make_reach_client):
+    return await make_reach_client(_make_mock_transport(_STUB_REACH_PAYLOAD))
+
+
+@pytest.fixture()
+async def client_no_api(make_reach_client):
+    return await make_reach_client(_make_mock_transport(None))
 
 
 class TestReachAuth:

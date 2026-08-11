@@ -13,7 +13,10 @@ from app.analytics.reach.types import (
     ReachResponse,
 )
 from app.auth.firebase import Authentication, UserInfo
+from app.casbin.requires import make_requires
+from app.users.dependencies import get_grant_repository
 from app.users.service import ForbiddenInstitutionError, UserNotProvisionedError
+from app.users.types import Action, Subject
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +41,14 @@ def _filters(
 
 def add_reach_routes(router: APIRouter, auth: Authentication) -> None:
     get_user_info = auth.get_user_info()
+    requires = make_requires(get_user_info, get_grant_repository)
 
-    @router.get("/reach", response_model=ReachResponse)
+    @router.get(
+        "/reach",
+        response_model=ReachResponse,
+        dependencies=[Depends(requires(Subject.DASHBOARD, Action.VIEW))],
+    )
     async def get_reach(
-        # auth-first: resolve identity before parsing/validating query params
         user_info: UserInfo = Depends(get_user_info),
         filters: AnalyticsFilters = Depends(_filters),
         service: IReachService = Depends(get_reach_service),
