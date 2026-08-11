@@ -26,13 +26,13 @@ from app.analytics.reach.service import ReachService
 from app.analytics.routes import add_analytics_routes
 from app.auth.firebase import Authentication, UserInfo
 from app.users.service import IUserService, ScopeResolution
-from app.users.types import MeResponse, UserRole
+from app.users.types import MeResponse
 from common_libs.http_client.base import AsyncHttpClient
 
 
 class _FakeUserService(IUserService):
-    """A user service that treats every caller as a funder with unrestricted
-    scope — the reach route tests care about the upstream mapping, not authz
+    """A user service that treats every caller as having unrestricted scope —
+    the reach route tests care about the upstream mapping, not authz
     (that's covered in users/service_test.py)."""
 
     async def get_me(self, user_info: UserInfo) -> MeResponse:  # pragma: no cover - not exercised here
@@ -40,7 +40,7 @@ class _FakeUserService(IUserService):
 
     async def resolve_scope(self, user_info: UserInfo, requested_institution_id: str | None) -> ScopeResolution:
         institution_ids = [requested_institution_id] if requested_institution_id else None
-        return ScopeResolution(role=UserRole.FUNDER, institution_ids=institution_ids)
+        return ScopeResolution(institution_ids=institution_ids)
 
 
 _TEST_SECRET = "test-secret-key-long-enough-for-hs256"  # nosec B105 — HS256 signing key for forged test JWTs, not a credential
