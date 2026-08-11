@@ -58,7 +58,7 @@ const stubMe: MeResponse = {
   user_id: "dev-funder",
   email: "funder@example.com",
   name: "Dev Funder",
-  role: "funder",
+  permissions: ["dashboard:view", "institutions:view", "account:view"],
   scope: { type: "all", institution_ids: [] },
   active_modules: ["build-your-profile", "job-readiness", "career-explorer", "jobs"],
 };

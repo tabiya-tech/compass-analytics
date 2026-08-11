@@ -2,8 +2,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect } from "storybook/test";
 import { SidebarNav } from "./SidebarNav";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { AccessProvider } from "@/access/AccessContext";
-import { MODULE_IDS, PERMISSIONS } from "@/access/AccessContext";
+import { AccessProvider, MODULE_IDS } from "@/access/AccessContext";
+import { buildAbility } from "@/access/ability";
 
 const meta = {
   title: "Sidebar/SidebarNav",
@@ -43,7 +43,7 @@ export const FullAccess: Story = {
 export const JobseekersHidden: Story = {
   decorators: [
     (Story) => (
-      <AccessProvider access={{ permissions: new Set([PERMISSIONS.DASHBOARD_VIEW]) }}>
+      <AccessProvider ability={buildAbility(["dashboard:view"])}>
         <Story />
       </AccessProvider>
     ),
@@ -57,12 +57,7 @@ export const JobseekersHidden: Story = {
 export const MinimalAccess: Story = {
   decorators: [
     (Story) => (
-      <AccessProvider
-        access={{
-          permissions: new Set([PERMISSIONS.DASHBOARD_VIEW]),
-          activeModules: [],
-        }}
-      >
+      <AccessProvider ability={buildAbility(["dashboard:view"])} activeModules={[]}>
         <Story />
       </AccessProvider>
     ),
@@ -77,7 +72,7 @@ export const MinimalAccess: Story = {
 export const SingleActiveModule: Story = {
   decorators: [
     (Story) => (
-      <AccessProvider access={{ activeModules: [MODULE_IDS.BUILD_YOUR_PROFILE] }}>
+      <AccessProvider activeModules={[MODULE_IDS.BUILD_YOUR_PROFILE]}>
         <Story />
       </AccessProvider>
     ),

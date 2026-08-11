@@ -1,79 +1,104 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { AbilityProvider, Can, useAbility } from "@casl/react";
 import { useTranslation } from "react-i18next";
 import { useMe } from "@/user/useMe";
-import { mapMeToAccess } from "@/access/mapMeToAccess";
-import {
-  coversMultipleInstitutions,
-  MODULE_IDS,
-  PERMISSIONS,
-  type AccessScope,
-  type AccessState,
-  type ModuleId,
-  type PermissionKey,
-} from "@/access/access.types";
+import { Action, buildAbility, Subject, type AppAbility } from "@/access/ability";
+import type { MeResponse, ModuleId } from "@/user/user.types";
 
-// Re-exported so existing imports from "@/access/AccessContext" keep working;
-// the definitions live in access.types.ts to avoid a circular import with
-// mapMeToAccess (which AccessContext also imports).
-export { PERMISSIONS, MODULE_IDS, coversMultipleInstitutions };
-export type { PermissionKey, ModuleId, AccessScope, AccessState };
+export { Can, useAbility, Subject, Action };
+export type { AppAbility, ModuleId };
 
-export interface AccessContextValue extends AccessState {
-  hasPermission: (permission: PermissionKey) => boolean;
-  isMultiInstitution: boolean; // true ⇒ institution drill-down is meaningful
+export const MODULE_IDS = {
+  BUILD_YOUR_PROFILE: "build-your-profile",
+  JOB_READINESS: "job-readiness",
+  CAREER_EXPLORER: "career-explorer",
+  JOBS: "jobs",
+} as const;
+
+export type AccessScope = { type: "all" } | { type: "institutions"; institutionIds: string[] };
+
+export function coversMultipleInstitutions(scope: AccessScope): boolean {
+  return scope.type === "all" || (scope.type === "institutions" && scope.institutionIds.length > 1);
 }
 
-const DEFAULT_ACCESS: AccessState = {
-  permissions: new Set(Object.values(PERMISSIONS)),
-  scope: { type: "institutions", institutionIds: ["inst-1"] },
-  activeModules: Object.values(MODULE_IDS),
-};
+export interface AccessContextValue {
+  scope: AccessScope;
+  activeModules: readonly ModuleId[];
+  isMultiInstitution: boolean;
+}
+
+export interface AccessProviderProps {
+  ability?: AppAbility;
+  scope?: AccessScope;
+  activeModules?: readonly ModuleId[];
+}
+
+const DEFAULT_ABILITY: AppAbility = buildAbility(
+  Object.values(Subject).flatMap((subject) => Object.values(Action).map((action) => `${subject}:${action}`))
+);
+const DEFAULT_SCOPE: AccessScope = { type: "institutions", institutionIds: ["inst-1"] };
+const DEFAULT_MODULES: readonly ModuleId[] = Object.values(MODULE_IDS);
 
 const AccessContext = createContext<AccessContextValue | null>(null);
 
 export function useAccess(): AccessContextValue {
-  const context = useContext(AccessContext);
-  if (!context) {
-    throw new Error("useAccess must be used within an AccessProvider.");
-  }
-  return context;
-}
-
-/** Fields passed in `access` win; the rest fall back to DEFAULT_ACCESS. */
-export function AccessProvider({ children, access }: Readonly<{ children: ReactNode; access?: Partial<AccessState> }>) {
-  const value = useMemo<AccessContextValue>(() => {
-    const state: AccessState = { ...DEFAULT_ACCESS, ...access };
-    return {
-      ...state,
-      hasPermission: (permission) => state.permissions.has(permission),
-      isMultiInstitution: coversMultipleInstitutions(state.scope),
-    };
-  }, [access]);
-
-  return <AccessContext.Provider value={value}>{children}</AccessContext.Provider>;
+  const ctx = useContext(AccessContext);
+  if (!ctx) throw new Error("useAccess must be used within an AccessProvider.");
+  return ctx;
 }
 
 /**
- * App-facing provider: fetches the caller's role/scope from GET /api/me and
- * hydrates AccessProvider once resolved. Blocks its children on the fetch so no
- * screen renders against a wrong or default scope.
- *
- * Tests and stories keep using AccessProvider directly with an explicit `access`
- * prop, so they don't need the network round-trip.
+ * Provides CASL ability (via AbilityProvider) and scope/module state (via AccessContext).
+ * Use `Can` / `useAbility` for permission checks; `useAccess` for scope and active modules.
+ * Tests and stories pass props directly; AccessGate wires /api/me in production.
+ */
+export function AccessProvider({ children, ability, scope, activeModules }: Readonly<{ children: ReactNode } & AccessProviderProps>) {
+  const resolvedAbility = ability ?? DEFAULT_ABILITY;
+  const resolvedScope = scope ?? DEFAULT_SCOPE;
+  const resolvedModules = activeModules ?? DEFAULT_MODULES;
+
+  const value = useMemo<AccessContextValue>(
+    () => ({
+      scope: resolvedScope,
+      activeModules: resolvedModules,
+      isMultiInstitution: coversMultipleInstitutions(resolvedScope),
+    }),
+    [resolvedScope, resolvedModules]
+  );
+
+  return (
+    <AbilityProvider value={resolvedAbility}>
+      <AccessContext.Provider value={value}>{children}</AccessContext.Provider>
+    </AbilityProvider>
+  );
+}
+
+function _buildScope(me: MeResponse): AccessScope {
+  return me.scope.type === "all"
+    ? { type: "all" }
+    : { type: "institutions", institutionIds: me.scope.institution_ids };
+}
+
+/**
+ * App-facing provider: fetches /api/me, builds the CASL ability from the
+ * returned permissions, and hydrates AccessProvider. Blocks children until
+ * the fetch settles so no screen renders against stale defaults.
  */
 export function AccessGate({ children }: Readonly<{ children: ReactNode }>) {
   const me = useMe();
   const { t } = useTranslation();
 
-  if (me.status === "loading") {
-    return <div role="status">{t("access.loading")}</div>;
-  }
-  if (me.status === "unprovisioned") {
-    return <div role="alert">{t("access.unprovisioned")}</div>;
-  }
-  if (me.status === "error") {
-    return <div role="alert">{t("access.error")}</div>;
-  }
+  if (me.status === "loading") return <div role="status">{t("access.loading")}</div>;
+  if (me.status === "unprovisioned") return <div role="alert">{t("access.unprovisioned")}</div>;
+  if (me.status === "error") return <div role="alert">{t("access.error")}</div>;
 
-  return <AccessProvider access={mapMeToAccess(me.data)}>{children}</AccessProvider>;
+  return (
+    <AccessProvider
+      ability={buildAbility(me.data.permissions)}
+      scope={_buildScope(me.data)}
+      activeModules={me.data.active_modules}
+    >
+      {children}
+    </AccessProvider>
+  );
 }

@@ -19,6 +19,8 @@
     "test:accessibility": "CI=true vitest --project storybook run"
   },
   "dependencies": {
+    "@casl/ability": "^7.0.1",
+    "@casl/react": "^7.0.1",
     "@radix-ui/react-slot": "^1.3.0",
     "@sentry/react": "^10.67.0",
     "@tailwindcss/vite": "^4.3.3",
