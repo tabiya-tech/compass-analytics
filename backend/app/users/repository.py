@@ -14,12 +14,14 @@ class IUserRepository(ABC):
     @abstractmethod
     async def get_by_user_id(self, user_id: str) -> UserRecord | None: ...
 
+    @abstractmethod
+    async def list_all(self) -> list[UserRecord]: ...
+
 
 class MongoUserRepository(IUserRepository):
     """
-    Reads user role/scope records from the analytics MongoDB `users` collection.
-    This is the authoritative source for access control — never derived from the
-    Compass upstream, which has no notion of implementer/funder.
+    Reads user identity records from the `users` collection.
+    Access control lives in the `grants` collection — see app.grants.repository.
     """
 
     def __init__(self, db: AsyncIOMotorDatabase):
@@ -30,3 +32,6 @@ class MongoUserRepository(IUserRepository):
         if doc is None:
             return None
         return UserRecord.model_validate(doc)
+
+    async def list_all(self) -> list[UserRecord]:
+        return [UserRecord.model_validate(doc) async for doc in self._collection.find({})]

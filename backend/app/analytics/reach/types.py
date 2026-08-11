@@ -3,8 +3,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-# ---- Query filters ----
-
 Granularity = Literal["day", "week", "month"]
 AudienceSegment = Literal["youth", "women", "rural", "first-time-jobseeker"]
 LoginMethod = Literal["email", "google", "anonymous"]
@@ -21,8 +19,6 @@ class AnalyticsFilters(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-# ---- Reach response ----
-#
 # These models parse JSON from the Compass upstream. extra="forbid" makes schema
 # drift (a renamed/added upstream field) fail loudly at the boundary rather than
 # being silently dropped; frozen makes the response DTOs immutable once built.

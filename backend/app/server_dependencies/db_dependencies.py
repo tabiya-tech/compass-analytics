@@ -6,6 +6,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from common_libs.database.get_mongo_db_connection import get_mongo_db_connection
 from common_libs.environment_settings.mongo_db_settings import MongoDbSettings
+from app.grants.repository import GRANTS_COLLECTION
 from app.users.repository import USERS_COLLECTION
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,12 @@ class AnalyticsDBProvider:
     async def initialize_mongo_db(db: AsyncIOMotorDatabase) -> None:
         """Create indexes here as collections are added. Idempotent — safe to call on every startup."""
         await db[USERS_COLLECTION].create_index("user_id", unique=True, name="user_id_unique")
+        await db[GRANTS_COLLECTION].create_index("user_id", name="grants_user_id")
+        await db[GRANTS_COLLECTION].create_index(
+            [("user_id", 1), ("subject", 1), ("action", 1), ("institution_id", 1)],
+            unique=True,
+            name="grants_unique_tuple",
+        )
 
     @classmethod
     def clear_cache(cls) -> None:

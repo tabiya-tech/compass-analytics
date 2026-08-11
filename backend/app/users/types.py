@@ -4,30 +4,35 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-# ---- Domain enums ----
+
+class Subject(str, Enum):
+    """The resource a permission applies to."""
+
+    DASHBOARD = "dashboard"
+    INSTITUTIONS = "institutions"
+    JOBSEEKERS = "jobseekers"
+    ACCESS_MANAGEMENT = "access-management"
+    ACCOUNT = "account"
 
 
-class UserRole(str, Enum):
-    """
-    Who the caller is, which determines what they can see:
+class Action(str, Enum):
+    """The operation being performed on a subject."""
 
-    - IMPLEMENTER: an organization running Compass at a single institution;
-      always scoped to their own institution.
-    - FUNDER: a program manager overseeing a portfolio of institutions within
-      one national deployment; sees the aggregate and can drill into any one of
-      their institutions.
-    """
+    VIEW = "view"
+    MANAGE = "manage"
 
-    IMPLEMENTER = "implementer"
-    FUNDER = "funder"
+
+def permission(subject: Subject, action: Action) -> str:
+    """Compose a subject and action into the wire-format permission string stored in grants."""
+    return f"{subject}:{action}"
 
 
 class ScopeType(str, Enum):
     """
-    How institution access is expressed on a user record:
+    How institution access is expressed when a caller's grants are aggregated:
 
-    - ALL: the caller may see every institution in the deployment (a funder
-      overseeing the whole national programme).
+    - ALL: at least one grant covers every institution (via the ALL_INSTITUTIONS
+      sentinel) — the caller sees the whole deployment.
     - INSTITUTIONS: the caller is limited to the explicit institution_ids list.
     """
 
@@ -37,30 +42,24 @@ class ScopeType(str, Enum):
 
 ActiveModule = str  # "build-your-profile" | "job-readiness" | "career-explorer" | "jobs"
 
-
-# ---- Mongo document model ----
+# Sentinel institution_id on a grant meaning "every institution in the deployment".
+ALL_INSTITUTIONS = "*"
 
 
 class UserRecord(BaseModel):
     """
-    A row in the `users` collection — the authoritative source for a caller's
-    role and institution scope. The Firebase JWT tells us *who* is calling
-    (user_id); this record tells us *what* they're allowed to see.
+    A row in the `users` collection — holds a user's identity and which product
+    modules are active for them. Access control lives in the separate `grants`
+    collection (see app.grants.types.GrantRecord), not here.
     """
 
     user_id: str
     email: Optional[str] = None
     name: Optional[str] = None
-    role: UserRole
-    scope_type: ScopeType
-    institution_ids: list[str] = Field(default_factory=list)
     active_modules: list[ActiveModule] = Field(default_factory=list)
     created_at: Optional[datetime] = None
 
     model_config = {"extra": "ignore"}
-
-
-# ---- API response model (GET /api/me) ----
 
 
 class UserScope(BaseModel):
@@ -71,10 +70,15 @@ class UserScope(BaseModel):
 
 
 class MeResponse(BaseModel):
+    """
+    The caller's own access, derived from their grants. The frontend gates
+    purely on `permissions` (the "{subject}:{action}" strings) and `scope`.
+    """
+
     user_id: str
     email: Optional[str] = None
     name: Optional[str] = None
-    role: UserRole
+    permissions: list[str] = Field(default_factory=list)
     scope: UserScope
     active_modules: list[ActiveModule] = Field(default_factory=list)
 
