@@ -16,19 +16,20 @@ function renderMenu() {
 }
 
 describe("SidebarUserMenu", () => {
-  it("should render a labelled trigger for the account menu", () => {
-    // GIVEN the footer menu
+  it("should render a labelled trigger, falling back to the generic label with no display name set", () => {
+    // GIVEN the footer menu, for a user with no display name set
     // WHEN rendered
     renderMenu();
 
-    // THEN the trigger is reachable by its accessible name and shows a visible label
-    // (the avatar also carries its own sr-only copy of the name, so scope to the visible one)
+    // THEN the trigger is reachable by its accessible name
     expect(screen.getByRole("button", { name: /Open account menu/ })).toBeInTheDocument();
+    // AND it falls back to the generic label, since the `firebase/auth` test double has no displayName
+    // (the avatar also carries its own sr-only copy of the name, so scope to the visible one)
     expect(screen.getByText("My account", { selector: ":not(.sr-only)" })).toBeInTheDocument();
   });
 
-  it("should fall back to a generic person icon, with no real user profile to draw a photo from yet", () => {
-    // GIVEN the footer menu, with no real user profile to draw a photo from yet
+  it("should fall back to a generic person icon, with no photo on the signed-in user's profile", () => {
+    // GIVEN the footer menu, for a user with no photoURL set
     // WHEN rendered
     renderMenu();
 

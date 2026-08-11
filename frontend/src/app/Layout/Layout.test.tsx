@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { useAccess } from "@/access/AccessContext";
 import { useFilters } from "@/filters/FiltersContext";
+import { AuthProvider } from "@/auth/AuthContext";
 import { Layout } from "./Layout";
 
 /** Reads both shared contexts, proving the shell supplies them to the outlet. */
@@ -19,11 +20,16 @@ function Screen() {
 }
 
 // Raw RouterProvider: Layout renders an <Outlet/>, and two nested Routers aren't supported.
+// Layout's sidebar footer reads the signed-in user, same as the real boot chain in main.tsx.
 function renderLayout() {
   const router = createMemoryRouter([
     { path: "/", element: <Layout />, children: [{ index: true, element: <Screen /> }] },
   ]);
-  return render(<RouterProvider router={router} />);
+  return render(
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>
+  );
 }
 
 describe("Layout", () => {

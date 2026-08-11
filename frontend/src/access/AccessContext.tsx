@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
+import type { TranslationKey } from "@/i18n/react-i18next";
 
 export const PERMISSIONS = {
   DASHBOARD_VIEW: "dashboard:view",
@@ -18,6 +19,14 @@ export const MODULE_IDS = {
 } as const;
 
 export type ModuleId = (typeof MODULE_IDS)[keyof typeof MODULE_IDS];
+
+/** A module's display name. Shared by the nav and any screen that names a module. */
+export const MODULE_LABEL_KEYS: Record<ModuleId, TranslationKey> = {
+  [MODULE_IDS.BUILD_YOUR_PROFILE]: "nav.modulesSection.buildYourProfile",
+  [MODULE_IDS.JOB_READINESS]: "nav.modulesSection.jobReadiness",
+  [MODULE_IDS.CAREER_EXPLORER]: "nav.modulesSection.careerExplorer",
+  [MODULE_IDS.JOBS]: "nav.modulesSection.jobs",
+};
 
 /** Which institutions a grant covers: every institution in the deployment, or a named list. */
 export type AccessScope = { type: "all" } | { type: "institutions"; institutionIds: string[] };

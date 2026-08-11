@@ -11,10 +11,12 @@ import {
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { routerPaths } from "@/app/routerPaths";
 import { UserAvatar } from "@/components/shared/UserAvatar";
+import { useAuth } from "@/auth/AuthContext";
 
 export function SidebarUserMenu({ onSignOut }: Readonly<{ onSignOut: () => void }>) {
   const { t } = useTranslation();
-  const label = t("nav.userMenu.label");
+  const { user } = useAuth();
+  const label = user?.displayName ?? t("nav.userMenu.label");
 
   return (
     <SidebarMenu>

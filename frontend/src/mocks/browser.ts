@@ -1,6 +1,6 @@
 import { setupWorker } from "msw/browser";
-import { brandingHandler } from "./handlers";
+import { brandingHandler, overviewMetricsHandler } from "./handlers";
 
-// Only mock branding in the dev browser worker — all API calls go through
-// the Vite proxy to the real backend running on localhost:8080.
-export const worker = setupWorker(brandingHandler);
+// Branding and overview metrics are mocked here too, since neither is served by the real backend yet.
+// Everything else goes through the Vite proxy to the backend running on localhost:8080.
+export const worker = setupWorker(brandingHandler, overviewMetricsHandler);

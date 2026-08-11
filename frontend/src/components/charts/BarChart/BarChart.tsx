@@ -1,6 +1,5 @@
 import { useTranslation } from "react-i18next";
 import { Bar, CartesianGrid, BarChart as RechartsBarChart, XAxis, YAxis } from "recharts";
-import { EmptyState } from "@/components/shared/EmptyState";
 import { ChartDataTable, type ChartTable } from "@/components/charts/components/ChartDataTable";
 import { seriesColorAt } from "@/components/charts/chart-palette";
 import { formatNumber } from "@/components/charts/chart-scale";
@@ -59,8 +58,19 @@ export function BarChart({
 
   if (isEmpty) {
     return (
-      <div data-testid={DATA_TEST_ID.EMPTY} className={cn("w-full", className)} style={{ minHeight: height }}>
-        <EmptyState message={isLoading ? t("common.loading") : (emptyMessage ?? t("charts.empty"))} />
+      <div
+        data-testid={DATA_TEST_ID.EMPTY}
+        role={isLoading ? "img" : undefined}
+        aria-label={isLoading ? t("common.loading") : undefined}
+        className={cn(
+          "grid w-full place-items-center rounded-md bg-muted-foreground/15",
+          isLoading && "animate-pulse",
+          className
+        )}
+        style={{ height }}
+      >
+        {/* Static text (vs. the pulse alone) is what tells "empty" apart from "loading". */}
+        {!isLoading && <span className="text-sm text-muted-foreground">{emptyMessage ?? t("charts.empty")}</span>}
       </div>
     );
   }

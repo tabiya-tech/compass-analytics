@@ -1,6 +1,5 @@
 import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
-import { EmptyState } from "@/components/shared/EmptyState";
 import { Progress } from "@/components/ui/progress";
 import { seriesColorAt } from "@/components/charts/chart-palette";
 import { formatNumber } from "@/components/charts/chart-scale";
@@ -46,8 +45,9 @@ export function HBar({
 
   if (items.length === 0) {
     return (
-      <div data-testid={DATA_TEST_ID.EMPTY} className={className}>
-        <EmptyState message={emptyMessage ?? t("charts.empty")} />
+      <div data-testid={DATA_TEST_ID.EMPTY} className={cn("grid gap-1.5", className)}>
+        <span className="text-sm text-muted-foreground">{emptyMessage ?? t("charts.empty")}</span>
+        <Progress value={0} aria-hidden="true" className="h-2" />
       </div>
     );
   }

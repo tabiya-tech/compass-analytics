@@ -113,13 +113,12 @@ describe("HBar", () => {
     expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
 
-  it("should show the empty state when there is nothing to rank", () => {
+  it("should show a greyed-out track with a short label when there is nothing to rank", () => {
     // GIVEN no items
     // WHEN the list is rendered
     render(<HBar label={LABEL} items={[]} />);
 
-    // THEN the reader is told so rather than shown an empty frame
-    expect(screen.getByTestId(DATA_TEST_ID.EMPTY)).toBeInTheDocument();
-    expect(screen.getByText("No data to show for this selection.")).toBeInTheDocument();
+    // THEN a flat track stands in for the missing bars, labelled so it doesn't read as loading
+    expect(screen.getByTestId(DATA_TEST_ID.EMPTY)).toHaveTextContent("No data to show for this selection.");
   });
 });

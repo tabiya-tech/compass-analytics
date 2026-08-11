@@ -1,16 +1,11 @@
 {
   "common": {
     "loading": "Loading…",
-    "error": "Something went wrong.",
-    "retry": "Retry",
-    "cancel": "Cancel",
-    "save": "Save",
-    "close": "Close"
+    "retry": "Retry"
   },
   "i18n": {
     "languageSwitcher": {
-      "label": "Language",
-      "srDescription": "Change the display language for {{appName}}"
+      "label": "Language"
     }
   },
   "error": {
@@ -55,12 +50,7 @@
       "google": "Continue with Google"
     },
     "validation": {
-      "emailRequired": "Email is required.",
       "emailInvalid": "Enter a valid email address.",
-      "passwordRequired": "Password is required.",
-      "fullNameRequired": "Full name is required.",
-      "organizationRequired": "Organization is required.",
-      "confirmPasswordRequired": "Please confirm your password.",
       "passwordsMismatch": "Passwords do not match."
     },
     "passwordRules": {
@@ -91,19 +81,6 @@
       "label": "My account",
       "trigger": "Open account menu",
       "accountSettings": "Account settings"
-    }
-  },
-  "overview": {
-    "title": "Overview",
-    "reach": {
-      "error": "Failed to load reach data.",
-      "cards": {
-        "totalUsers": "Total Users",
-        "activeUsers30d": "Active (30d)",
-        "totalLogins": "Total Logins",
-        "avgLoginsPerUser": "Avg Logins / User",
-        "avgSessionMinutes": "Avg Session (min)"
-      }
     }
   },
   "filters": {
@@ -177,6 +154,75 @@
     },
     "histogram": {
       "range": "{{from}} to {{to}}"
+    }
+  },
+  "overview": {
+    "title": "Overview",
+    "eyebrow": {
+      "institution": "Deployment overview",
+      "portfolio": "Portfolio overview"
+    },
+    "description": {
+      "institution": "{{institution}} · {{range}}",
+      "portfolio": "{{count}} institutions · {{range}}"
+    },
+    "error": "We couldn't load the dashboard metrics.",
+    "tiles": {
+      "cumulativeUsers": {
+        "label": "Cumulative users",
+        "trend": "as of {{period}}",
+        "sparkline": "Cumulative users over the last {{days}} days, from {{from}} to {{to}}"
+      },
+      "activeUsers": {
+        "label": "Active users",
+        "caption": "{{share}}% of users · last {{days}} days"
+      },
+      "avgSession": {
+        "label": "Avg session length",
+        "value": "{{minutes}}m",
+        "caption": "per login"
+      }
+    },
+    "reach": {
+      "title": "Reach over time",
+      "description": "New and returning users, by {{granularity}}",
+      "chartLabel": "New and returning users by {{granularity}}",
+      "newUsers": "New",
+      "returningUsers": "Returning"
+    },
+    "loginMethod": {
+      "title": "How they log in",
+      "description": "Share of users by login method",
+      "chartLabel": "Users by login method",
+      "footnote": "Center figure = avg logins / user",
+      "averageLogins": "Average logins per user"
+    },
+    "demographics": {
+      "title": "Who you are reaching",
+      "description": "The demographic profile of jobseekers on the platform.",
+      "genderChartLabel": "Jobseekers by gender",
+      "sections": {
+        "gender": "Gender",
+        "ageBand": "Age band",
+        "education": "Education",
+        "region": "Region"
+      },
+      "genders": {
+        "women": "Women",
+        "men": "Men",
+        "undisclosed": "Other / undisclosed"
+      },
+      "ageBands": {
+        "18-24": "18–24",
+        "25-34": "25–34",
+        "35-44": "35–44",
+        "45-plus": "45+"
+      },
+      "educationLevels": {
+        "primary": "Primary",
+        "secondary": "Secondary",
+        "tertiary": "Tertiary"
+      }
     }
   }
 }

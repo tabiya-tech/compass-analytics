@@ -1,7 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn } from "storybook/test";
+import type { User } from "firebase/auth";
 import { SidebarUserMenu } from "./SidebarUserMenu";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { AuthContext } from "@/auth/AuthContext";
+
+// A stub, not the real AuthProvider — Storybook runs in a real browser, with no Firebase config to resolve against.
+const SIGNED_IN_USER = { displayName: "Taylor Kimathi", email: "taylor@example.com", photoURL: null } as User;
 
 const meta = {
   title: "Sidebar/SidebarUserMenu",
@@ -10,11 +15,13 @@ const meta = {
   args: { onSignOut: fn() },
   decorators: [
     (Story) => (
-      <SidebarProvider>
-        <div className="w-64 bg-sidebar p-2">
-          <Story />
-        </div>
-      </SidebarProvider>
+      <AuthContext.Provider value={{ user: SIGNED_IN_USER, loading: false, getIdToken: async () => "storybook-token" }}>
+        <SidebarProvider>
+          <div className="w-64 bg-sidebar p-2">
+            <Story />
+          </div>
+        </SidebarProvider>
+      </AuthContext.Provider>
     ),
   ],
 } satisfies Meta<typeof SidebarUserMenu>;
@@ -26,6 +33,30 @@ export const Default: Story = {
   play: async ({ canvas }) => {
     const trigger = canvas.getByRole("button", { name: "Open account menu" });
     await expect(trigger).toBeVisible();
-    await expect(trigger.querySelector("svg")).toBeInTheDocument();
+    // The avatar carries its own sr-only copy of the name, so scope to the visible one.
+    await expect(canvas.getByText("Taylor Kimathi", { selector: ":not(.sr-only)" })).toBeVisible();
+  },
+};
+
+export const NoDisplayName: Story = {
+  decorators: [
+    (Story) => (
+      <AuthContext.Provider
+        value={{
+          user: { displayName: null, email: "taylor@example.com", photoURL: null } as User,
+          loading: false,
+          getIdToken: async () => "storybook-token",
+        }}
+      >
+        <SidebarProvider>
+          <div className="w-64 bg-sidebar p-2">
+            <Story />
+          </div>
+        </SidebarProvider>
+      </AuthContext.Provider>
+    ),
+  ],
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("My account", { selector: ":not(.sr-only)" })).toBeVisible();
   },
 };
