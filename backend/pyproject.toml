@@ -19,6 +19,7 @@ dependencies = [
     "httpx (>=0.28.1,<0.29.0)",
     "google-auth (>=2.0.0,<3.0.0)",
     "pyyaml (>=6.0.3,<7.0.0)",
+    "casbin (>=1.43.0,<2.0.0)",
 ]
 
 [tool.poetry]
