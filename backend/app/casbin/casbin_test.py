@@ -11,10 +11,10 @@ from fastapi import Depends, FastAPI
 
 from app.auth.firebase import SignInProvider, UserInfo
 from app.grants.repository import MongoGrantRepository
-from app.users.casbin.adapter import GrantsAdapter
-from app.users.casbin.enforcer import clear_enforcer_cache, get_enforcer
-from app.users.casbin.model import build_model
-from app.users.casbin.requires import make_requires
+from app.casbin.adapter import GrantsAdapter
+from app.casbin.enforcer import clear_enforcer_cache, get_enforcer
+from app.casbin.model import build_model
+from app.casbin.requires import make_requires
 from app.users.types import ALL_INSTITUTIONS, Action, Subject
 
 
@@ -209,12 +209,29 @@ class TestRequiresDependency:
 
         assert response.status_code == 403
 
-    async def test_returns_422_when_institution_id_is_missing(self, in_memory_analytics_database):
-        # institution_id is required — omitting it is a bad request, not a 403
+    async def test_denies_when_institution_id_is_absent_and_user_has_no_wildcard_grant(self, in_memory_analytics_database):
+        # institution_id defaults to ALL_INSTITUTIONS ("*") when omitted.
+        # A user with only an institution-scoped grant does not pass the wildcard check.
+        repo = MongoGrantRepository(in_memory_analytics_database)
+        await repo.create("u1", Subject.DASHBOARD, Action.VIEW, "inst-a", granted_by=None)
+
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=self._build_app(in_memory_analytics_database, "u1")),
             base_url="http://test",
         ) as client:
             response = await client.get("/protected")
 
-        assert response.status_code == 422
+        assert response.status_code == 403
+
+    async def test_allows_when_institution_id_is_absent_and_user_has_wildcard_grant(self, in_memory_analytics_database):
+        # A user with a wildcard grant passes even when institution_id is not provided.
+        repo = MongoGrantRepository(in_memory_analytics_database)
+        await repo.create("u1", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS, granted_by=None)
+
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=self._build_app(in_memory_analytics_database, "u1")),
+            base_url="http://test",
+        ) as client:
+            response = await client.get("/protected")
+
+        assert response.status_code == 200

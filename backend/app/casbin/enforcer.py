@@ -4,8 +4,8 @@ from typing import Optional
 
 import casbin
 
-from app.users.casbin.adapter import GrantsAdapter
-from app.users.casbin.model import build_model
+from app.casbin.adapter import GrantsAdapter
+from app.casbin.model import build_model
 
 logger = logging.getLogger(__name__)
 

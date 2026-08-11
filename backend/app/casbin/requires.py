@@ -3,9 +3,9 @@ from typing import Callable
 from fastapi import Depends, HTTPException, Query, status
 
 from app.grants.repository import IGrantRepository
-from app.users.casbin.adapter import GrantsAdapter
-from app.users.casbin.enforcer import get_enforcer
-from app.users.types import Action, Subject
+from app.casbin.adapter import GrantsAdapter
+from app.casbin.enforcer import get_enforcer
+from app.users.types import ALL_INSTITUTIONS, Action, Subject
 
 
 def make_requires(get_user_info: Callable, get_grant_repository: Callable) -> Callable:
@@ -24,7 +24,7 @@ def make_requires(get_user_info: Callable, get_grant_repository: Callable) -> Ca
 
     def requires(subject: Subject, action: Action) -> Callable:
         async def _check(
-            institution_id: str = Query(...),
+            institution_id: str = Query(ALL_INSTITUTIONS),
             user_info=Depends(get_user_info),
             grant_repo: IGrantRepository = Depends(get_grant_repository),
         ) -> None:

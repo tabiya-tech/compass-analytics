@@ -1,10 +1,12 @@
 """
-End-to-end tests for GET /api/me.
+Integration tests for the users routes.
 
-Uses httpx.AsyncClient with ASGI transport plus the in-memory Motor database
-fixture, so the route reads a real (ephemeral) `users` collection. Auth runs in
-local mode (TARGET_ENVIRONMENT_TYPE=local): any HS256-signed JWT is accepted
-without signature verification, matching local server behaviour.
+Uses httpx.AsyncClient with ASGI transport against the in-memory Mongo fixture.
+Auth runs in local mode so any HS256-signed JWT is accepted without Firebase
+signature verification.
+
+The Casbin enforcer singleton is cleared before each test class so that policy
+changes made during seeding are reflected.
 """
 import httpx
 import jwt as pyjwt
@@ -12,114 +14,236 @@ import pytest
 from fastapi import FastAPI
 
 from app.auth.firebase import Authentication
-from app.users.dependencies import get_user_service
+from app.grants.repository import MongoGrantRepository
+from app.casbin.enforcer import clear_enforcer_cache
+from app.users.dependencies import get_grant_repository, get_user_service
 from app.users.repository import USERS_COLLECTION, MongoUserRepository
 from app.users.routes import add_users_routes
 from app.users.service import UserService
+from app.users.types import ALL_INSTITUTIONS, Action, Subject
 
-_TEST_SECRET = "test-secret-key-long-enough-for-hs256"  # nosec B105 — HS256 signing key for forged test JWTs, not a credential
-
-
-def _make_firebase_token(user_id: str = "u1", email: str = "user@example.com") -> str:
-    claims = {
-        "sub": user_id,
-        "email": email,
-        "name": "Test User",
-        "firebase": {"sign_in_provider": "password"},
-    }
-    return pyjwt.encode(claims, key=_TEST_SECRET, algorithm="HS256")
+_TEST_SECRET = "test-secret-key-long-enough-for-hs256"  # nosec B105
 
 
-def _auth_header(user_id: str = "u1") -> dict:
-    return {"Authorization": f"Bearer {_make_firebase_token(user_id=user_id)}"}
+def _make_token(user_id: str = "u1", email: str = "user@example.com") -> str:
+    return pyjwt.encode(
+        {"sub": user_id, "email": email, "name": "Test User", "firebase": {"sign_in_provider": "password"}},
+        key=_TEST_SECRET,
+        algorithm="HS256",
+    )
+
+
+def _auth(user_id: str = "u1") -> dict:
+    return {"Authorization": f"Bearer {_make_token(user_id=user_id)}"}
+
+
+async def _seed_user(db, user_id: str = "u1", **overrides) -> None:
+    doc = {"user_id": user_id, "email": f"{user_id}@example.com", "name": "Test User", "active_modules": []}
+    doc.update(overrides)
+    await db[USERS_COLLECTION].insert_one(doc)
+
+
+async def _seed_grant(db, user_id: str, subject: Subject, action: Action, institution_id: str) -> str:
+    repo = MongoGrantRepository(db)
+    record = await repo.create(user_id, subject, action, institution_id, granted_by=None)
+    return record.grant_id
 
 
 @pytest.fixture()
 async def client(monkeypatch, in_memory_analytics_database):
-    # GIVEN the server runs in local mode against the in-memory users collection
     monkeypatch.setenv("TARGET_ENVIRONMENT_TYPE", "local")
+    clear_enforcer_cache()
 
     app = FastAPI()
     auth = Authentication()
     add_users_routes(app, auth)
 
-    service = UserService(repository=MongoUserRepository(in_memory_analytics_database))
+    grant_repo = MongoGrantRepository(in_memory_analytics_database)
+    service = UserService(
+        repository=MongoUserRepository(in_memory_analytics_database),
+        grant_repository=grant_repo,
+    )
     app.dependency_overrides[get_user_service] = lambda: service
+    app.dependency_overrides[get_grant_repository] = lambda: grant_repo
 
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
-        c.db = in_memory_analytics_database  # expose for seeding in tests
+        c.db = in_memory_analytics_database
         yield c
 
-
-async def _seed_user(db, **overrides) -> None:
-    doc = {
-        "user_id": "u1",
-        "email": "provisioned@example.com",
-        "name": "Provisioned Name",
-        "role": "implementer",
-        "scope_type": "institutions",
-        "institution_ids": ["inst-a"],
-        "active_modules": ["build-your-profile"],
-    }
-    doc.update(overrides)
-    await db[USERS_COLLECTION].insert_one(doc)
+    clear_enforcer_cache()
 
 
-class TestMeAuth:
-    async def test_should_reject_request_with_no_auth_header(self, client):
-        # GIVEN no Authorization header
+class TestGetMe:
+    async def test_returns_401_without_auth(self, client):
+        assert (await client.get("/api/me")).status_code == 401
 
-        # WHEN /api/me is called without a token
-        actual = await client.get("/api/me")
+    async def test_returns_404_when_not_provisioned(self, client):
+        assert (await client.get("/api/me", headers=_auth())).status_code == 404
 
-        # THEN it is rejected with 401
-        assert actual.status_code == 401
+    async def test_returns_profile_with_permissions_and_scope(self, client):
+        # GIVEN a provisioned user with a wildcard dashboard grant
+        await _seed_user(client.db, "u1", active_modules=["build-your-profile"])
+        await _seed_grant(client.db, "u1", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS)
+        await _seed_grant(client.db, "u1", Subject.ACCOUNT, Action.VIEW, ALL_INSTITUTIONS)
 
-    async def test_should_reject_request_with_an_invalid_token(self, client):
-        # GIVEN a non-JWT bearer token
+        body = (await client.get("/api/me", headers=_auth())).json()
 
-        # WHEN /api/me is called
-        actual = await client.get("/api/me", headers={"Authorization": "Bearer not-a-jwt"})
-
-        # THEN it is rejected with 401
-        assert actual.status_code == 401
-
-
-class TestMeResponse:
-    async def test_should_return_profile_for_a_provisioned_user(self, client):
-        # GIVEN a provisioned user
-        await _seed_user(client.db)
-
-        # WHEN /api/me is called
-        actual = await client.get("/api/me", headers=_auth_header())
-
-        # THEN a 200 with the resolved profile
-        assert actual.status_code == 200
-        body = actual.json()
         assert body["user_id"] == "u1"
-        assert body["role"] == "implementer"
-        assert body["scope"]["type"] == "institutions"
-        assert body["scope"]["institution_ids"] == ["inst-a"]
+        assert "dashboard:view" in body["permissions"]
+        assert "account:view" in body["permissions"]
+        assert body["scope"]["type"] == "all"
         assert body["active_modules"] == ["build-your-profile"]
 
-    async def test_should_prefer_jwt_identity_over_stored_copy(self, client):
-        # GIVEN a record whose stored identity differs from the JWT
-        await _seed_user(client.db, email="stale@example.com", name="Stale")
+    async def test_prefers_jwt_identity_over_stored_copy(self, client):
+        await _seed_user(client.db, "u1", email="stale@example.com", name="Stale")
 
-        # WHEN /api/me is called
-        body = (await client.get("/api/me", headers=_auth_header())).json()
+        body = (await client.get("/api/me", headers=_auth())).json()
 
-        # THEN the JWT identity is returned
         assert body["email"] == "user@example.com"
         assert body["name"] == "Test User"
 
+    async def test_returns_institutions_scope_for_scoped_user(self, client):
+        await _seed_user(client.db, "u1")
+        await _seed_grant(client.db, "u1", Subject.DASHBOARD, Action.VIEW, "inst-a")
 
-class TestMeNotProvisioned:
-    async def test_should_return_404_when_user_has_no_record(self, client):
-        # GIVEN no users record for the caller (first login)
+        body = (await client.get("/api/me", headers=_auth())).json()
 
-        # WHEN /api/me is called
-        actual = await client.get("/api/me", headers=_auth_header())
+        assert body["scope"]["type"] == "institutions"
+        assert body["scope"]["institution_ids"] == ["inst-a"]
 
-        # THEN it returns 404 (provisioning pending)
-        assert actual.status_code == 404
+
+class TestListUsers:
+    async def test_returns_401_without_auth(self, client):
+        assert (await client.get("/api/users?institution_id=inst-a")).status_code == 401
+
+    async def test_returns_403_without_access_management_grant(self, client):
+        await _seed_user(client.db, "u1")
+        await _seed_grant(client.db, "u1", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS)
+
+        assert (await client.get("/api/users?institution_id=inst-a", headers=_auth())).status_code == 403
+
+    async def test_returns_403_without_institution_id_when_user_has_no_wildcard_grant(self, client):
+        # institution_id defaults to ALL_INSTITUTIONS; a user without a wildcard grant is denied
+        await _seed_user(client.db, "u1")
+        await _seed_grant(client.db, "u1", Subject.ACCESS_MANAGEMENT, Action.MANAGE, "inst-a")
+
+        assert (await client.get("/api/users", headers=_auth())).status_code == 403
+
+    async def test_returns_users_with_grants_for_authorized_caller(self, client):
+        await _seed_user(client.db, "u1")
+        await _seed_user(client.db, "u2")
+        await _seed_grant(client.db, "u1", Subject.ACCESS_MANAGEMENT, Action.MANAGE, ALL_INSTITUTIONS)
+
+        body = (await client.get("/api/users?institution_id=inst-a", headers=_auth())).json()
+
+        assert isinstance(body, list)
+        user_ids = {u["user_id"] for u in body}
+        assert "u1" in user_ids
+        assert "u2" in user_ids
+
+
+class TestCreateGrant:
+    async def test_returns_401_without_auth(self, client):
+        assert (await client.post(
+            "/api/users/u2/grants?institution_id=inst-a",
+            json={"subject": "dashboard", "action": "view", "institution_id": "inst-a"},
+        )).status_code == 401
+
+    async def test_returns_403_without_access_management_grant(self, client):
+        await _seed_user(client.db, "u1")
+        await _seed_grant(client.db, "u1", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS)
+
+        assert (await client.post(
+            "/api/users/u2/grants?institution_id=inst-a",
+            json={"subject": "dashboard", "action": "view", "institution_id": "inst-a"},
+            headers=_auth(),
+        )).status_code == 403
+
+    async def test_creates_grant_and_returns_201(self, client):
+        await _seed_user(client.db, "u1")
+        await _seed_user(client.db, "u2")
+        await _seed_grant(client.db, "u1", Subject.ACCESS_MANAGEMENT, Action.MANAGE, ALL_INSTITUTIONS)
+
+        response = await client.post(
+            "/api/users/u2/grants?institution_id=inst-a",
+            json={"subject": "dashboard", "action": "view", "institution_id": "inst-a"},
+            headers=_auth(),
+        )
+
+        assert response.status_code == 201
+        body = response.json()
+        assert body["subject"] == "dashboard"
+        assert body["action"] == "view"
+        assert body["institution_id"] == "inst-a"
+        assert "grant_id" in body
+
+
+class TestAssignRole:
+    async def test_returns_403_without_access_management_grant(self, client):
+        await _seed_user(client.db, "u1")
+
+        assert (await client.post(
+            "/api/users/u2/roles?institution_id=inst-a",
+            json={"role": "implementer", "institution_id": "inst-a"},
+            headers=_auth(),
+        )).status_code == 403
+
+    async def test_expands_role_and_returns_grants(self, client):
+        await _seed_user(client.db, "u1")
+        await _seed_user(client.db, "u2")
+        await _seed_grant(client.db, "u1", Subject.ACCESS_MANAGEMENT, Action.MANAGE, ALL_INSTITUTIONS)
+
+        response = await client.post(
+            "/api/users/u2/roles?institution_id=inst-a",
+            json={"role": "implementer", "institution_id": "inst-a"},
+            headers=_auth(),
+        )
+
+        assert response.status_code == 201
+        body = response.json()
+        assert isinstance(body, list)
+        assert len(body) > 0
+        assert all(g["institution_id"] == "inst-a" for g in body)
+
+    async def test_returns_422_for_unknown_role(self, client):
+        await _seed_user(client.db, "u1")
+        await _seed_grant(client.db, "u1", Subject.ACCESS_MANAGEMENT, Action.MANAGE, ALL_INSTITUTIONS)
+
+        response = await client.post(
+            "/api/users/u2/roles?institution_id=inst-a",
+            json={"role": "superadmin", "institution_id": "inst-a"},
+            headers=_auth(),
+        )
+
+        assert response.status_code == 422
+
+
+class TestRevokeGrant:
+    async def test_returns_403_without_access_management_grant(self, client):
+        await _seed_user(client.db, "u1")
+
+        assert (await client.delete(
+            "/api/users/u2/grants/g1?institution_id=inst-a", headers=_auth()
+        )).status_code == 403
+
+    async def test_deletes_grant_and_returns_204(self, client):
+        await _seed_user(client.db, "u1")
+        await _seed_user(client.db, "u2")
+        await _seed_grant(client.db, "u1", Subject.ACCESS_MANAGEMENT, Action.MANAGE, ALL_INSTITUTIONS)
+        grant_id = await _seed_grant(client.db, "u2", Subject.DASHBOARD, Action.VIEW, "inst-a")
+
+        response = await client.delete(
+            f"/api/users/u2/grants/{grant_id}?institution_id=inst-a", headers=_auth()
+        )
+
+        assert response.status_code == 204
+
+    async def test_returns_404_for_nonexistent_grant(self, client):
+        await _seed_user(client.db, "u1")
+        await _seed_grant(client.db, "u1", Subject.ACCESS_MANAGEMENT, Action.MANAGE, ALL_INSTITUTIONS)
+
+        response = await client.delete(
+            "/api/users/u2/grants/no-such-grant?institution_id=inst-a", headers=_auth()
+        )
+
+        assert response.status_code == 404
