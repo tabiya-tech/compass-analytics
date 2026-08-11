@@ -8,10 +8,13 @@ import { handlers } from "../src/mocks/handlers";
 import { loadBrandingConfig } from "../src/branding/brandingConfig";
 import { initI18n } from "../src/i18n/i18n";
 import { Locale, LocalesLabels, SupportedLocales } from "../src/i18n/constants";
+import { AuthContext, type AuthContextValue } from "../src/auth/AuthContext";
 
 initialize({ onUnhandledRequest: "bypass" });
 
 const localeOptions = SupportedLocales.map((locale) => ({ value: locale, title: LocalesLabels[locale] }));
+
+const STUB_USER = { uid: "storybook-user", email: "storybook@example.com" } as AuthContextValue["user"];
 
 const preview: Preview = {
   parameters: {
@@ -49,12 +52,20 @@ const preview: Preview = {
         void i18n.changeLanguage(context.globals.locale);
       }, [i18n, context.globals.locale]);
 
+      const authValue: AuthContextValue = {
+        user: context.globals.loggedIn ? STUB_USER : null,
+        loading: false,
+        getIdToken: async () => "storybook-stub-token",
+      };
+
       return (
-        <HashRouter>
-          <I18nextProvider i18n={i18n}>
-            <Story />
-          </I18nextProvider>
-        </HashRouter>
+        <AuthContext.Provider value={authValue}>
+          <HashRouter>
+            <I18nextProvider i18n={i18n}>
+              <Story />
+            </I18nextProvider>
+          </HashRouter>
+        </AuthContext.Provider>
       );
     },
   ],
@@ -67,6 +78,19 @@ const preview: Preview = {
         items: localeOptions,
         defaultValue: Locale.EN_GB,
         showName: true,
+      },
+    },
+    loggedIn: {
+      name: "Logged in",
+      description: "Simulate an authenticated user",
+      toolbar: {
+        icon: "user",
+        items: [
+          { value: true, title: "Signed in" },
+          { value: false, title: "Signed out" },
+        ],
+        defaultValue: true,
+        dynamicTitle: true,
       },
     },
   },

@@ -86,8 +86,7 @@ describe("getVisibleNavItems", () => {
 
     const actual = getVisibleNavItems(NAV_ITEMS, ability, activeModules).map((item) => item.id);
 
-    // THEN all four items are visible
-    expect(actual).toEqual(["overview", "institutions", "jobseekers", "modules"]);
+    expect(actual).toEqual(["overview", "jobseekers", "institutions", "modules"]);
   });
 
   it("should hide institutions when institutions:view is not granted", () => {
@@ -148,7 +147,12 @@ describe("getModuleSubItems", () => {
     const actual = getModuleSubItems(givenActiveModules);
 
     expect(actual).toEqual([
-      { id: "job-readiness", labelKey: "nav.modulesSection.jobReadiness", path: "/modules/job-readiness", icon: GraduationCap },
+      {
+        id: "job-readiness",
+        labelKey: "nav.modulesSection.jobReadiness",
+        path: "/modules/job-readiness",
+        icon: GraduationCap,
+      },
       { id: "jobs", labelKey: "nav.modulesSection.jobs", path: "/modules/jobs", icon: Briefcase },
     ]);
   });

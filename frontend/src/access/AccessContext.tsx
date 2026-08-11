@@ -52,7 +52,12 @@ export function useAccess(): AccessContextValue {
  * Use `Can` / `useAbility` for permission checks; `useAccess` for scope and active modules.
  * Tests and stories pass props directly; AccessGate wires /api/me in production.
  */
-export function AccessProvider({ children, ability, scope, activeModules }: Readonly<{ children: ReactNode } & AccessProviderProps>) {
+export function AccessProvider({
+  children,
+  ability,
+  scope,
+  activeModules,
+}: Readonly<{ children: ReactNode } & AccessProviderProps>) {
   const resolvedAbility = ability ?? DEFAULT_ABILITY;
   const resolvedScope = scope ?? DEFAULT_SCOPE;
   const resolvedModules = activeModules ?? DEFAULT_MODULES;
@@ -74,9 +79,7 @@ export function AccessProvider({ children, ability, scope, activeModules }: Read
 }
 
 function _buildScope(me: MeResponse): AccessScope {
-  return me.scope.type === "all"
-    ? { type: "all" }
-    : { type: "institutions", institutionIds: me.scope.institution_ids };
+  return me.scope.type === "all" ? { type: "all" } : { type: "institutions", institutionIds: me.scope.institution_ids };
 }
 
 /**
