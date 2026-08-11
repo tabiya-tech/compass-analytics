@@ -16,6 +16,9 @@ GRANTS_COLLECTION = "grants"
 
 class IGrantRepository(ABC):
     @abstractmethod
+    async def list_all(self) -> list[GrantRecord]: ...
+
+    @abstractmethod
     async def list_for_user(self, user_id: str) -> list[GrantRecord]: ...
 
     @abstractmethod
@@ -44,6 +47,9 @@ class MongoGrantRepository(IGrantRepository):
 
     def __init__(self, db: AsyncIOMotorDatabase):
         self._collection = db[GRANTS_COLLECTION]
+
+    async def list_all(self) -> list[GrantRecord]:
+        return [GrantRecord.model_validate(doc) async for doc in self._collection.find({})]
 
     async def list_for_user(self, user_id: str) -> list[GrantRecord]:
         return [GrantRecord.model_validate(doc) async for doc in self._collection.find({"user_id": user_id})]
