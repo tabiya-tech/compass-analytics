@@ -13,9 +13,13 @@ import { ErrorFallback } from "./sentry/ErrorFallback";
 initSentry();
 
 async function enableMocking() {
-  if (!import.meta.env.DEV) return;
-  const { worker } = await import("./mocks/browser");
-  return worker.start({ onUnhandledRequest: "bypass" });
+  if (import.meta.env.VITE_MSW === "true") {
+    const { worker } = await import("./mocks/browser");
+    return worker.start({ onUnhandledRequest: "bypass" });
+  }
+  // Unregister any previously cached service worker so it stops intercepting requests.
+  const registrations = await navigator.serviceWorker.getRegistrations();
+  await Promise.all(registrations.map((r) => r.unregister()));
 }
 
 async function boot() {

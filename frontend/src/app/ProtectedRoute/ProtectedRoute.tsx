@@ -1,6 +1,7 @@
 import { Navigate } from "react-router-dom";
 import { type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { ShieldOff } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
 import { useAbility, type Action, type Subject, type AppAbility } from "@/access/AccessContext";
 import { routerPaths } from "@/app/routerPaths";
@@ -32,6 +33,14 @@ export function PermissionRoute({ action, subject, children }: Readonly<Permissi
 
   if (loading) return null;
   if (!user) return <Navigate to={routerPaths.LOGIN} replace />;
-  if (!ability.can(action, subject)) return <div role="alert">{t("access.notAuthorised")}</div>;
+  if (!ability.can(action, subject))
+    return (
+      <div role="alert" className="flex h-full flex-col items-center justify-center gap-4 text-center">
+        <ShieldOff className="h-10 w-10 text-muted-foreground" />
+        <p className="max-w-sm text-muted-foreground" style={{ fontSize: "var(--text-body)" }}>
+          {t("access.forbidden")}
+        </p>
+      </div>
+    );
   return <>{children}</>;
 }

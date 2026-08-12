@@ -29,3 +29,4 @@ storybook-static
 
 # Local-only design reference material (handoff zip + extracted contents)
 docs/
+/backend/scripts/users.csv

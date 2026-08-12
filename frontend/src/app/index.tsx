@@ -24,9 +24,9 @@ const router = createHashRouter([
       {
         index: true,
         element: (
-          <ProtectedRoute>
+          <PermissionRoute action={Action.View} subject={Subject.Dashboard}>
             <Overview />
-          </ProtectedRoute>
+          </PermissionRoute>
         ),
       },
       {

@@ -98,6 +98,7 @@ export const overviewMetricsHandler = http.get(`${OVERVIEW_API_BASE}/metrics`, (
 /** Full handler list for tests and Storybook, so components render with realistic data without the backend running. */
 export const handlers: HttpHandler[] = [
   brandingHandler,
+  http.post("/api/users/register", () => new HttpResponse(null, { status: 201 })),
   http.get("/api/me", () => HttpResponse.json(stubMe)),
   http.get("/api/reach", () => HttpResponse.json(stubReach)),
   overviewMetricsHandler,
