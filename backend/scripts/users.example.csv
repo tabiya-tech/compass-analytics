@@ -1,0 +1,5 @@
+user_id,role,institution_id
+<firebase-uid>,super_admin,
+<firebase-uid>,funder,
+<firebase-uid>,institution_admin,<institution-id>
+<firebase-uid>,implementer,<institution-id>
