@@ -9,7 +9,7 @@ from app.grants.roles import ROLES
 from app.grants.types import GrantRecord, GrantRequest, GrantView, ManagedUser, RoleRequest
 from app.casbin.enforcer import reload_policy
 from app.users.repository import IUserRepository
-from app.users.types import ALL_INSTITUTIONS, Action, MeResponse, ScopeType, Subject, UserScope
+from app.users.types import ALL_INSTITUTIONS, Action, MeResponse, ScopeType, Subject, UserRecord, UserScope
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +39,9 @@ class ScopeResolution(BaseModel):
 
 class IUserService(ABC):
     @abstractmethod
+    async def register(self, user_info: UserInfo) -> None: ...
+
+    @abstractmethod
     async def get_me(self, user_info: UserInfo) -> MeResponse: ...
 
     @abstractmethod
@@ -61,6 +64,11 @@ class UserService(IUserService):
     def __init__(self, repository: IUserRepository, grant_repository: IGrantRepository):
         self._repo = repository
         self._grants = grant_repository
+
+    async def register(self, user_info: UserInfo) -> None:
+        record = UserRecord(user_id=user_info.user_id, email=user_info.email, name=user_info.name)
+        await self._repo.upsert(record)
+        logger.info("register: upserted user_id=%s", user_info.user_id)
 
     async def _require_record(self, user_info: UserInfo):  # type: ignore[return]
         record = await self._repo.get_by_user_id(user_info.user_id)

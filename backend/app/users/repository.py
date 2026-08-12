@@ -17,6 +17,9 @@ class IUserRepository(ABC):
     @abstractmethod
     async def list_all(self) -> list[UserRecord]: ...
 
+    @abstractmethod
+    async def upsert(self, record: UserRecord) -> UserRecord: ...
+
 
 class MongoUserRepository(IUserRepository):
     """
@@ -35,3 +38,8 @@ class MongoUserRepository(IUserRepository):
 
     async def list_all(self) -> list[UserRecord]:
         return [UserRecord.model_validate(doc) async for doc in self._collection.find({})]
+
+    async def upsert(self, record: UserRecord) -> UserRecord:
+        doc = record.model_dump(exclude_none=True)
+        await self._collection.update_one({"user_id": record.user_id}, {"$set": doc}, upsert=True)
+        return record

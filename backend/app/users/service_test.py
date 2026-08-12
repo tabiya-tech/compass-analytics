@@ -29,6 +29,10 @@ class _FakeUserRepository(IUserRepository):
     async def list_all(self) -> list[UserRecord]:
         return list(self._records.values())
 
+    async def upsert(self, record: UserRecord) -> UserRecord:
+        self._records[record.user_id] = record
+        return record
+
 
 class _FakeGrantRepository(IGrantRepository):
     def __init__(self, grants: list[GrantRecord] | None = None):

@@ -20,6 +20,15 @@ def add_users_routes(app: FastAPI, auth: Authentication) -> None:
 
     router = APIRouter(prefix=_API_PREFIX, tags=["Users"])
 
+    @router.post("/users/register", status_code=status.HTTP_201_CREATED)
+    async def register(
+        user_info: UserInfo = Depends(get_user_info),
+        service: IUserService = Depends(get_user_service),
+    ) -> None:
+        logger.info("register endpoint hit for user_id=%s", user_info.user_id)
+        await service.register(user_info)
+        logger.info("register complete for user_id=%s", user_info.user_id)
+
     @router.get("/me", response_model=MeResponse)
     async def get_me(
         user_info: UserInfo = Depends(get_user_info),

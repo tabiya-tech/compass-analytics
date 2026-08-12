@@ -19,6 +19,17 @@ export class UserService {
     return UserService.instance;
   }
 
+  async register(token: string): Promise<void> {
+    const url = new URL(`${USER_API_BASE}/users/register`, window.location.origin);
+    const response = await fetch(url.toString(), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      throw new UserApiError(response.status, `Register API error: ${response.status}`);
+    }
+  }
+
   /** Fetches the caller's profile. Throws UserApiError on a non-2xx response. */
   async getMe(token: string): Promise<MeResponse> {
     const url = new URL(`${USER_API_BASE}/me`, window.location.origin);
