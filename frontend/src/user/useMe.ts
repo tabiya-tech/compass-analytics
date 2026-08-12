@@ -6,15 +6,22 @@ import type { MeResponse } from "@/user/user.types";
 
 export type MeState =
   | { status: "loading" }
+  | { status: "unauthenticated" } // firebase resolved, no signed-in user
   | { status: "unprovisioned" } // authenticated, but no profile yet (backend 404)
   | { status: "error"; message: string }
   | { status: "success"; data: MeResponse };
 
 export function useMe(): MeState {
-  const { getIdToken } = useAuth();
+  const { user, loading, getIdToken } = useAuth();
   const [state, setState] = useState<MeState>({ status: "loading" });
 
   useEffect(() => {
+    if (loading) return;
+    if (!user) {
+      setState({ status: "unauthenticated" });
+      return;
+    }
+
     let cancelled = false;
     setState({ status: "loading" });
 
@@ -39,7 +46,7 @@ export function useMe(): MeState {
     return () => {
       cancelled = true;
     };
-  }, [getIdToken]);
+  }, [loading, user, getIdToken]);
 
   return state;
 }

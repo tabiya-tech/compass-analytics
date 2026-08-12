@@ -1,8 +1,10 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { AbilityProvider, Can, useAbility } from "@casl/react";
 import { useTranslation } from "react-i18next";
+import { Loader2 } from "lucide-react";
 import { useMe } from "@/user/useMe";
 import { Action, buildAbility, Subject, type AppAbility } from "@/access/ability";
+import { AccessErrorPage } from "@/access/AccessErrorPage";
 import type { MeResponse, ModuleId } from "@/user/user.types";
 
 export { Can, useAbility, Subject, Action };
@@ -91,9 +93,20 @@ export function AccessGate({ children }: Readonly<{ children: ReactNode }>) {
   const me = useMe();
   const { t } = useTranslation();
 
-  if (me.status === "loading") return <div role="status">{t("access.loading")}</div>;
-  if (me.status === "unprovisioned") return <div role="alert">{t("access.unprovisioned")}</div>;
-  if (me.status === "error") return <div role="alert">{t("access.error")}</div>;
+  if (me.status === "loading")
+    return (
+      <div
+        role="status"
+        aria-label={t("access.loading")}
+        className="flex min-h-screen items-center justify-center bg-background"
+      >
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  // Not signed in — render children with no ability so ProtectedRoute redirects to login.
+  if (me.status === "unauthenticated") return <AccessProvider ability={buildAbility([])}>{children}</AccessProvider>;
+  if (me.status === "unprovisioned") return <AccessErrorPage variant="unprovisioned" />;
+  if (me.status === "error") return <AccessErrorPage variant="error" />;
 
   return (
     <AccessProvider
