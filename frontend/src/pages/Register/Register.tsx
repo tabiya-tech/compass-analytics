@@ -10,6 +10,7 @@ import { PasswordRequirements, isStrongPassword } from "@/auth/components/Passwo
 import { routerPaths } from "@/app/routerPaths";
 import { AuthApiError } from "@/auth/services/Authentication.service";
 import { AuthenticationServiceFactory } from "@/auth/services/Authentication.service.factory";
+import { UserService } from "@/user/User.service";
 
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
@@ -59,7 +60,9 @@ export function Register() {
     setFormError(null);
     setSubmitting(true);
     try {
-      await authService.register({ fullName, organization, email, password });
+      const credential = await authService.register({ fullName, organization, email, password });
+      const token = await credential.user.getIdToken();
+      await UserService.getInstance().register(token);
       navigate(routerPaths.ROOT);
     } catch (error) {
       if (error instanceof AuthApiError && error.code === "email_taken") {
@@ -76,7 +79,9 @@ export function Register() {
     setFormError(null);
     setSubmitting(true);
     try {
-      await authService.loginWithGoogle();
+      const credential = await authService.loginWithGoogle();
+      const token = await credential.user.getIdToken();
+      await UserService.getInstance().register(token);
       navigate(routerPaths.ROOT);
     } catch {
       setFormError(t("auth.errors.generic"));

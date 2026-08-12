@@ -30,6 +30,9 @@ def _make_reach_service(transport) -> ReachService:
     from app.users.types import MeResponse
 
     class _FakeUserService(IUserService):
+        async def register(self, user_info: UserInfo) -> None:
+            raise NotImplementedError
+
         async def get_me(self, user_info: UserInfo) -> MeResponse:
             raise NotImplementedError
 
