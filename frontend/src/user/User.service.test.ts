@@ -8,7 +8,7 @@ const givenMe: MeResponse = {
   user_id: "u1",
   email: "u@example.com",
   name: "U",
-  role: "funder",
+  permissions: ["dashboard:view", "institutions:view"],
   scope: { type: "all", institution_ids: [] },
   active_modules: ["build-your-profile"],
 };

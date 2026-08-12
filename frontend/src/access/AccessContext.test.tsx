@@ -1,11 +1,32 @@
 import { describe, expect, it, vi } from "vitest";
+import { render as rtlRender } from "@testing-library/react";
 import { render as renderWithoutProviders } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
+import { HashRouter } from "react-router-dom";
 import { render, screen, waitFor } from "@/_test_utilities/test-utils";
 import { server } from "@/mocks/server";
 import { MODULE_IDS, Subject, Action, Can, AccessProvider, AccessGate, useAccess } from "@/access/AccessContext";
 import { buildAbility } from "@/access/ability";
+import { AuthContext, type AuthContextValue } from "@/auth/AuthContext";
 import type { MeResponse } from "@/user/user.types";
+
+const STUB_USER = { uid: "test-user", email: "test@example.com" } as AuthContextValue["user"];
+const STUB_AUTH: AuthContextValue = { user: STUB_USER, loading: false, getIdToken: async () => "stub-token" };
+const STUB_AUTH_LOGGED_OUT: AuthContextValue = {
+  user: null,
+  loading: false,
+  getIdToken: async () => {
+    throw new Error("not signed in");
+  },
+};
+
+function renderWithAuth(ui: React.ReactElement, auth = STUB_AUTH) {
+  return rtlRender(
+    <AuthContext.Provider value={auth}>
+      <HashRouter>{ui}</HashRouter>
+    </AuthContext.Provider>
+  );
+}
 
 function ScopeProbe() {
   const { activeModules, isMultiInstitution } = useAccess();
@@ -106,7 +127,7 @@ describe("AccessGate", () => {
   it("should show the loading state while /api/me is in flight", () => {
     server.use(http.get("/api/me", async () => new Promise(() => {})));
 
-    render(
+    renderWithAuth(
       <AccessGate>
         <CanProbe />
       </AccessGate>
@@ -119,7 +140,7 @@ describe("AccessGate", () => {
   it("should hydrate the ability from /api/me permissions", async () => {
     server.use(http.get("/api/me", () => HttpResponse.json(givenMe)));
 
-    render(
+    renderWithAuth(
       <AccessGate>
         <CanProbe />
       </AccessGate>
@@ -133,7 +154,7 @@ describe("AccessGate", () => {
   it("should show the unprovisioned message on a 404", async () => {
     server.use(http.get("/api/me", () => new HttpResponse(null, { status: 404 })));
 
-    render(
+    renderWithAuth(
       <AccessGate>
         <CanProbe />
       </AccessGate>
@@ -146,13 +167,29 @@ describe("AccessGate", () => {
   it("should show the error message when /api/me fails", async () => {
     server.use(http.get("/api/me", () => HttpResponse.error()));
 
-    render(
+    renderWithAuth(
       <AccessGate>
         <CanProbe />
       </AccessGate>
     );
 
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+  });
+
+  it("should render children immediately when the user is not signed in", () => {
+    // GIVEN no signed-in user (firebase resolved, user=null)
+    renderWithAuth(
+      <AccessGate>
+        <CanProbe />
+      </AccessGate>,
+      STUB_AUTH_LOGGED_OUT
+    );
+
+    // THEN children render (with no permissions) so ProtectedRoute can redirect to login
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    // Default ability grants nothing specific when no permissions are passed
+    expect(screen.queryByTestId("can-dashboard")).not.toBeInTheDocument();
   });
 });
 

@@ -19,7 +19,7 @@ export class UserService {
     return UserService.instance;
   }
 
-  /** Fetches the caller's profile (role + scope). Throws UserApiError on a non-2xx response. */
+  /** Fetches the caller's profile. Throws UserApiError on a non-2xx response. */
   async getMe(token: string): Promise<MeResponse> {
     const url = new URL(`${USER_API_BASE}/me`, window.location.origin);
     const response = await fetch(url.toString(), {
