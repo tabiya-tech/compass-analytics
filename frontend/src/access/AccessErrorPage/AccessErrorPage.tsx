@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { getLogoUrl } from "@/branding/brandingConfig";
 import { Button } from "@/components/ui/button";
+import { AuthenticationServiceFactory } from "@/auth/services/Authentication.service.factory";
 
 const uniqueId = "c4a7b2e1-9f3d-4a6c-8e5b-1d0f2a3b4c5d";
 
@@ -34,7 +35,15 @@ export function AccessErrorPage({ variant }: Readonly<AccessErrorPageProps>) {
           {t(variant === "error" ? "access.error" : "access.unprovisioned")}
         </p>
       </div>
-      {variant === "error" && <Button onClick={() => window.location.reload()}>{t("common.retry")}</Button>}
+      <div className="flex gap-3">
+        {variant === "error" && <Button onClick={() => window.location.reload()}>{t("common.retry")}</Button>}
+        <Button
+          variant="outline"
+          onClick={() => AuthenticationServiceFactory.getCurrentAuthenticationService().logout()}
+        >
+          {t("auth.signOut")}
+        </Button>
+      </div>
     </div>
   );
 }
