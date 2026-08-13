@@ -142,16 +142,24 @@ class UserService(IUserService):
 
     async def grant(self, user_info: UserInfo, target_user_id: str, request: GrantRequest) -> GrantView:
         await self._require_record(user_info)
-        perm = f"{request.subject.value}:{request.action.value}"
-        was_new = await self._enforcer.add_policy(target_user_id, request.institution_id, perm)
-        if was_new:
-            await self._grants.set_granted_by(target_user_id, request.subject, request.action, request.institution_id, user_info.user_id)
-        record = await self._grants.get_by_tuple(
+        existing = await self._grants.get_by_tuple(
             user_id=target_user_id,
             subject=request.subject,
             action=request.action,
             institution_id=request.institution_id,
         )
+        perm = f"{request.subject.value}:{request.action.value}"
+        await self._enforcer.add_policy(target_user_id, request.institution_id, perm)
+        if existing is None:
+            await self._grants.set_granted_by(target_user_id, request.subject, request.action, request.institution_id, user_info.user_id)
+            record = await self._grants.get_by_tuple(
+                user_id=target_user_id,
+                subject=request.subject,
+                action=request.action,
+                institution_id=request.institution_id,
+            )
+        else:
+            record = existing
         return GrantView(
             grant_id=record.grant_id,
             subject=record.subject,
@@ -165,16 +173,24 @@ class UserService(IUserService):
             raise UnknownRoleError(request.role)
         views = []
         for subject, action in ROLES[request.role]:
-            perm = f"{subject.value}:{action.value}"
-            was_new = await self._enforcer.add_policy(target_user_id, request.institution_id, perm)
-            if was_new:
-                await self._grants.set_granted_by(target_user_id, subject, action, request.institution_id, user_info.user_id)
-            record = await self._grants.get_by_tuple(
+            existing = await self._grants.get_by_tuple(
                 user_id=target_user_id,
                 subject=subject,
                 action=action,
                 institution_id=request.institution_id,
             )
+            perm = f"{subject.value}:{action.value}"
+            await self._enforcer.add_policy(target_user_id, request.institution_id, perm)
+            if existing is None:
+                await self._grants.set_granted_by(target_user_id, subject, action, request.institution_id, user_info.user_id)
+                record = await self._grants.get_by_tuple(
+                    user_id=target_user_id,
+                    subject=subject,
+                    action=action,
+                    institution_id=request.institution_id,
+                )
+            else:
+                record = existing
             views.append(GrantView(
                 grant_id=record.grant_id,
                 subject=record.subject,
@@ -189,4 +205,9 @@ class UserService(IUserService):
         if record is None:
             raise KeyError(grant_id)
         perm = f"{record.subject.value}:{record.action.value}"
-        await self._enforcer.remove_policy(target_user_id, record.institution_id, perm)
+        removed = await self._enforcer.remove_policy(target_user_id, record.institution_id, perm)
+        if not removed:
+            logger.warning(
+                "revoke: enforcer had no in-memory rule for user_id=%s perm=%s institution_id=%s — DB deleted, guard may have been stale",
+                target_user_id, perm, record.institution_id,
+            )
