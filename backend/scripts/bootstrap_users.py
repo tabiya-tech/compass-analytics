@@ -28,11 +28,12 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from app.casbin.adapter import GrantsAdapter
+from app.casbin.enforcer import get_enforcer
 from app.grants.repository import MongoGrantRepository
 from app.grants.roles import ROLES
 from app.server_dependencies.db_dependencies import AnalyticsDBProvider
-from app.users.repository import MongoUserRepository
-from app.users.types import ALL_INSTITUTIONS, UserRecord
+from app.users.types import ALL_INSTITUTIONS
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger("bootstrap_users")
@@ -77,18 +78,13 @@ async def _provision(entries: list[tuple[str, str, str]]) -> None:
     load_dotenv()
     db = await AnalyticsDBProvider.get_db()
     await AnalyticsDBProvider.initialize_mongo_db(db)
-    repo = MongoGrantRepository(db)
+    grant_repo = MongoGrantRepository(db)
+    enforcer = await get_enforcer(GrantsAdapter(grant_repo))
 
     for user_id, role, institution_id in entries:
-        grants = ROLES[role]
-        for subject, action in grants:
-            await repo.create(
-                user_id=user_id,
-                subject=subject,
-                action=action,
-                institution_id=institution_id,
-                granted_by=None,
-            )
+        for subject, action in ROLES[role]:
+            perm = f"{subject.value}:{action.value}"
+            await enforcer.add_policy(user_id, institution_id, perm)
         logger.info("%-40s %-20s %s", user_id, role, institution_id)
 
     AnalyticsDBProvider.clear_cache()

@@ -16,13 +16,16 @@ GRANTS_COLLECTION = "grants"
 
 class IGrantRepository(ABC):
     @abstractmethod
-    async def list_all(self) -> list[GrantRecord]: ...
+    async def list_all(self) -> list[GrantRecord]:
+        raise NotImplementedError
 
     @abstractmethod
-    async def list_for_user(self, user_id: str) -> list[GrantRecord]: ...
+    async def list_for_user(self, user_id: str) -> list[GrantRecord]:
+        raise NotImplementedError
 
     @abstractmethod
-    async def list_for_users(self, user_ids: list[str]) -> list[GrantRecord]: ...
+    async def list_for_users(self, user_ids: list[str]) -> list[GrantRecord]:
+        raise NotImplementedError
 
     @abstractmethod
     async def create(
@@ -32,10 +35,28 @@ class IGrantRepository(ABC):
         action: Action,
         institution_id: str,
         granted_by: str | None,
-    ) -> GrantRecord: ...
+    ) -> GrantRecord:
+        raise NotImplementedError
 
     @abstractmethod
-    async def delete(self, user_id: str, grant_id: str) -> bool: ...
+    async def get_by_tuple(self, user_id: str, subject: Subject, action: Action, institution_id: str) -> GrantRecord | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_by_grant_id(self, user_id: str, grant_id: str) -> GrantRecord | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def delete(self, user_id: str, grant_id: str) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def set_granted_by(self, user_id: str, subject: Subject, action: Action, institution_id: str, granted_by: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def delete_by_tuple(self, user_id: str, subject: Subject, action: Action, institution_id: str) -> bool:
+        raise NotImplementedError
 
 
 class MongoGrantRepository(IGrantRepository):
@@ -65,25 +86,46 @@ class MongoGrantRepository(IGrantRepository):
         institution_id: str,
         granted_by: str | None,
     ) -> GrantRecord:
-        grant_id = str(uuid.uuid4())
-        doc = {
-            "grant_id": grant_id,
-            "user_id": user_id,
-            "subject": subject.value,
-            "action": action.value,
-            "institution_id": institution_id,
-            "granted_by": granted_by,
-            "granted_at": datetime.now(tz=timezone.utc),
-        }
+        record = GrantRecord(
+            grant_id=str(uuid.uuid4()),
+            user_id=user_id,
+            subject=subject,
+            action=action,
+            institution_id=institution_id,
+            granted_by=granted_by,
+            granted_at=datetime.now(tz=timezone.utc),
+        )
         try:
-            await self._collection.insert_one(doc)
+            await self._collection.insert_one(record.model_dump(mode="json"))
         except DuplicateKeyError:
             existing = await self._collection.find_one(
                 {"user_id": user_id, "subject": subject.value, "action": action.value, "institution_id": institution_id}
             )
             return GrantRecord.model_validate(existing)
-        return GrantRecord.model_validate(doc)
+        return record
+
+    async def get_by_tuple(self, user_id: str, subject: Subject, action: Action, institution_id: str) -> GrantRecord | None:
+        doc = await self._collection.find_one(
+            {"user_id": user_id, "subject": subject.value, "action": action.value, "institution_id": institution_id}
+        )
+        return GrantRecord.model_validate(doc) if doc else None
+
+    async def get_by_grant_id(self, user_id: str, grant_id: str) -> GrantRecord | None:
+        doc = await self._collection.find_one({"user_id": user_id, "grant_id": grant_id})
+        return GrantRecord.model_validate(doc) if doc else None
+
+    async def set_granted_by(self, user_id: str, subject: Subject, action: Action, institution_id: str, granted_by: str) -> None:
+        await self._collection.update_one(
+            {"user_id": user_id, "subject": subject.value, "action": action.value, "institution_id": institution_id},
+            {"$set": {"granted_by": granted_by}},
+        )
 
     async def delete(self, user_id: str, grant_id: str) -> bool:
         result = await self._collection.delete_one({"user_id": user_id, "grant_id": grant_id})
+        return result.deleted_count > 0
+
+    async def delete_by_tuple(self, user_id: str, subject: Subject, action: Action, institution_id: str) -> bool:
+        result = await self._collection.delete_one(
+            {"user_id": user_id, "subject": subject.value, "action": action.value, "institution_id": institution_id}
+        )
         return result.deleted_count > 0

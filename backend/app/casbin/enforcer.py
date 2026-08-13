@@ -30,7 +30,7 @@ async def get_enforcer(adapter: GrantsAdapter) -> casbin.AsyncEnforcer:
 
 
 async def reload_policy() -> None:
-    """Reloads the policy from the grants collection. No-op if not yet initialized."""
+    """Reloads all grants from the DB into the in-memory enforcer. No-op if not yet initialized."""
     global _enforcer
     if _enforcer is not None:
         await _enforcer.load_policy()

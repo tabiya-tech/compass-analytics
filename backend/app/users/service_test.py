@@ -4,9 +4,12 @@ Unit tests for UserService.
 Fake repositories stand in for MongoDB. DB round-trips are covered by the
 route integration tests in routes_test.py.
 """
+import casbin
 import pytest
 
 from app.auth.firebase import SignInProvider, UserInfo
+from app.casbin.adapter import GrantsAdapter
+from app.casbin.model import build_model
 from app.grants.repository import IGrantRepository
 from app.grants.types import GrantRecord, GrantRequest, RoleRequest
 from app.users.repository import IUserRepository
@@ -71,9 +74,30 @@ class _FakeGrantRepository(IGrantRepository):
         self._grants.append(record)
         return record
 
+    async def get_by_tuple(self, user_id: str, subject: Subject, action: Action, institution_id: str) -> GrantRecord | None:
+        return next(
+            (g for g in self._grants if g.user_id == user_id and g.subject == subject
+             and g.action == action and g.institution_id == institution_id),
+            None,
+        )
+
+    async def get_by_grant_id(self, user_id: str, grant_id: str) -> GrantRecord | None:
+        return next((g for g in self._grants if g.user_id == user_id and g.grant_id == grant_id), None)
+
+    async def set_granted_by(self, user_id: str, subject: Subject, action: Action, institution_id: str, granted_by: str) -> None:
+        pass
+
     async def delete(self, user_id: str, grant_id: str) -> bool:
         before = len(self._grants)
         self._grants = [g for g in self._grants if not (g.user_id == user_id and g.grant_id == grant_id)]
+        return len(self._grants) < before
+
+    async def delete_by_tuple(self, user_id: str, subject: Subject, action: Action, institution_id: str) -> bool:
+        before = len(self._grants)
+        self._grants = [
+            g for g in self._grants
+            if not (g.user_id == user_id and g.subject == subject and g.action == action and g.institution_id == institution_id)
+        ]
         return len(self._grants) < before
 
 
@@ -95,13 +119,17 @@ def _grant(user_id: str, subject: Subject, action: Action, institution_id: str, 
     return GrantRecord(grant_id=grant_id, user_id=user_id, subject=subject, action=action, institution_id=institution_id)
 
 
-def _service(
+async def _service(
     records: list[UserRecord] | None = None,
     grants: list[GrantRecord] | None = None,
 ) -> UserService:
+    grant_repo = _FakeGrantRepository(grants or [])
+    enforcer = casbin.AsyncEnforcer(build_model(), GrantsAdapter(grant_repo))
+    await enforcer.load_policy()
     return UserService(
         repository=_FakeUserRepository(records or []),
-        grant_repository=_FakeGrantRepository(grants or []),
+        grant_repository=grant_repo,
+        enforcer=enforcer,
     )
 
 
@@ -112,7 +140,7 @@ class TestGetMe:
             _grant("u1", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS, "g1"),
             _grant("u1", Subject.ACCOUNT, Action.VIEW, ALL_INSTITUTIONS, "g2"),
         ]
-        service = _service(records=[_record()], grants=grants)
+        service = await _service(records=[_record()], grants=grants)
 
         result = await service.get_me(_user_info())
 
@@ -122,7 +150,7 @@ class TestGetMe:
     async def test_returns_all_scope_when_dashboard_grant_is_wildcard(self):
         # GIVEN a wildcard dashboard:view grant
         grants = [_grant("u1", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS)]
-        service = _service(records=[_record()], grants=grants)
+        service = await _service(records=[_record()], grants=grants)
 
         result = await service.get_me(_user_info())
 
@@ -131,7 +159,7 @@ class TestGetMe:
     async def test_returns_institutions_scope_when_dashboard_grant_is_scoped(self):
         # GIVEN a dashboard:view grant scoped to inst-a
         grants = [_grant("u1", Subject.DASHBOARD, Action.VIEW, "inst-a")]
-        service = _service(records=[_record()], grants=grants)
+        service = await _service(records=[_record()], grants=grants)
 
         result = await service.get_me(_user_info())
 
@@ -141,7 +169,7 @@ class TestGetMe:
     async def test_prefers_jwt_identity_over_stored_copy(self):
         # GIVEN a record with stale identity
         record = UserRecord(user_id="u1", email="stale@example.com", name="Stale")
-        service = _service(records=[record])
+        service = await _service(records=[record])
 
         result = await service.get_me(_user_info())
 
@@ -149,7 +177,7 @@ class TestGetMe:
         assert result.name == "Test User"
 
     async def test_raises_not_provisioned_when_no_record(self):
-        service = _service()
+        service = await _service()
         with pytest.raises(UserNotProvisionedError):
             await service.get_me(_user_info())
 
@@ -158,7 +186,7 @@ class TestResolveScope:
     async def test_all_scope_with_no_drilldown_returns_none_filter(self):
         # GIVEN deployment-wide dashboard access
         grants = [_grant("u1", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS)]
-        service = _service(records=[_record()], grants=grants)
+        service = await _service(records=[_record()], grants=grants)
 
         result = await service.resolve_scope(_user_info(), None)
 
@@ -166,7 +194,7 @@ class TestResolveScope:
 
     async def test_all_scope_drilldown_passes_through_institution(self):
         grants = [_grant("u1", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS)]
-        service = _service(records=[_record()], grants=grants)
+        service = await _service(records=[_record()], grants=grants)
 
         result = await service.resolve_scope(_user_info(), "inst-a")
 
@@ -178,7 +206,7 @@ class TestResolveScope:
             _grant("u1", Subject.DASHBOARD, Action.VIEW, "inst-a", "g1"),
             _grant("u1", Subject.DASHBOARD, Action.VIEW, "inst-b", "g2"),
         ]
-        service = _service(records=[_record()], grants=grants)
+        service = await _service(records=[_record()], grants=grants)
 
         result = await service.resolve_scope(_user_info(), None)
 
@@ -186,7 +214,7 @@ class TestResolveScope:
 
     async def test_institutions_scope_drilldown_into_own_institution(self):
         grants = [_grant("u1", Subject.DASHBOARD, Action.VIEW, "inst-a")]
-        service = _service(records=[_record()], grants=grants)
+        service = await _service(records=[_record()], grants=grants)
 
         result = await service.resolve_scope(_user_info(), "inst-a")
 
@@ -194,13 +222,13 @@ class TestResolveScope:
 
     async def test_institutions_scope_drilldown_into_foreign_institution_raises(self):
         grants = [_grant("u1", Subject.DASHBOARD, Action.VIEW, "inst-a")]
-        service = _service(records=[_record()], grants=grants)
+        service = await _service(records=[_record()], grants=grants)
 
         with pytest.raises(ForbiddenInstitutionError):
             await service.resolve_scope(_user_info(), "inst-x")
 
     async def test_raises_not_provisioned_when_no_record(self):
-        service = _service()
+        service = await _service()
         with pytest.raises(UserNotProvisionedError):
             await service.resolve_scope(_user_info(), None)
 
@@ -212,7 +240,7 @@ class TestListManagedUsers:
             _grant("u1", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS, "g1"),
             _grant("u2", Subject.INSTITUTIONS, Action.VIEW, "inst-a", "g2"),
         ]
-        service = _service(records=records, grants=grants)
+        service = await _service(records=records, grants=grants)
 
         result = await service.list_managed_users(_user_info())
 
@@ -222,21 +250,21 @@ class TestListManagedUsers:
         assert u1.grants[0].grant_id == "g1"
 
     async def test_returns_empty_grants_for_users_with_no_grants(self):
-        service = _service(records=[_record("u1")])
+        service = await _service(records=[_record("u1")])
 
         result = await service.list_managed_users(_user_info())
 
         assert result[0].grants == []
 
     async def test_raises_not_provisioned_when_caller_has_no_record(self):
-        service = _service()
+        service = await _service()
         with pytest.raises(UserNotProvisionedError):
             await service.list_managed_users(_user_info())
 
 
 class TestGrant:
     async def test_creates_and_returns_grant_view(self):
-        service = _service(records=[_record()])
+        service = await _service(records=[_record()])
         request = GrantRequest(subject=Subject.DASHBOARD, action=Action.VIEW, institution_id="inst-a")
 
         result = await service.grant(_user_info(), "u2", request)
@@ -246,7 +274,7 @@ class TestGrant:
         assert result.institution_id == "inst-a"
 
     async def test_raises_not_provisioned_when_caller_has_no_record(self):
-        service = _service()
+        service = await _service()
         with pytest.raises(UserNotProvisionedError):
             await service.grant(_user_info(), "u2", GrantRequest(
                 subject=Subject.DASHBOARD, action=Action.VIEW, institution_id="inst-a"
@@ -255,7 +283,7 @@ class TestGrant:
 
 class TestAssignRole:
     async def test_expands_implementer_role_to_grants(self):
-        service = _service(records=[_record()])
+        service = await _service(records=[_record()])
         request = RoleRequest(role="implementer", institution_id="inst-a")
 
         result = await service.assign_role(_user_info(), "u2", request)
@@ -267,7 +295,7 @@ class TestAssignRole:
         assert all(g.institution_id == "inst-a" for g in result)
 
     async def test_expands_funder_role_to_grants(self):
-        service = _service(records=[_record()])
+        service = await _service(records=[_record()])
         request = RoleRequest(role="funder", institution_id=ALL_INSTITUTIONS)
 
         result = await service.assign_role(_user_info(), "u2", request)
@@ -277,12 +305,12 @@ class TestAssignRole:
         assert Subject.ACCESS_MANAGEMENT in subjects
 
     async def test_raises_unknown_role_for_invalid_role_name(self):
-        service = _service(records=[_record()])
+        service = await _service(records=[_record()])
         with pytest.raises(UnknownRoleError):
             await service.assign_role(_user_info(), "u2", RoleRequest(role="superadmin", institution_id="inst-a"))
 
     async def test_raises_not_provisioned_when_caller_has_no_record(self):
-        service = _service()
+        service = await _service()
         with pytest.raises(UserNotProvisionedError):
             await service.assign_role(_user_info(), "u2", RoleRequest(role="implementer", institution_id="inst-a"))
 
@@ -290,16 +318,16 @@ class TestAssignRole:
 class TestRevoke:
     async def test_deletes_grant_successfully(self):
         grants = [_grant("u2", Subject.DASHBOARD, Action.VIEW, "inst-a", "g1")]
-        service = _service(records=[_record()], grants=grants)
+        service = await _service(records=[_record()], grants=grants)
 
         await service.revoke(_user_info(), "u2", "g1")
 
     async def test_raises_key_error_when_grant_not_found(self):
-        service = _service(records=[_record()])
+        service = await _service(records=[_record()])
         with pytest.raises(KeyError):
             await service.revoke(_user_info(), "u2", "no-such-grant")
 
     async def test_raises_not_provisioned_when_caller_has_no_record(self):
-        service = _service()
+        service = await _service()
         with pytest.raises(UserNotProvisionedError):
             await service.revoke(_user_info(), "u2", "g1")

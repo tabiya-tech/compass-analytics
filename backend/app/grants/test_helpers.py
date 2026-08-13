@@ -21,8 +21,20 @@ class FakeGrantRepository(IGrantRepository):
     async def list_for_users(self, user_ids: list[str]) -> list[GrantRecord]:
         return await self.list_all()
 
+    async def get_by_tuple(self, user_id, subject, action, institution_id) -> GrantRecord | None:
+        raise NotImplementedError
+
+    async def get_by_grant_id(self, user_id: str, grant_id: str) -> GrantRecord | None:
+        raise NotImplementedError
+
     async def create(self, user_id, subject, action, institution_id, granted_by) -> GrantRecord:
         raise NotImplementedError
 
+    async def set_granted_by(self, user_id, subject, action, institution_id, granted_by) -> None:
+        raise NotImplementedError
+
     async def delete(self, user_id: str, grant_id: str) -> bool:
+        raise NotImplementedError
+
+    async def delete_by_tuple(self, user_id, subject, action, institution_id) -> bool:
         raise NotImplementedError

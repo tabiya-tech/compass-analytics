@@ -14,8 +14,9 @@ import pytest
 from fastapi import FastAPI
 
 from app.auth.firebase import Authentication
+from app.casbin.adapter import GrantsAdapter
+from app.casbin.enforcer import clear_enforcer_cache, get_enforcer
 from app.grants.repository import MongoGrantRepository
-from app.casbin.enforcer import clear_enforcer_cache
 from app.users.dependencies import get_grant_repository, get_user_service
 from app.users.repository import USERS_COLLECTION, MongoUserRepository
 from app.users.routes import add_users_routes
@@ -44,8 +45,11 @@ async def _seed_user(db, user_id: str = "u1", **overrides) -> None:
 
 
 async def _seed_grant(db, user_id: str, subject: Subject, action: Action, institution_id: str) -> str:
-    repo = MongoGrantRepository(db)
-    record = await repo.create(user_id, subject, action, institution_id, granted_by=None)
+    grant_repo = MongoGrantRepository(db)
+    enforcer = await get_enforcer(GrantsAdapter(grant_repo))
+    perm = f"{subject.value}:{action.value}"
+    await enforcer.add_policy(user_id, institution_id, perm)
+    record = await grant_repo.get_by_tuple(user_id, subject, action, institution_id)
     return record.grant_id
 
 
@@ -59,9 +63,11 @@ async def client(monkeypatch, in_memory_analytics_database):
     add_users_routes(app, auth)
 
     grant_repo = MongoGrantRepository(in_memory_analytics_database)
+    enforcer = await get_enforcer(GrantsAdapter(grant_repo))
     service = UserService(
         repository=MongoUserRepository(in_memory_analytics_database),
         grant_repository=grant_repo,
+        enforcer=enforcer,
     )
     app.dependency_overrides[get_user_service] = lambda: service
     app.dependency_overrides[get_grant_repository] = lambda: grant_repo
