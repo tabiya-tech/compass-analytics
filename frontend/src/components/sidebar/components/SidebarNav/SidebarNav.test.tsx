@@ -23,7 +23,7 @@ describe("SidebarNav", () => {
 
   it("should render a hash-prefixed link per visible top-level nav item", () => {
     // GIVEN a full-access, all-modules-active state
-    renderNav();
+    renderNav({ ability: buildAbility(["dashboard:view", "jobseekers:view"]) });
 
     // THEN each top-level item links to its hash-prefixed path
     expect(screen.getByRole("link", { name: /^Overview$/ })).toHaveAttribute("href", "#/");
@@ -46,8 +46,8 @@ describe("SidebarNav", () => {
     // GIVEN the current location is /jobseekers
     window.location.hash = "#/jobseekers";
 
-    // WHEN the nav renders
-    renderNav();
+    // WHEN the nav renders with permissions for both items
+    renderNav({ ability: buildAbility(["dashboard:view", "jobseekers:view"]) });
 
     // THEN that link is marked as the current page
     expect(screen.getByRole("link", { name: /Jobseekers/ })).toHaveAttribute("aria-current", "page");

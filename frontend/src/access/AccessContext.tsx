@@ -35,9 +35,7 @@ export interface AccessProviderProps {
   activeModules?: readonly ModuleId[];
 }
 
-const DEFAULT_ABILITY: AppAbility = buildAbility(
-  Object.values(Subject).flatMap((subject) => Object.values(Action).map((action) => `${subject}:${action}`))
-);
+const DEFAULT_ABILITY: AppAbility = buildAbility([]);
 const DEFAULT_SCOPE: AccessScope = { type: "institutions", institutionIds: ["inst-1"] };
 const DEFAULT_MODULES: readonly ModuleId[] = Object.values(MODULE_IDS);
 
