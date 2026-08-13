@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Briefcase, Compass, GraduationCap, LayoutGrid, MessageCircle, Users } from "lucide-react";
+import { Building2, LayoutGrid, Users } from "lucide-react";
 import {
   SidebarGroup,
   SidebarMenu,
@@ -11,14 +11,8 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
-import {
-  MODULE_IDS,
-  MODULE_LABEL_KEYS,
-  PERMISSIONS,
-  useAccess,
-  type ModuleId,
-  type PermissionKey,
-} from "@/access/AccessContext";
+import { PERMISSIONS, useAccess, type ModuleId, type PermissionKey } from "@/access/AccessContext";
+import { MODULE_ICONS, MODULE_LABEL_KEYS } from "@/access/moduleDisplay";
 import { modulePath, routerPaths } from "@/app/routerPaths";
 import type { TranslationKey } from "@/i18n/react-i18next";
 
@@ -40,6 +34,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: PERMISSIONS.DASHBOARD_VIEW,
   },
   {
+    id: "institutions",
+    labelKey: "nav.institutions",
+    path: routerPaths.INSTITUTIONS,
+    icon: Building2,
+    permission: PERMISSIONS.INSTITUTIONS_VIEW,
+  },
+  {
     id: "jobseekers",
     labelKey: "nav.jobseekers",
     path: routerPaths.JOBSEEKERS,
@@ -54,13 +55,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
     requiresMultipleActiveModules: true,
   },
 ];
-
-const MODULE_NAV_ICONS: Record<ModuleId, ComponentType<{ className?: string }>> = {
-  [MODULE_IDS.BUILD_YOUR_PROFILE]: MessageCircle,
-  [MODULE_IDS.JOB_READINESS]: GraduationCap,
-  [MODULE_IDS.CAREER_EXPLORER]: Compass,
-  [MODULE_IDS.JOBS]: Briefcase,
-};
 
 export interface NavVisibilityContext {
   hasPermission: (permission: PermissionKey) => boolean;
@@ -87,7 +81,7 @@ export function getModuleSubItems(activeModules: readonly ModuleId[]): ModuleSub
     id,
     labelKey: MODULE_LABEL_KEYS[id],
     path: modulePath(id),
-    icon: MODULE_NAV_ICONS[id],
+    icon: MODULE_ICONS[id],
   }));
 }
 

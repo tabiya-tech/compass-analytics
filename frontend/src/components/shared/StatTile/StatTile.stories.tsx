@@ -64,6 +64,21 @@ export const WithIconAndCaption: Story = {
   },
 };
 
+// How the headline tiles read on the Institutions screen: dark, value first, no label.
+export const InverseTone: Story = {
+  args: {
+    label: undefined,
+    value: "80,193",
+    caption: "Jobseekers reached across the portfolio",
+    tone: "inverse",
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("80,193")).toBeVisible();
+    await expect(canvas.getByText("Jobseekers reached across the portfolio")).toBeVisible();
+    await expect(canvas.queryByTestId(DATA_TEST_ID.LABEL)).not.toBeInTheDocument();
+  },
+};
+
 function SparklinePlaceholder() {
   return (
     <svg viewBox="0 0 80 24" aria-hidden="true" className="h-6 w-20">

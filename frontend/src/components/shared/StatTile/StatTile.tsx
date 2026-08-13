@@ -21,15 +21,34 @@ export interface StatTileTrend {
   label?: string;
 }
 
+/** "inverse" is the dark, accent-value tile used for headline figures on a light screen. */
+export type StatTileTone = "default" | "inverse";
+
 export interface StatTileProps {
-  label: string;
+  label?: string;
   value: ReactNode;
   icon?: ReactNode;
   caption?: string;
   trend?: StatTileTrend;
   sparkline?: ReactNode;
+  tone?: StatTileTone;
   className?: string;
 }
+
+const TONE_STYLES = {
+  default: {
+    card: "",
+    label: "text-foreground/70",
+    value: "text-foreground",
+    caption: "text-muted-foreground",
+  },
+  inverse: {
+    card: "border-transparent bg-tabiya-blue",
+    label: "text-white/70",
+    value: "text-tabiya-green",
+    caption: "text-white/80",
+  },
+} as const satisfies Record<StatTileTone, Record<string, string>>;
 
 const TREND_STYLES = {
   up: { Icon: TrendingUp, className: "text-green-3" },
@@ -75,33 +94,51 @@ function TrendIndicator({ value, label }: Readonly<StatTileTrend>) {
   );
 }
 
-export function StatTile({ label, value, icon, caption, trend, sparkline, className }: Readonly<StatTileProps>) {
+export function StatTile({
+  label,
+  value,
+  icon,
+  caption,
+  trend,
+  sparkline,
+  tone = "default",
+  className,
+}: Readonly<StatTileProps>) {
+  const toneStyles = TONE_STYLES[tone];
+
   return (
-    <Card data-slot="stat-tile" data-testid={DATA_TEST_ID.CONTAINER} className={cn("gap-4 py-5", className)}>
-      <CardHeader className="px-5">
-        <CardDescription
-          data-testid={DATA_TEST_ID.LABEL}
-          className="font-mono text-xs tracking-[2px] text-foreground/70 uppercase"
-        >
-          {label}
-        </CardDescription>
-        {icon && (
-          <CardAction
-            data-slot="stat-tile-icon"
-            data-testid={DATA_TEST_ID.ICON}
-            aria-hidden="true"
-            className="text-muted-foreground [&_svg]:size-4"
+    <Card
+      data-slot="stat-tile"
+      data-testid={DATA_TEST_ID.CONTAINER}
+      data-tone={tone}
+      className={cn("gap-4 py-5", toneStyles.card, className)}
+    >
+      {(label || icon) && (
+        <CardHeader className="px-5">
+          <CardDescription
+            data-testid={DATA_TEST_ID.LABEL}
+            className={cn("font-mono text-xs tracking-[2px] uppercase", toneStyles.label)}
           >
-            {icon}
-          </CardAction>
-        )}
-      </CardHeader>
+            {label}
+          </CardDescription>
+          {icon && (
+            <CardAction
+              data-slot="stat-tile-icon"
+              data-testid={DATA_TEST_ID.ICON}
+              aria-hidden="true"
+              className="text-muted-foreground [&_svg]:size-4"
+            >
+              {icon}
+            </CardAction>
+          )}
+        </CardHeader>
+      )}
       <CardContent className="grid gap-1.5 px-5">
         <div className="flex items-center justify-between gap-4">
           <p
             data-slot="stat-tile-value"
             data-testid={DATA_TEST_ID.VALUE}
-            className="text-4xl font-bold tracking-tight text-foreground"
+            className={cn("text-4xl font-bold tracking-tight", toneStyles.value)}
           >
             {value}
           </p>
@@ -113,7 +150,11 @@ export function StatTile({ label, value, icon, caption, trend, sparkline, classN
         </div>
         {trend && <TrendIndicator value={trend.value} label={trend.label} />}
         {caption && (
-          <p data-slot="stat-tile-caption" data-testid={DATA_TEST_ID.CAPTION} className="text-sm text-muted-foreground">
+          <p
+            data-slot="stat-tile-caption"
+            data-testid={DATA_TEST_ID.CAPTION}
+            className={cn("text-sm", toneStyles.caption)}
+          >
             {caption}
           </p>
         )}

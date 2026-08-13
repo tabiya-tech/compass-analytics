@@ -2,6 +2,8 @@ import { http, HttpResponse, type HttpHandler } from "msw";
 import type { BrandingConfig } from "@/branding/brandingConfig";
 import { buildOverviewMetrics, parseOverviewMetricsQuery } from "@/mocks/overview-metrics";
 import { OVERVIEW_API_BASE } from "@/pages/Overview/services/OverviewMetrics.service";
+import type { InstitutionSortKey, SortDirection } from "@/institutions/institutions.types";
+import { findInstitutionDetail, queryInstitutions } from "@/mocks/data/institutions";
 
 /** Mirrors public/branding.json — kept as a plain object since Vite disallows importing public/ as a JS module. */
 const defaultBranding: BrandingConfig = {
@@ -30,6 +32,29 @@ const defaultBranding: BrandingConfig = {
 /** Exported individually so the browser dev worker can include only this one. */
 export const brandingHandler = http.get("/branding.json", () => HttpResponse.json(defaultBranding));
 
+/** Applies the query server-side, the way the real endpoint will: search, filter, sort, paginate. */
+export const institutionsHandler = http.get("/api/institutions", ({ request }) => {
+  const params = new URL(request.url).searchParams;
+  return HttpResponse.json(
+    queryInstitutions({
+      search: params.get("search") ?? undefined,
+      regions: params.getAll("region"),
+      sort: {
+        by: (params.get("sort_by") as InstitutionSortKey | null) ?? "registered_users",
+        direction: (params.get("sort_dir") as SortDirection | null) ?? "desc",
+      },
+      page: Number(params.get("page") ?? 1),
+      page_size: Number(params.get("page_size") ?? 30),
+    })
+  );
+});
+
+/** The drill-down behind a table row. */
+export const institutionDetailHandler = http.get("/api/institutions/:institutionId", ({ params }) => {
+  const detail = findInstitutionDetail(String(params.institutionId));
+  return detail ? HttpResponse.json(detail) : new HttpResponse(null, { status: 404 });
+});
+
 /** Stands in for the not-yet-built metrics endpoint — exported individually so the browser dev worker can include it too. */
 export const overviewMetricsHandler = http.get(`${OVERVIEW_API_BASE}/metrics`, ({ request }) => {
   const query = new URL(request.url).searchParams;
@@ -37,4 +62,9 @@ export const overviewMetricsHandler = http.get(`${OVERVIEW_API_BASE}/metrics`, (
 });
 
 /** Full handler list for tests and Storybook, so components render with realistic data without the backend running. */
-export const handlers: HttpHandler[] = [brandingHandler, overviewMetricsHandler];
+export const handlers: HttpHandler[] = [
+  brandingHandler,
+  overviewMetricsHandler,
+  institutionsHandler,
+  institutionDetailHandler,
+];

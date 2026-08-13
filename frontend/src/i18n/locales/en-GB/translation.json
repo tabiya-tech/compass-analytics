@@ -1,7 +1,8 @@
 {
   "common": {
     "loading": "Loading…",
-    "retry": "Retry"
+    "retry": "Retry",
+    "close": "Close"
   },
   "i18n": {
     "languageSwitcher": {
@@ -69,6 +70,7 @@
   },
   "nav": {
     "overview": "Overview",
+    "institutions": "Institutions",
     "jobseekers": "Jobseekers",
     "modules": "Modules",
     "modulesSection": {
@@ -81,6 +83,86 @@
       "label": "My account",
       "trigger": "Open account menu",
       "accountSettings": "Account settings"
+    }
+  },
+  "institutions": {
+    "eyebrow": "Funder view",
+    "title": "How do institutions compare?",
+    "description": "Every implementing institution in the deployment — one per row. Sort any numeric column by its header; filter by Region.",
+    "error": "Failed to load institutions.",
+    "count": "{{value}} institutions",
+    "countOne": "1 institution",
+    "search": {
+      "label": "Search institutions by name",
+      "placeholder": "Search institution…"
+    },
+    "stats": {
+      "jobseekersReached": "Jobseekers reached across the portfolio",
+      "skillsReports": "Skills Reports / CVs generated",
+      "institutions": "Implementing institutions"
+    },
+    "modal": {
+      "title": "Institution detail",
+      "error": "Failed to load this institution.",
+      "subtitle": "{{city}} · {{region}} · Lead: {{lead}}",
+      "profileScore": "Profile score",
+      "reach": {
+        "title": "Reach & audience",
+        "registeredUsers": "Registered users",
+        "activeUsers": "Active (30 days)",
+        "topAgeBand": "Top age band",
+        "largestGroup": "Largest group",
+        "education": "Most common education"
+      },
+      "login": {
+        "title": "Login activity",
+        "avgLogins": "Avg logins / user",
+        "totalLogins": "Total logins",
+        "avgSession": "Avg session",
+        "minutes": "{{value}} min",
+        "google": "Google login",
+        "email": "Email login"
+      },
+      "progress": {
+        "title": "Progress across the suite",
+        "description": "Share of registered users who started each deployed module, and where they land",
+        "started": "{{value}}% started",
+        "subModule": "{{started}} started · {{completed}}% completed",
+        "captions": {
+          "buildYourProfile": "{{value}} skills reports",
+          "jobReadiness": "Get Job Ready",
+          "careerExplorer": "{{value}} explored careers",
+          "jobs": "{{value}} with a match"
+        }
+      },
+      "outputs": {
+        "title": "Outputs",
+        "skillsReports": "Skills reports generated",
+        "downloaded": "Downloaded",
+        "jobsSourced": "Jobs sourced"
+      },
+      "time": {
+        "title": "Avg time to complete",
+        "unit": "min",
+        "caption": "Median Build Your Profile completion time, against the {{target}}-minute target."
+      }
+    },
+    "table": {
+      "caption": "Implementing institutions and their rolled-up metrics",
+      "sortBy": "Sort by {{label}}",
+      "empty": "No institutions match your search or filters.",
+      "clearFilters": "Clear search and filters",
+      "columns": {
+        "name": "Institution",
+        "region": "Region",
+        "registeredUsers": "Reg. users",
+        "activeUsers": "Active users",
+        "buildYourProfile": "BYP % started",
+        "jobReadiness": "Job readiness % started",
+        "careerExplorer": "Career Explorer % started",
+        "jobs": "Jobs matched % users",
+        "skillsReports": "Skills reports available"
+      }
     }
   },
   "filters": {
