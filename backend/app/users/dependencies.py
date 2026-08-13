@@ -35,7 +35,3 @@ async def get_grant_repository() -> MongoGrantRepository:
     return MongoGrantRepository(db)
 
 
-def clear_user_service_cache() -> None:
-    """Test-only: reset the singleton so the next request gets a fresh instance."""
-    global _singleton
-    _singleton = None

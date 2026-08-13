@@ -22,10 +22,6 @@ class Action(str, Enum):
     MANAGE = "manage"
 
 
-def permission(subject: Subject, action: Action) -> str:
-    """Compose a subject and action into the wire-format permission string stored in grants."""
-    return f"{subject}:{action}"
-
 
 class ScopeType(str, Enum):
     """

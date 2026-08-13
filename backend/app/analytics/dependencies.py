@@ -45,8 +45,3 @@ async def close_reach_service() -> None:
     _service_singleton = None
 
 
-def clear_reach_service_cache() -> None:
-    """Test-only: reset the singleton so the next request gets a fresh instance."""
-    global _service_singleton, _http_client
-    _service_singleton = None
-    _http_client = None
