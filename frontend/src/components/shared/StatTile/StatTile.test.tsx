@@ -70,6 +70,35 @@ describe("StatTile", () => {
     expect(screen.getByText("41% of users · last 30 days")).toBeInTheDocument();
   });
 
+  it("should lead with the value, describing itself through the caption, when no label is given", () => {
+    // GIVEN a headline tile that carries no label
+    // WHEN rendered
+    render(<StatTile value="80,193" caption="Jobseekers reached across the portfolio" />);
+
+    // THEN the value and its caption show, with no empty label above them
+    expect(screen.getByText("80,193")).toBeInTheDocument();
+    expect(screen.getByText("Jobseekers reached across the portfolio")).toBeInTheDocument();
+    expect(screen.queryByTestId(DATA_TEST_ID.LABEL)).not.toBeInTheDocument();
+  });
+
+  it("should carry its tone, so a headline tile can be dark on a light screen", () => {
+    // GIVEN a tile asked for in the inverse tone
+    // WHEN rendered
+    render(<StatTile value="11,307" caption="Skills Reports / CVs generated" tone="inverse" />);
+
+    // THEN the tile reports which tone it is showing
+    expect(screen.getByTestId(DATA_TEST_ID.CONTAINER)).toHaveAttribute("data-tone", "inverse");
+  });
+
+  it("should default to the light tone when no tone is asked for", () => {
+    // GIVEN a tile with no tone
+    // WHEN rendered
+    render(<StatTile label="Active users" value="1,705" />);
+
+    // THEN it stays on the default tone
+    expect(screen.getByTestId(DATA_TEST_ID.CONTAINER)).toHaveAttribute("data-tone", "default");
+  });
+
   it("should render the icon passed into the icon slot as decoration", () => {
     // GIVEN a metric with an icon
     // WHEN rendered

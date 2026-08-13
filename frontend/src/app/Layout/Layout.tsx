@@ -10,7 +10,7 @@ export const Layout = () => {
     <AccessProvider>
       <SidebarProvider>
         <AppSidebar />
-        <SidebarInset>
+        <SidebarInset className="min-w-0">
           <FiltersProvider>
             <Outlet />
           </FiltersProvider>

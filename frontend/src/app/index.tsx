@@ -2,9 +2,11 @@ import { createHashRouter, Navigate, RouterProvider } from "react-router-dom";
 import ProtectedRoute from "@/app/ProtectedRoute/ProtectedRoute";
 import { Layout } from "@/app/Layout";
 import { routerPaths } from "@/app/routerPaths";
+import { PERMISSIONS } from "@/access/AccessContext";
 import { Login } from "@/pages/Login/Login";
 import { Register } from "@/pages/Register/Register";
 import { Overview } from "@/pages/Overview/Overview";
+import { Institutions } from "@/pages/Institutions";
 
 const router = createHashRouter([
   {
@@ -24,6 +26,14 @@ const router = createHashRouter([
         element: (
           <ProtectedRoute>
             <Overview />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: routerPaths.INSTITUTIONS,
+        element: (
+          <ProtectedRoute permission={PERMISSIONS.INSTITUTIONS_VIEW}>
+            <Institutions />
           </ProtectedRoute>
         ),
       },

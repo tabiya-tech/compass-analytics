@@ -33,6 +33,7 @@ describe("SidebarNav", () => {
 
     // THEN each top-level item links to its hash-prefixed path
     expect(screen.getByRole("link", { name: /^Overview$/ })).toHaveAttribute("href", "#/");
+    expect(screen.getByRole("link", { name: /Institutions/ })).toHaveAttribute("href", "#/institutions");
     expect(screen.getByRole("link", { name: /Jobseekers/ })).toHaveAttribute("href", "#/jobseekers");
     expect(screen.getByRole("link", { name: /^Modules$/ })).toHaveAttribute("href", "#/modules");
   });
@@ -45,6 +46,7 @@ describe("SidebarNav", () => {
     });
 
     // THEN the gated items are absent
+    expect(screen.queryByRole("link", { name: /Institutions/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Jobseekers/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /^Modules$/ })).not.toBeInTheDocument();
   });
@@ -95,7 +97,7 @@ function buildContext(overrides: { permissions?: PermissionKey[]; activeModules?
 }
 
 describe("getVisibleNavItems", () => {
-  it("should show overview, jobseekers, and modules for a full-access grant with more than one active module", () => {
+  it("should show every item for a full-access grant with more than one active module", () => {
     // GIVEN a grant with every permission and two active modules
     const givenContext = buildContext({
       permissions: Object.values(PERMISSIONS),
@@ -105,7 +107,21 @@ describe("getVisibleNavItems", () => {
     // WHEN computing the visible nav items
     const actual = getVisibleNavItems(NAV_ITEMS, givenContext).map((item) => item.id);
 
-    // THEN all three items are visible
+    // THEN all four items are visible
+    expect(actual).toEqual(["overview", "institutions", "jobseekers", "modules"]);
+  });
+
+  it("should hide institutions when institutions:view is not granted", () => {
+    // GIVEN a grant missing institutions:view
+    const givenContext = buildContext({
+      permissions: [PERMISSIONS.DASHBOARD_VIEW, PERMISSIONS.JOBSEEKERS_VIEW],
+      activeModules: [MODULE_IDS.BUILD_YOUR_PROFILE, MODULE_IDS.JOB_READINESS],
+    });
+
+    // WHEN computing the visible nav items
+    const actual = getVisibleNavItems(NAV_ITEMS, givenContext).map((item) => item.id);
+
+    // THEN institutions is absent, the rest remain
     expect(actual).toEqual(["overview", "jobseekers", "modules"]);
   });
 

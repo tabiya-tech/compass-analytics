@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import { getFirebaseApp } from "@/auth/firebase";
 
@@ -33,10 +33,13 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     return unsubscribe;
   }, []);
 
-  async function getIdToken(): Promise<string> {
+  const getIdToken = useCallback(async (): Promise<string> => {
     if (!user) throw new Error("Not signed in");
     return user.getIdToken();
-  }
+  }, [user]);
 
-  return <AuthContext.Provider value={{ user, loading, getIdToken }}>{children}</AuthContext.Provider>;
+  // Stable identity: consumers key data fetches off getIdToken, and a new one each render refetches.
+  const value = useMemo(() => ({ user, loading, getIdToken }), [user, loading, getIdToken]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
