@@ -55,8 +55,8 @@ function CanProbe() {
 }
 
 describe("AccessProvider", () => {
-  it("should grant all permissions and all modules by default", () => {
-    // GIVEN no props
+  it("should deny all permissions and use default modules when no ability is provided", () => {
+    // GIVEN no ability prop — default is deny-all
     render(
       <AccessProvider>
         <ScopeProbe />
@@ -64,8 +64,8 @@ describe("AccessProvider", () => {
       </AccessProvider>
     );
 
-    // THEN the default ability permits everything and all modules are active
-    expect(screen.getByTestId("can-dashboard")).toBeInTheDocument();
+    // THEN no permissions are granted, but default modules are present
+    expect(screen.queryByTestId("can-dashboard")).not.toBeInTheDocument();
     expect(screen.getByTestId("active-modules")).toHaveTextContent(Object.values(MODULE_IDS).join(","));
   });
 

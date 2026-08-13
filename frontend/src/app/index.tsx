@@ -31,7 +31,11 @@ const router = createHashRouter([
       },
       {
         path: routerPaths.JOBSEEKERS,
-        element: <ProtectedRoute>Jobseekers</ProtectedRoute>,
+        element: (
+          <PermissionRoute action={Action.View} subject={Subject.Jobseekers}>
+            Jobseekers
+          </PermissionRoute>
+        ),
       },
       {
         path: routerPaths.INSTITUTIONS,
