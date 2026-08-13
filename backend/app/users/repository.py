@@ -12,13 +12,16 @@ USERS_COLLECTION = "users"
 
 class IUserRepository(ABC):
     @abstractmethod
-    async def get_by_user_id(self, user_id: str) -> UserRecord | None: ...
+    async def get_by_user_id(self, user_id: str) -> UserRecord | None:
+        raise NotImplementedError
 
     @abstractmethod
-    async def list_all(self) -> list[UserRecord]: ...
+    async def list_all(self) -> list[UserRecord]:
+        raise NotImplementedError
 
     @abstractmethod
-    async def upsert(self, record: UserRecord) -> UserRecord: ...
+    async def upsert(self, record: UserRecord) -> UserRecord:
+        raise NotImplementedError
 
 
 class MongoUserRepository(IUserRepository):

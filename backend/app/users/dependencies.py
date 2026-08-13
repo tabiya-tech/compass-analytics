@@ -1,6 +1,8 @@
 import asyncio
 import logging
 
+from app.casbin.adapter import GrantsAdapter
+from app.casbin.enforcer import get_enforcer
 from app.grants.repository import MongoGrantRepository
 from app.server_dependencies.db_dependencies import AnalyticsDBProvider
 from app.users.repository import MongoUserRepository
@@ -18,9 +20,12 @@ async def get_user_service() -> IUserService:
         async with _lock:
             if _singleton is None:
                 db = await AnalyticsDBProvider.get_db()
+                grant_repo = MongoGrantRepository(db)
+                enforcer = await get_enforcer(GrantsAdapter(grant_repo))
                 _singleton = UserService(
                     repository=MongoUserRepository(db),
-                    grant_repository=MongoGrantRepository(db),
+                    grant_repository=grant_repo,
+                    enforcer=enforcer,
                 )
     return _singleton
 

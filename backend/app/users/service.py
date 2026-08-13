@@ -3,11 +3,12 @@ from abc import ABC, abstractmethod
 
 from pydantic import BaseModel
 
+import casbin
+
 from app.auth.firebase import UserInfo
 from app.grants.repository import IGrantRepository
 from app.grants.roles import ROLES
 from app.grants.types import GrantRecord, GrantRequest, GrantView, ManagedUser, RoleRequest
-from app.casbin.enforcer import reload_policy
 from app.users.repository import IUserRepository
 from app.users.types import ALL_INSTITUTIONS, Action, MeResponse, ScopeType, Subject, UserRecord, UserScope
 
@@ -61,16 +62,17 @@ class IUserService(ABC):
 
 
 class UserService(IUserService):
-    def __init__(self, repository: IUserRepository, grant_repository: IGrantRepository):
+    def __init__(self, repository: IUserRepository, grant_repository: IGrantRepository, enforcer: casbin.AsyncEnforcer):
         self._repo = repository
         self._grants = grant_repository
+        self._enforcer = enforcer
 
     async def register(self, user_info: UserInfo) -> None:
         record = UserRecord(user_id=user_info.user_id, email=user_info.email, name=user_info.name)
         await self._repo.upsert(record)
         logger.info("register: upserted user_id=%s", user_info.user_id)
 
-    async def _require_record(self, user_info: UserInfo):  # type: ignore[return]
+    async def _require_record(self, user_info: UserInfo) -> UserRecord:
         record = await self._repo.get_by_user_id(user_info.user_id)
         if record is None:
             logger.info("No users record for authenticated user_id=%s (not provisioned).", user_info.user_id)
@@ -140,14 +142,16 @@ class UserService(IUserService):
 
     async def grant(self, user_info: UserInfo, target_user_id: str, request: GrantRequest) -> GrantView:
         await self._require_record(user_info)
-        record = await self._grants.create(
+        perm = f"{request.subject.value}:{request.action.value}"
+        was_new = await self._enforcer.add_policy(target_user_id, request.institution_id, perm)
+        if was_new:
+            await self._grants.set_granted_by(target_user_id, request.subject, request.action, request.institution_id, user_info.user_id)
+        record = await self._grants.get_by_tuple(
             user_id=target_user_id,
             subject=request.subject,
             action=request.action,
             institution_id=request.institution_id,
-            granted_by=user_info.user_id,
         )
-        await reload_policy()
         return GrantView(
             grant_id=record.grant_id,
             subject=record.subject,
@@ -161,12 +165,15 @@ class UserService(IUserService):
             raise UnknownRoleError(request.role)
         views = []
         for subject, action in ROLES[request.role]:
-            record = await self._grants.create(
+            perm = f"{subject.value}:{action.value}"
+            was_new = await self._enforcer.add_policy(target_user_id, request.institution_id, perm)
+            if was_new:
+                await self._grants.set_granted_by(target_user_id, subject, action, request.institution_id, user_info.user_id)
+            record = await self._grants.get_by_tuple(
                 user_id=target_user_id,
                 subject=subject,
                 action=action,
                 institution_id=request.institution_id,
-                granted_by=user_info.user_id,
             )
             views.append(GrantView(
                 grant_id=record.grant_id,
@@ -174,12 +181,12 @@ class UserService(IUserService):
                 action=record.action,
                 institution_id=record.institution_id,
             ))
-        await reload_policy()
         return views
 
     async def revoke(self, user_info: UserInfo, target_user_id: str, grant_id: str) -> None:
         await self._require_record(user_info)
-        deleted = await self._grants.delete(user_id=target_user_id, grant_id=grant_id)
-        if not deleted:
+        record = await self._grants.get_by_grant_id(user_id=target_user_id, grant_id=grant_id)
+        if record is None:
             raise KeyError(grant_id)
-        await reload_policy()
+        perm = f"{record.subject.value}:{record.action.value}"
+        await self._enforcer.remove_policy(target_user_id, record.institution_id, perm)

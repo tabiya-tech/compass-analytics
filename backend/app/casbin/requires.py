@@ -1,14 +1,19 @@
-from typing import Callable
+from collections.abc import Callable, Coroutine
+from typing import Any
 
 from fastapi import Depends, HTTPException, Query, status
 
+from app.auth.firebase import UserInfo
 from app.grants.repository import IGrantRepository
 from app.casbin.adapter import GrantsAdapter
 from app.casbin.enforcer import get_enforcer
 from app.users.types import ALL_INSTITUTIONS, Action, Subject
 
 
-def make_requires(get_user_info: Callable, get_grant_repository: Callable) -> Callable:
+def make_requires(
+    get_user_info: Callable[..., Coroutine[Any, Any, UserInfo]],
+    get_grant_repository: Callable[..., Coroutine[Any, Any, IGrantRepository]],
+) -> Callable[[Subject, Action], Callable]:
     """
     Returns a `requires(subject, action)` factory bound to the given auth and
     repository dependencies. Call once per router, then use:

@@ -2,17 +2,18 @@ from casbin.async_internal_enforcer import AsyncAdapter
 from casbin.persist import load_policy_line
 
 from app.grants.repository import IGrantRepository
+from app.users.types import Action, Subject
 
 
 class GrantsAdapter(AsyncAdapter):
     """
-    Read-only Casbin adapter backed by the grants collection.
+    Casbin adapter backed by the grants collection.
 
     Each grant row becomes a policy line:
       p, {user_id}, {institution_id}, {subject}:{action}
 
-    Write methods are intentionally unsupported — grants are managed
-    through the grants service, which calls reload_policy() after any change.
+    add_policy / remove_policy write through to the grants collection so
+    Casbin's in-memory state and the DB stay in sync in a single call.
     """
 
     def __init__(self, grant_repository: IGrantRepository):
@@ -27,10 +28,27 @@ class GrantsAdapter(AsyncAdapter):
         raise NotImplementedError
 
     async def add_policy(self, sec, ptype, rule) -> None:
-        raise NotImplementedError
+        # rule = [user_id, institution_id, "subject:action"]
+        user_id, institution_id, perm = rule
+        subject_val, action_val = perm.split(":", 1)
+        await self._repo.create(
+            user_id=user_id,
+            subject=Subject(subject_val),
+            action=Action(action_val),
+            institution_id=institution_id,
+            granted_by=None,
+        )
 
     async def remove_policy(self, sec, ptype, rule) -> None:
-        raise NotImplementedError
+        # rule = [user_id, institution_id, "subject:action"]
+        user_id, institution_id, perm = rule
+        subject_val, action_val = perm.split(":", 1)
+        await self._repo.delete_by_tuple(
+            user_id=user_id,
+            subject=Subject(subject_val),
+            action=Action(action_val),
+            institution_id=institution_id,
+        )
 
     async def remove_filtered_policy(self, sec, ptype, field_index, *field_values) -> None:
         raise NotImplementedError
