@@ -1,7 +1,7 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { expect, waitFor } from "storybook/test";
 import { delay, http, HttpResponse } from "msw";
-import { AccessProvider, type AccessState } from "@/access/AccessContext";
+import { AccessProvider, type AccessScope } from "@/access/AccessContext";
 import { FiltersProvider } from "@/filters/FiltersContext";
 import { createInitialFilters } from "@/filters/filters";
 import { OVERVIEW_API_BASE } from "@/pages/Overview/services/OverviewMetrics.service";
@@ -13,9 +13,9 @@ const FIXED_FILTERS = {
   granularity: "month" as const,
 };
 
-function withAccess(access: Partial<AccessState>): Decorator {
+function withAccess(scope: AccessScope): Decorator {
   return (Story) => (
-    <AccessProvider access={access}>
+    <AccessProvider scope={scope}>
       <FiltersProvider initialFilters={FIXED_FILTERS}>
         <Story />
       </FiltersProvider>
@@ -33,11 +33,11 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
-  decorators: [withAccess({ scope: { type: "all" } })],
+  decorators: [withAccess({ type: "all" })],
 };
 
 export const Loading: Story = {
-  decorators: [withAccess({ scope: { type: "institutions", institutionIds: ["inst-1"] } })],
+  decorators: [withAccess({ type: "institutions", institutionIds: ["inst-1"] })],
   parameters: {
     msw: { handlers: [http.get(`${OVERVIEW_API_BASE}/metrics`, async () => await delay("infinite"))] },
   },
@@ -47,7 +47,7 @@ export const Loading: Story = {
 };
 
 export const FailedToLoad: Story = {
-  decorators: [withAccess({ scope: { type: "institutions", institutionIds: ["inst-1"] } })],
+  decorators: [withAccess({ type: "institutions", institutionIds: ["inst-1"] })],
   parameters: {
     msw: { handlers: [http.get(`${OVERVIEW_API_BASE}/metrics`, () => new HttpResponse(null, { status: 500 }))] },
   },

@@ -23,7 +23,7 @@ describe("SidebarNav", () => {
 
   it("should render a hash-prefixed link per visible top-level nav item", () => {
     // GIVEN a full-access, all-modules-active state
-    renderNav({ ability: buildAbility(["dashboard:view", "jobseekers:view"]) });
+    renderNav({ ability: buildAbility(["dashboard:view", "jobseekers:view", "institutions:view"]) });
 
     // THEN each top-level item links to its hash-prefixed path
     expect(screen.getByRole("link", { name: /^Overview$/ })).toHaveAttribute("href", "#/");

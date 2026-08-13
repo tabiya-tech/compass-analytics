@@ -35,15 +35,28 @@ afterAll(() => server.close());
 
 // Real en-GB strings, rendered synchronously, throwing on missing keys —
 // see src/i18n/i18nMock.tsx for the rationale.
-vi.mock("react-i18next", () => ({
-  useTranslation: useTranslationMock,
-  Trans: MockTrans,
-  initReactI18next: { type: "3rdParty", init: () => {} },
-}));
-vi.mock("@/i18n/i18n", () => ({
-  default: mockI18nInstance,
-  initI18n: () => Promise.resolve(mockI18nInstance),
-}));
+// vi.mock factories are hoisted above imports; use vi.importActual to avoid
+// the "cannot access before initialization" error when referencing imported vars.
+vi.mock("react-i18next", async () => {
+  const {
+    useTranslationMock: t,
+    MockTrans: Trans,
+    mockI18nInstance: i18n,
+  } = await vi.importActual<typeof import("@/i18n/i18nMock")>("@/i18n/i18nMock");
+  return {
+    useTranslation: t,
+    Trans,
+    initReactI18next: { type: "3rdParty", init: () => {} },
+    _i18n: i18n,
+  };
+});
+vi.mock("@/i18n/i18n", async () => {
+  const { mockI18nInstance: i18n } = await vi.importActual<typeof import("@/i18n/i18nMock")>("@/i18n/i18nMock");
+  return {
+    default: i18n,
+    initI18n: () => Promise.resolve(i18n),
+  };
+});
 
 // jsdom has no ResizeObserver, so a measuring chart sees width 0 and draws
 // nothing. Report a fixed box; Storybook's browser tests use the real thing.
@@ -90,3 +103,6 @@ Object.defineProperty(window, "matchMedia", {
     dispatchEvent: () => false,
   }),
 });
+
+// Keep the named imports available for tests that import from setup.ts.
+export { MockTrans, mockI18nInstance, useTranslationMock };

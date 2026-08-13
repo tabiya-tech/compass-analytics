@@ -5,7 +5,7 @@ import { fireEvent, render, screen, within } from "@/_test_utilities/test-utils"
 import { server } from "@/mocks/server";
 import { handlers } from "@/mocks/handlers";
 import { buildOverviewMetrics } from "@/mocks/overview-metrics";
-import { AccessProvider, type AccessState } from "@/access/AccessContext";
+import { AccessProvider, type AccessScope } from "@/access/AccessContext";
 import { FiltersProvider } from "@/filters/FiltersContext";
 import { createInitialFilters, type FiltersState } from "@/filters/filters";
 import { formatNumber } from "@/components/charts/chart-scale";
@@ -26,16 +26,16 @@ const GIVEN_FILTERS: FiltersState = {
   granularity: "month",
 };
 
-const ONE_INSTITUTION: Partial<AccessState> = { scope: { type: "institutions", institutionIds: ["inst-1"] } };
-const ALL_INSTITUTIONS: Partial<AccessState> = { scope: { type: "all" } };
+const ONE_INSTITUTION: AccessScope = { type: "institutions", institutionIds: ["inst-1"] };
+const ALL_INSTITUTIONS: AccessScope = { type: "all" };
 
 function expectedMetricsFor(institutions: "all" | string[]) {
   return buildOverviewMetrics({ institutions, dateRange: GIVEN_WINDOW, granularity: "month" });
 }
 
-function renderOverview(access: Partial<AccessState> = ONE_INSTITUTION, filters: Partial<FiltersState> = {}) {
+function renderOverview(scope: AccessScope = ONE_INSTITUTION, filters: Partial<FiltersState> = {}) {
   return render(
-    <AccessProvider access={access}>
+    <AccessProvider scope={scope}>
       <FiltersProvider initialFilters={{ ...GIVEN_FILTERS, ...filters }}>
         <Overview />
       </FiltersProvider>

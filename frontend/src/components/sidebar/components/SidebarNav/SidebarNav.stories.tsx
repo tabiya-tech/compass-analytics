@@ -24,7 +24,7 @@ type Story = StoryObj<typeof meta>;
 export const FullAccess: Story = {
   decorators: [
     (Story) => (
-      <AccessProvider>
+      <AccessProvider ability={buildAbility(["dashboard:view", "jobseekers:view"])}>
         <Story />
       </AccessProvider>
     ),

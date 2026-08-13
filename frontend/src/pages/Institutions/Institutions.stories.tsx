@@ -47,7 +47,7 @@ export const TwoModulesDeployed: Story = {
   decorators: [
     (Story) => (
       <InstitutionsHarness>
-        <AccessProvider access={{ activeModules: [MODULE_IDS.BUILD_YOUR_PROFILE, MODULE_IDS.JOB_READINESS] }}>
+        <AccessProvider activeModules={[MODULE_IDS.BUILD_YOUR_PROFILE, MODULE_IDS.JOB_READINESS]}>
           <Story />
         </AccessProvider>
       </InstitutionsHarness>
