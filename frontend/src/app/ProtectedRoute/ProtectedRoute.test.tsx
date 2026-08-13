@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { AuthProvider } from "@/auth/AuthContext";
-import { AccessProvider, PERMISSIONS, type PermissionKey } from "@/access/AccessContext";
+import { AccessProvider, Action, Subject } from "@/access/AccessContext";
+import { buildAbility } from "@/access/ability";
 import { routerPaths } from "@/app/routerPaths";
-import ProtectedRoute from "./ProtectedRoute";
+import ProtectedRoute, { PermissionRoute } from "./ProtectedRoute";
 
 /** Renders the guarded route in a real router, so a redirect shows up as another screen. */
-function renderAt(path: string, grantedPermissions: PermissionKey[]) {
+function renderAt(path: string, permissions: string[]) {
   const router = createMemoryRouter(
     [
       { path: routerPaths.ROOT, element: <span data-testid="overview-screen">Overview</span> },
@@ -15,9 +16,9 @@ function renderAt(path: string, grantedPermissions: PermissionKey[]) {
       {
         path: routerPaths.INSTITUTIONS,
         element: (
-          <ProtectedRoute permission={PERMISSIONS.INSTITUTIONS_VIEW}>
+          <PermissionRoute action={Action.View} subject={Subject.Institutions}>
             <span data-testid="institutions-screen">Institutions</span>
-          </ProtectedRoute>
+          </PermissionRoute>
         ),
       },
     ],
@@ -26,33 +27,35 @@ function renderAt(path: string, grantedPermissions: PermissionKey[]) {
 
   return render(
     <AuthProvider>
-      <AccessProvider access={{ permissions: new Set(grantedPermissions) }}>
+      <AccessProvider ability={buildAbility(permissions)}>
         <RouterProvider router={router} />
       </AccessProvider>
     </AuthProvider>
   );
 }
 
-describe("ProtectedRoute", () => {
+describe("PermissionRoute", () => {
   it("should render the screen when the grant includes the permission it requires", async () => {
     // GIVEN a signed-in user whose grant covers institutions:view
     // WHEN they open the institutions screen
-    renderAt(routerPaths.INSTITUTIONS, [PERMISSIONS.DASHBOARD_VIEW, PERMISSIONS.INSTITUTIONS_VIEW]);
+    renderAt(routerPaths.INSTITUTIONS, ["dashboard:view", "institutions:view"]);
 
     // THEN the screen is shown
     await waitFor(() => expect(screen.getByTestId("institutions-screen")).toBeInTheDocument());
   });
 
-  it("should send a user whose grant misses the permission back to the dashboard, deep links included", async () => {
+  it("should show a forbidden message when the grant misses the required permission", async () => {
     // GIVEN a signed-in user whose grant does not cover institutions:view
-    // WHEN they deep-link straight into the institutions screen
-    renderAt(routerPaths.INSTITUTIONS, [PERMISSIONS.DASHBOARD_VIEW]);
+    // WHEN they navigate to the institutions screen
+    renderAt(routerPaths.INSTITUTIONS, ["dashboard:view"]);
 
-    // THEN they never reach it, and land on the dashboard instead
-    await waitFor(() => expect(screen.getByTestId("overview-screen")).toBeInTheDocument());
+    // THEN they see a forbidden message, not the screen
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
     expect(screen.queryByTestId("institutions-screen")).not.toBeInTheDocument();
   });
+});
 
+describe("ProtectedRoute", () => {
   it("should render an ungated screen for any signed-in user", async () => {
     // GIVEN a signed-in user with a minimal grant
     const router = createMemoryRouter([
@@ -69,7 +72,7 @@ describe("ProtectedRoute", () => {
     // WHEN they open a route that requires no particular permission
     render(
       <AuthProvider>
-        <AccessProvider access={{ permissions: new Set<PermissionKey>() }}>
+        <AccessProvider ability={buildAbility([])}>
           <RouterProvider router={router} />
         </AccessProvider>
       </AuthProvider>

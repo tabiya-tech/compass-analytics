@@ -13,7 +13,7 @@ const GIVEN_INSTITUTION_COUNT = 30;
 
 function renderInstitutions(activeModules?: ModuleId[]) {
   return render(
-    <AccessProvider access={activeModules ? { activeModules } : undefined}>
+    <AccessProvider activeModules={activeModules}>
       <Institutions />
     </AccessProvider>
   );

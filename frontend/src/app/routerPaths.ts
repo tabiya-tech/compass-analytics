@@ -6,7 +6,6 @@ export const routerPaths = {
   REGISTER: "/register",
   INSTITUTIONS: "/institutions",
   JOBSEEKERS: "/jobseekers",
-  INSTITUTIONS: "/institutions",
   USER_ACCESS: "/access",
   MODULES: "/modules",
   MODULE: "/modules/:moduleId",

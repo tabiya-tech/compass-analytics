@@ -11,7 +11,7 @@ const meta = {
   tags: ["autodocs"],
   decorators: [
     (Story) => (
-      <AccessProvider>
+      <AccessProvider ability={buildAbility(["dashboard:view", "jobseekers:view"])}>
         <SidebarProvider>
           <Story />
         </SidebarProvider>
@@ -34,7 +34,7 @@ export const Expanded: Story = {
 export const Collapsed: Story = {
   decorators: [
     (Story) => (
-      <AccessProvider>
+      <AccessProvider ability={buildAbility(["dashboard:view", "jobseekers:view"])}>
         <SidebarProvider defaultOpen={false}>
           <Story />
         </SidebarProvider>
@@ -46,7 +46,7 @@ export const Collapsed: Story = {
 export const FullAccess: Story = {
   decorators: [
     (Story) => (
-      <AccessProvider>
+      <AccessProvider ability={buildAbility(["dashboard:view", "jobseekers:view"])}>
         <SidebarProvider>
           <Story />
         </SidebarProvider>
