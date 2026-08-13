@@ -13,7 +13,7 @@ from app.analytics.reach.types import (
     ReachResponse,
 )
 from app.auth.firebase import Authentication, UserInfo
-from app.casbin.requires import make_requires
+from app.casbin.requires import CasbinAPIRouter, make_requires
 from app.users.dependencies import get_grant_repository
 from app.users.service import ForbiddenInstitutionError, UserNotProvisionedError
 from app.users.types import Action, Subject
@@ -43,11 +43,10 @@ def add_reach_routes(router: APIRouter, auth: Authentication) -> None:
     get_user_info = auth.get_user_info()
     requires = make_requires(get_user_info, get_grant_repository)
 
-    @router.get(
-        "/reach",
-        response_model=ReachResponse,
-        dependencies=[Depends(requires(Subject.DASHBOARD, Action.VIEW))],
-    )
+    reach_router = CasbinAPIRouter(requires_factory=requires)
+
+    @reach_router.get("/reach", response_model=ReachResponse)
+    @requires(Subject.DASHBOARD, Action.VIEW)
     async def get_reach(
         user_info: UserInfo = Depends(get_user_info),
         filters: AnalyticsFilters = Depends(_filters),
@@ -65,3 +64,5 @@ def add_reach_routes(router: APIRouter, auth: Authentication) -> None:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You do not have access to the requested institution.",
             ) from exc
+
+    router.include_router(reach_router)

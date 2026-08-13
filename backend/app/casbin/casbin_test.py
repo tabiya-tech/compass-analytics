@@ -7,14 +7,14 @@ instance so the adapter exercises a genuine Motor round-trip.
 import casbin
 import httpx
 import pytest
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 
 from app.auth.firebase import SignInProvider, UserInfo
 from app.grants.repository import MongoGrantRepository
 from app.casbin.adapter import GrantsAdapter
 from app.casbin.enforcer import clear_enforcer_cache, get_enforcer
 from app.casbin.model import build_model
-from app.casbin.requires import make_requires
+from app.casbin.requires import CasbinAPIRouter, make_requires
 from app.users.types import ALL_INSTITUTIONS, Action, Subject
 
 
@@ -139,11 +139,14 @@ class TestRequiresDependency:
 
         requires = make_requires(fake_user_info, get_repo)
         app = FastAPI()
+        router = CasbinAPIRouter(requires_factory=requires)
 
-        @app.get("/protected", dependencies=[Depends(requires(Subject.DASHBOARD, Action.VIEW))])
+        @router.get("/protected")
+        @requires(Subject.DASHBOARD, Action.VIEW)
         async def protected():
             return {"ok": True}
 
+        app.include_router(router)
         return app
 
     async def test_allows_wildcard_grant_for_any_institution(self, in_memory_analytics_database):
