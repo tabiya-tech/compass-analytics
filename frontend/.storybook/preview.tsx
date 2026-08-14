@@ -8,6 +8,7 @@ import { handlers } from "../src/mocks/handlers";
 import { initI18n } from "../src/i18n/i18n";
 import { Locale, LocalesLabels, SupportedLocales } from "../src/i18n/constants";
 import { AuthContext, type AuthContextValue } from "../src/auth/AuthContext";
+import { Toaster } from "../src/components/ui/sonner";
 
 initialize({ onUnhandledRequest: "bypass" });
 
@@ -60,6 +61,7 @@ const preview: Preview = {
           <HashRouter>
             <I18nextProvider i18n={i18n}>
               <Story />
+              <Toaster />
             </I18nextProvider>
           </HashRouter>
         </AuthContext.Provider>

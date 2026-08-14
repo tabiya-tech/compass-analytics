@@ -115,5 +115,10 @@ Object.defineProperty(window, "matchMedia", {
   }),
 });
 
+// jsdom has no Pointer Capture API; sonner's swipe-to-dismiss calls it on pointerdown.
+Element.prototype.setPointerCapture ??= () => {};
+Element.prototype.releasePointerCapture ??= () => {};
+Element.prototype.hasPointerCapture ??= () => false;
+
 // Keep the named imports available for tests that import from setup.ts.
 export { MockTrans, mockI18nInstance, useTranslationMock };

@@ -9,7 +9,7 @@
  * Imported once from src/test/setup.ts via vi.mock, so every test gets this
  * automatically — no per-test wiring needed.
  */
-import type { ReactNode } from "react";
+import { cloneElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { Locale } from "@/i18n/constants";
 import enGb from "@/i18n/locales/en-GB/translation.json";
 
@@ -51,7 +51,13 @@ function renderTransChildren(template: string, components: ReactNode[] = []): Re
   while ((match = pattern.exec(template)) !== null) {
     if (match.index > lastIndex) parts.push(template.slice(lastIndex, match.index));
     const index = Number(match[1]);
-    parts.push(components[index] ?? match[2]);
+    const component = components[index];
+    // As the real <Trans> does, the wrapped text becomes the component's children.
+    parts.push(
+      isValidElement(component)
+        ? cloneElement(component as ReactElement<{ children?: ReactNode }>, { key: `trans-${index}` }, match[2])
+        : match[2]
+    );
     lastIndex = pattern.lastIndex;
   }
   if (lastIndex < template.length) parts.push(template.slice(lastIndex));

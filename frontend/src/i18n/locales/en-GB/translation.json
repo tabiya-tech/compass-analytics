@@ -2,7 +2,8 @@
   "common": {
     "loading": "Loading…",
     "retry": "Retry",
-    "close": "Close"
+    "close": "Close",
+    "cancel": "Cancel"
   },
   "i18n": {
     "languageSwitcher": {
@@ -79,7 +80,6 @@
     "overview": "Overview",
     "institutions": "Institutions",
     "jobseekers": "Jobseekers",
-    "institutions": "Institutions",
     "access": "User access",
     "modules": "Modules",
     "modulesSection": {
@@ -171,6 +171,41 @@
         "careerExplorer": "Career Explorer % started",
         "jobs": "Jobs matched % users",
         "skillsReports": "Skills reports available"
+      }
+    }
+  },
+  "userAccess": {
+    "eyebrow": "Funder view",
+    "title": "Dashboard access",
+    "description": "Grant each implementing PM access to their own institution's dashboard. They see only their organisation's jobseekers.",
+    "listLabel": "Users and their dashboard access",
+    "error": "Failed to load dashboard access.",
+    "empty": "There are no users to grant access to yet.",
+    "failure": {
+      "grant": "Could not grant access to {{user}}. Please try again.",
+      "revoke": "Could not remove {{user}}'s access. Please try again.",
+      "refresh": "The change was saved, but the list could not be refreshed."
+    },
+    "row": {
+      "allInstitutions": "All institutions",
+      "noInstitution": "No institution assigned"
+    },
+    "toggle": {
+      "grant": "Grant access",
+      "granted": "Access granted",
+      "grantLabel": "Grant access to {{user}}",
+      "grantedLabel": "Access granted to {{user}} — select to remove it"
+    },
+    "confirm": {
+      "grant": {
+        "title": "Grant dashboard access?",
+        "description": "Are you sure you want to grant <0>{{user}}</0> access to the dashboard for their institution?",
+        "action": "Grant access"
+      },
+      "revoke": {
+        "title": "Remove dashboard access?",
+        "description": "Are you sure you want to remove <0>{{user}}</0>'s access to the dashboard?",
+        "action": "Remove access"
       }
     }
   },

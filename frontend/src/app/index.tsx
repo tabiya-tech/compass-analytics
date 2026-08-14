@@ -1,4 +1,5 @@
 import { createHashRouter, Navigate, RouterProvider } from "react-router-dom";
+import { Toaster } from "@/components/ui/sonner";
 import ProtectedRoute, { PermissionRoute } from "@/app/ProtectedRoute/ProtectedRoute";
 import { Layout } from "@/app/Layout";
 import { routerPaths } from "@/app/routerPaths";
@@ -7,6 +8,7 @@ import { Login } from "@/pages/Login/Login";
 import { Register } from "@/pages/Register/Register";
 import { Overview } from "@/pages/Overview/Overview";
 import { Institutions } from "@/pages/Institutions";
+import { UserAccess } from "@/pages/UserAccess";
 
 const router = createHashRouter([
   {
@@ -49,7 +51,7 @@ const router = createHashRouter([
         path: routerPaths.USER_ACCESS,
         element: (
           <PermissionRoute action={Action.Manage} subject={Subject.AccessManagement}>
-            User Access
+            <UserAccess />
           </PermissionRoute>
         ),
       },
@@ -74,5 +76,10 @@ const router = createHashRouter([
 ]);
 
 export default function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <>
+      <RouterProvider router={router} />
+      <Toaster />
+    </>
+  );
 }
