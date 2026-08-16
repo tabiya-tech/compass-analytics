@@ -4,18 +4,31 @@ on:
     branches:
       - "**" # Runs on push to any branch
 
-# only one job should run at a time when deploying
+# Allow only one deployment to run at a time; other pushes queue instead of cancelling,
+# but feature-branch-only runs (no deploy) still cancel freely.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ (github.ref == 'refs/heads/main' || contains(github.event.head_commit.message, '[pulumi up]')) && 'deploying' || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   frontend-ci:
     uses: ./.github/workflows/frontend-ci.yml
+    secrets: inherit
+    with:
+      upload-artifacts: ${{ github.ref == 'refs/heads/main' || contains(github.event.head_commit.message, '[pulumi up]') }}
 
   backend-ci:
     uses: ./.github/workflows/backend-ci.yml
+    secrets: inherit
+    with:
+      upload-artifacts: ${{ github.ref == 'refs/heads/main' || contains(github.event.head_commit.message, '[pulumi up]') }}
 
-  # NOTE: iac is not implemented yet. Add a deploy.yml (see the
-  # taxonomy-model-application and compass repos for reference shapes) and
-  # wire it in here once that subproject exists.
+  deploy:
+    needs: [frontend-ci, backend-ci]
+    if: ${{ github.ref == 'refs/heads/main' || contains(github.event.head_commit.message, '[pulumi up]') }}
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
+    with:
+      env-type: dev
+      target-git-sha: ${{ github.sha }}
+      target-git-branch: ${{ github.ref_name }}
