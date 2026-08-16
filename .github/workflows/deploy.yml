@@ -1,0 +1,142 @@
+name: Deploy
+
+run-name: Deploy to ${{ inputs.env-name }} (${{ inputs.env-type }}) ${{ inputs.target-git-branch }} - ${{ inputs.target-git-sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      env-type:
+        required: true
+        description: 'The environment type to deploy. Also determines which WIF credentials to use.'
+        type: choice
+        options:
+          - dev
+          - test
+          - prod
+
+      env-name:
+        required: false
+        type: string
+        description: 'The environment name to deploy. If not specified, all environments with the above type will be deployed.'
+
+      target-git-branch:
+        required: true
+        type: string
+        description: 'The target git branch name to deploy'
+
+      target-git-sha:
+        required: true
+        type: string
+        description: 'The target git commit SHA to deploy'
+
+  workflow_call:
+    inputs:
+      env-type:
+        required: false
+        type: string
+        description: 'The environment type to deploy'
+      env-name:
+        required: false
+        type: string
+        description: 'The environment name to deploy'
+      target-git-branch:
+        required: true
+        type: string
+        description: 'The branch name to deploy'
+      target-git-sha:
+        required: true
+        type: string
+        description: 'The commit SHA to deploy'
+
+permissions:
+  contents: read
+  id-token: write   # required for Workload Identity Federation OIDC token
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Checkout at the exact commit being deployed.
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target-git-sha }}
+
+      # 2. Python + pip deps (Pulumi SDK, google-cloud-*, etc.)
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Cache Pulumi plugins
+        uses: actions/cache@v4
+        with:
+          path: ~/.pulumi/plugins
+          key: ${{ runner.os }}-pulumi-plugins-${{ hashFiles('iac/requirements.txt') }}
+
+      - name: Install Python packages
+        run: pip install -r requirements.txt
+        working-directory: iac
+
+      # 3. Authenticate to GCP via Workload Identity Federation (keyless — no SA JSON keys).
+      #    prod uses the upper-env WIF provider + SA; dev/test use the lower-env ones.
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ inputs.env-type == 'prod' && vars.WIF_PROVIDER_PROD || vars.WIF_PROVIDER_LOWER }}
+          service_account: ${{ inputs.env-type == 'prod' && vars.DEPLOY_SA_PROD || vars.DEPLOY_SA_LOWER }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      # 4. AWS credentials — needed only for the dns stack's Route53 NS delegation step
+      #    (the analytics.tabiya.tech zone NS records must be registered in the tabiya.tech root
+      #    zone, which lives in Route53). Safe to keep even if we later move to GCP-only DNS.
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_DNS_UPDATE_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_DNS_UPDATE_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+          role-duration-seconds: 1200
+          role-session-name: AnalyticsAWSNS
+
+      # 5. Pulumi login.
+      - name: Install Pulumi
+        uses: pulumi/actions@v5
+
+      - name: Login to Pulumi
+        run: |
+          pulumi login
+          pulumi org set-default tabiya-tech
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+      # 6. Resolve target environment argument(s).
+      - name: Get target environment arguments
+        id: target_environments
+        run: |
+          ENV_NAME="$(echo '${{ inputs.env-name }}' | xargs)"
+          if [ -n "$ENV_NAME" ]; then
+            echo "args=--env-name $ENV_NAME" >> $GITHUB_OUTPUT
+          else
+            echo "args=--env-type ${{ inputs.env-type }}" >> $GITHUB_OUTPUT
+          fi
+
+      # 7. Run deployment scripts.
+      - name: Prepare the deployment(s)
+        working-directory: iac
+        run: |
+          ./scripts/prepare.py \
+            --realm-name ${{ vars.REALM_NAME }} \
+            ${{ steps.target_environments.outputs.args }} \
+            --target-git-sha ${{ inputs.target-git-sha }} \
+            --target-git-branch ${{ inputs.target-git-branch }}
+
+      - name: Deploy the infrastructure
+        working-directory: iac
+        run: |
+          ./scripts/up.py \
+            --realm-name ${{ vars.REALM_NAME }} \
+            ${{ steps.target_environments.outputs.args }}
