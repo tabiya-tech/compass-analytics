@@ -1,0 +1,4 @@
+name: analytics-common
+runtime:
+  name: python
+description: Tabiya Compass Analytics Common Infrastructure
