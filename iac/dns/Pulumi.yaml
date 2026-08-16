@@ -1,0 +1,4 @@
+name: analytics-dns
+runtime:
+  name: python
+description: Tabiya Compass Analytics DNS Infrastructure

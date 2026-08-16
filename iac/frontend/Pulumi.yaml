@@ -1,0 +1,4 @@
+name: analytics-frontend
+runtime:
+  name: python
+description: Tabiya Compass Analytics Frontend Infrastructure

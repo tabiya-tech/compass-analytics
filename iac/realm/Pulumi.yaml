@@ -1,0 +1,4 @@
+name: analytics-realm
+runtime:
+  name: python
+description: Tabiya Compass Analytics GCP Realm

@@ -1,0 +1,39 @@
+# Per-deployment stack configuration for a compass-analytics deployment.
+#
+# This template defines the shape prepare.py validates the real stack-config secret against
+# (see scripts/_common.py:compare_to_template). Each top-level key maps to one Pulumi stack;
+# prepare.py splits it into per-stack Pulumi.<stack>.yaml files at deploy time.
+#
+# Values here are illustrative defaults — the real per-deployment config lives in the
+# `stack-config` secret in the deployment's GCP project (see iac/README.md).
+# A value wrapped in /.../ is an optional regex; a bare value is required (must be non-empty).
+
+environment:
+  config:
+    # dev | test | prod — selects the folder (lower vs prod) and the WIF/deploy SA in CI.
+    environment_type: dev
+    gcp:region: europe-west1
+
+dns:
+  config:
+    gcp:region: europe-west1
+
+frontend:
+  config:
+    gcp:region: europe-west1
+
+backend:
+  config:
+    gcp:region: europe-west1
+    cloudrun:max_instance_request_concurrency: "10"
+    cloudrun:min_instance_count: "1"
+    cloudrun:max_instance_count: "1"
+    cloudrun:request_timeout: "180s"
+    cloudrun:memory_limit: "1Gi"
+    cloudrun:cpu_limit: "2"
+    api_gateway:timeout: "180"
+    api_gateway:rate_limit: "120"
+
+common:
+  config:
+    gcp:region: europe-west1

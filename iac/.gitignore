@@ -1,0 +1,10 @@
+*.pyc
+__pycache__/
+venv-iac
+.venv
+.env
+.env.*
+!.env.example
+# Generated per-stack Pulumi configs are written by scripts/prepare.py at deploy time.
+*/Pulumi.*.yaml
+_tmp/
