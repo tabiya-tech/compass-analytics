@@ -1,4 +1,5 @@
 import base64
+import subprocess
 from dataclasses import dataclass
 from typing import Optional
 
@@ -9,15 +10,16 @@ from pulumi import Output
 
 from backend._construct_api_gateway_cfg import construct_api_gateway_cfg
 from lib import ProjectBaseConfig, get_resource_name, get_project_base_config, Version
-from scripts.formatters import construct_docker_tag
 
 api_gateway_config_file_name = "api_gateway_config.yaml"
+
+CLOUD_RUN_SERVICE_NAME = "cloudrun-service"
 
 
 @dataclass(frozen=True)
 class BackendServiceConfig:
     """
-    Environment variables for the backend service
+    Environment variables for the backend service.
     See the backend service for more information on the environment variables.
     """
     analytics_mongodb_uri: str
@@ -46,20 +48,71 @@ class BackendServiceConfig:
     api_gateway_rate_limit: str
 
 
-"""
-# Set up GCP API Gateway.
-# The API Gateway will route the requests to the Compass Cloudrun instance. Additionally, it will verify the incoming
-# JWT tokens and add a new header x-apigateway-api-userinfo that will contain the JWT claims.
-# The Compass Cloudrun instance is publicly accessible over internet, otherwise it cannot be behind API Gateway.
-# To prevent direct calls to the Compass Cloudrun instance, the Cloudrun instance will require GCP IAM based
-# authentication. A service account with 'roles/run.invoker' permission is created for the API Gateway
-# which will allow it to call the Cloudrun instance.
-"""
+def build_gcloud_deploy_command(
+        *,
+        source_dir: str,
+        project: str,
+        region: str,
+        service_account_email: str,
+        network_id: str,
+        subnet_id: str,
+        cfg: BackendServiceConfig,
+) -> list[str]:
+    """
+    Build the `gcloud run deploy --source` command that Cloud Build uses to build the Docker image
+    and deploy it to Cloud Run. Cloud Build automatically manages an Artifact Registry repo in the
+    deployment project — no shared realm-level AR is needed.
+    """
+    env_vars = ",".join(filter(None, [
+        f"ANALYTICS_MONGODB_URI={cfg.analytics_mongodb_uri}",
+        f"ANALYTICS_DATABASE_NAME={cfg.analytics_database_name}",
+        f"COMPASS_API_KEY={cfg.compass_api_key}",
+        f"COMPASS_BASE_URL={cfg.compass_base_url}",
+        f"FIREBASE_PROJECT_ID={cfg.firebase_project_id}" if cfg.firebase_project_id else None,
+        f"TARGET_ENVIRONMENT_NAME={cfg.target_environment_name}",
+        f"BACKEND_ENABLE_SENTRY={cfg.enable_sentry}",
+        f"BACKEND_SENTRY_DSN={cfg.sentry_dsn}" if cfg.sentry_dsn else None,
+        f"BACKEND_SENTRY_CONFIG={cfg.sentry_config}" if cfg.sentry_config else None,
+        f"VERSION_DATE={cfg.version_date}" if cfg.version_date else None,
+        f"VERSION_BRANCH={cfg.version_branch}" if cfg.version_branch else None,
+        f"VERSION_BUILD_NUMBER={cfg.version_build_number}" if cfg.version_build_number else None,
+        f"VERSION_SHA={cfg.version_sha}" if cfg.version_sha else None,
+    ]))
+
+    cmd = [
+        "gcloud", "run", "deploy", CLOUD_RUN_SERVICE_NAME,
+        f"--source={source_dir}",
+        f"--project={project}",
+        f"--region={region}",
+        "--platform=managed",
+        "--no-allow-unauthenticated",
+        f"--memory={cfg.cloudrun_memory_limit}",
+        f"--cpu={cfg.cloudrun_cpu_limit}",
+        f"--min-instances={cfg.cloudrun_min_instance_count}",
+        f"--max-instances={cfg.cloudrun_max_instance_count}",
+        f"--concurrency={cfg.cloudrun_max_instance_request_concurrency}",
+        f"--timeout={cfg.cloudrun_request_timeout}",
+        "--execution-environment=gen2",
+        f"--set-env-vars={env_vars}",
+    ]
+
+    if service_account_email:
+        cmd.append(f"--service-account={service_account_email}")
+
+    if network_id and subnet_id:
+        cmd += [
+            f"--network={network_id}",
+            f"--subnet={subnet_id}",
+            "--vpc-egress=all-traffic",
+        ]
+
+    return cmd
 
 
 def _setup_api_gateway(*,
                        basic_config: ProjectBaseConfig,
-                       cloudrun: gcp.cloudrunv2.Service,
+                       cloudrun_uri: pulumi.Output[str],
+                       cloudrun_name: pulumi.Output[str],
                        backend_service_cfg: BackendServiceConfig,
                        dependencies: list[pulumi.Resource],
                        artifacts_version: Version):
@@ -79,31 +132,17 @@ def _setup_api_gateway(*,
         opts=pulumi.ResourceOptions(depends_on=dependencies, provider=basic_config.provider),
     )
 
-    # The GCP API Gateway uses OpenAPI 2.0 yaml files for the configurations.
-    # The yaml must be base64 encoded.
-    apigw_config_yml_string = cloudrun.uri.apply(
+    apigw_config_yml_string = cloudrun_uri.apply(
         lambda cloudrun_url: construct_api_gateway_cfg(cloud_run_url=cloudrun_url,
                                                        expected_version=artifacts_version))
 
-    # update the yaml with the correct values
-    # we are not using pulumi.Output.format because with path variables they are encapsulated in {}
-    # which causes issues with pulumi.Output.format to throw because we want to keep them as {path variable}.
-    apigw_config_yaml = pulumi.Output.all(basic_config.project, cloudrun.uri, apigw_config_yml_string).apply(
+    apigw_config_yaml = pulumi.Output.all(basic_config.project, cloudrun_uri, apigw_config_yml_string).apply(
         lambda args:
         args[2]
-        # project ID
         .replace('__PROJECT_ID__', args[0])
-
-        # cloud run uri
         .replace('__BACKEND_URI__', args[1])
-
-        # replace the backend api gateway timeout.
         .replace("__API_GATEWAY_TIMEOUT__", backend_service_cfg.api_gateway_timeout)
-
-        # replace the environment name in the api gateway config
         .replace("__ENVIRONMENT_NAME__", backend_service_cfg.target_environment_name)
-
-        # replace the api gateway rate limit
         .replace("__API_GATEWAY_RATE_LIMIT__", backend_service_cfg.api_gateway_rate_limit)
     )
 
@@ -116,8 +155,6 @@ def _setup_api_gateway(*,
         openapi_documents=[
             gcp.apigateway.ApiConfigOpenapiDocumentArgs(
                 document=gcp.apigateway.ApiConfigOpenapiDocumentDocumentArgs(
-                    # this is the file name used in the API Gateway
-                    # This is typically the path of the file when it is uploaded.
                     path=api_gateway_config_file_name,
                     contents=apigw_config_yaml_b64encoded,
                 ),
@@ -141,18 +178,17 @@ def _setup_api_gateway(*,
         opts=pulumi.ResourceOptions(depends_on=dependencies, provider=basic_config.provider),
     )
 
-    # Only allow access (roles/run.invoker permission) to apigw_service_account
-    # This prevents the service from being accessed directly from the internet
+    # Restrict direct Cloud Run access — only the API Gateway SA may invoke it
     gcp.cloudrun.IamMember(
         resource_name=get_resource_name(resource="api-gateway-sa", resource_type="iam-member"),
         project=basic_config.project,
         location=basic_config.location,
-        service=cloudrun.name,
+        service=cloudrun_name,
         role="roles/run.invoker",
         member=apigw_service_account.email.apply(lambda email: f"serviceAccount:{email}"),
         opts=pulumi.ResourceOptions(depends_on=dependencies, provider=basic_config.provider),
     )
-    # Enable the private service access for the API Gateway
+
     gcp.projects.Service(
         get_resource_name(resource="analytics-backend-api", resource_type="service"),
         project=basic_config.project,
@@ -165,64 +201,11 @@ def _setup_api_gateway(*,
     return api_gateway
 
 
-def _grant_docker_repository_access_to_project_service_account(
-        basic_config: ProjectBaseConfig,
-        project_number: pulumi.Output[str],
-        docker_project_id: pulumi.Output[str],
-        docker_repository_name: pulumi.Output[str],
-        docker_repository_location: pulumi.Output[str],
-) -> gcp.artifactregistry.RepositoryIamMember:
-    # allow the current environment to read from the docker repository
-    return gcp.artifactregistry.RepositoryIamMember(
-        resource_name=get_resource_name(resource="project-sa-repository-reader", resource_type="iam-member"),
-        project=docker_project_id,
-        location=docker_repository_location,
-        repository=docker_repository_name,
-        role="roles/artifactregistry.reader",
-        member=project_number.apply(
-            lambda _project_number:
-            f"serviceAccount:service-{_project_number}@serverless-robot-prod.iam.gserviceaccount.com"),
-        opts=pulumi.ResourceOptions(provider=basic_config.provider),
-    )
-
-
-def _get_fully_qualified_image_name(
-        docker_repository: pulumi.Output[gcp.artifactregistry.Repository],
-        tag: str
-) -> pulumi.Output[str]:
-    def _get_self_link(repository_info):
-        # Get the latest docker image with this tag.
-        # Given the actual tag may be assigned to another image, we need to get the latest image with this tag.
-        # The `self_link` is the fully qualified image name. with the sha.
-        # ref: https://www.pulumi.com/registry/packages/gcp/api-docs/artifactregistry/getdockerimage/#self_link_python
-        repository_project_id = repository_info.get("project")
-        repository_location = repository_info.get("location")
-        repository_name = repository_info.get("name")
-
-        image = gcp.artifactregistry.get_docker_image(
-            image_name=f"analytics-backend:{tag}",
-            location=repository_location,
-            # The last part of the repository name to fetch from.
-            # see: https://www.pulumi.com/registry/packages/gcp/api-docs/artifactregistry/getdockerimage/#repository_id_python
-            # we are using the repository.get("name") to get the repository name because it is the one that returns the last part.
-            # Using repository.get("id") would return the full name of the repository.
-            repository_id=repository_name,
-            project=repository_project_id
-        )
-
-        pulumi.info("Deploying image with the link: " + image.self_link)
-
-        return image.self_link
-
-    return docker_repository.apply(_get_self_link)
-
-
 def _setup_nat_gateway(*,
                        basic_config: ProjectBaseConfig
                        ) -> tuple[gcp.compute.Network, gcp.compute.Subnetwork, list[pulumi.Resource]]:
     """
-    Sets up a NAT Gateway in Google Cloud Platform.
-    This is used so that all our cloud run instances route their requests through this NAT gateway with a static ip address.
+    Sets up a NAT Gateway so all Cloud Run egress exits through a static IP.
     ref: https://docs.cloud.google.com/run/docs/configuring/static-outbound-ip
     """
     network = gcp.compute.Network(
@@ -232,8 +215,6 @@ def _setup_nat_gateway(*,
 
     sub_net = gcp.compute.Subnetwork(
         get_resource_name(resource="nat-gateway", resource_type="sub-network"),
-        # Minimum /26 recommended for Cloud Run because ip addresses may change depending on the scaling of instances.
-        # ref: https://docs.cloud.google.com/run/docs/configuring/vpc-direct-vpc#scale_up_and_scale_down
         ip_cidr_range="10.0.0.0/26",
         region=basic_config.location,
         network=network.id,
@@ -259,27 +240,17 @@ def _setup_nat_gateway(*,
         source_subnetwork_ip_ranges_to_nat="ALL_SUBNETWORKS_ALL_IP_RANGES",
         opts=pulumi.ResourceOptions(provider=basic_config.provider, depends_on=[router, sub_net, network]))
 
-    # export the static IP since it might be used two whitelist the cloud run instances.
     pulumi.export("cloudrun_nat_gateway_egress_static_ip", static_ip.address)
     return network, sub_net, [router_nat]
 
 
-# Deploy cloud run service
-# See https://cloud.google.com/run/docs/overview/what-is-cloud-run for more information
-def _deploy_cloud_run_service(
+def _create_backend_service_account(
         *,
         basic_config: ProjectBaseConfig,
-        fully_qualified_image_name: Output[str],
-        backend_service_cfg: BackendServiceConfig,
         dependencies: list[pulumi.Resource],
-):
-    nat_network, nat_sub_network, nat_dependencies = _setup_nat_gateway(basic_config=basic_config)
-
-    # See https://cloud.google.com/run/docs/securing/service-identity#per-service-identity for more information
-    # Create a service account for the Cloud Run service
-    service_account = gcp.serviceaccount.Account(
+) -> gcp.serviceaccount.Account:
+    return gcp.serviceaccount.Account(
         get_resource_name(resource="backend", resource_type="sa"),
-
         account_id="backend-sa",
         display_name="The dedicated service account for the Compass Analytics backend service",
         create_ignore_already_exists=True,
@@ -287,151 +258,69 @@ def _deploy_cloud_run_service(
         opts=pulumi.ResourceOptions(depends_on=dependencies, provider=basic_config.provider),
     )
 
-    # Deploy cloud run service
-    service = gcp.cloudrunv2.Service(
-        get_resource_name(resource="cloudrun", resource_type="service"),
-        name="cloudrun-service",
-        project=basic_config.project,
-        location=basic_config.location,
-        ingress="INGRESS_TRAFFIC_ALL",
-        template=gcp.cloudrunv2.ServiceTemplateArgs(
-            # Set max concurrency per instance
-            max_instance_request_concurrency=backend_service_cfg.cloudrun_max_instance_request_concurrency,
-            timeout=backend_service_cfg.cloudrun_request_timeout,
-            execution_environment='EXECUTION_ENVIRONMENT_GEN2',  # Set the execution environment to second generation
-            scaling=gcp.cloudrunv2.ServiceTemplateScalingArgs(
-                min_instance_count=backend_service_cfg.cloudrun_min_instance_count,
-                max_instance_count=backend_service_cfg.cloudrun_max_instance_count,
-            ),
-            containers=[
-                gcp.cloudrunv2.ServiceTemplateContainerArgs(
-                    resources=gcp.cloudrunv2.ServiceTemplateContainerResourcesArgs(
-                        limits={
-                            'memory': backend_service_cfg.cloudrun_memory_limit,
-                            'cpu': backend_service_cfg.cloudrun_cpu_limit,
-                        },
-                    ),
-                    image=fully_qualified_image_name,
-                    envs=[
-                        gcp.cloudrunv2.ServiceTemplateContainerEnvArgs(
-                            name="ANALYTICS_MONGODB_URI",
-                            value=backend_service_cfg.analytics_mongodb_uri),
-                        gcp.cloudrunv2.ServiceTemplateContainerEnvArgs(
-                            name="ANALYTICS_DATABASE_NAME",
-                            value=backend_service_cfg.analytics_database_name),
-                        gcp.cloudrunv2.ServiceTemplateContainerEnvArgs(
-                            name="COMPASS_API_KEY",
-                            value=backend_service_cfg.compass_api_key),
-                        gcp.cloudrunv2.ServiceTemplateContainerEnvArgs(
-                            name="COMPASS_BASE_URL",
-                            value=backend_service_cfg.compass_base_url),
-                        gcp.cloudrunv2.ServiceTemplateContainerEnvArgs(
-                            name="FIREBASE_PROJECT_ID",
-                            value=backend_service_cfg.firebase_project_id),
-                        gcp.cloudrunv2.ServiceTemplateContainerEnvArgs(
-                            name="TARGET_ENVIRONMENT_NAME",
-                            value=backend_service_cfg.target_environment_name),
-                        gcp.cloudrunv2.ServiceTemplateContainerEnvArgs(
-                            name="TARGET_ENVIRONMENT_TYPE",
-                            value=backend_service_cfg.target_environment_type),
-                        gcp.cloudrunv2.ServiceTemplateContainerEnvArgs(
-                            name="BACKEND_URL",
-                            value=backend_service_cfg.backend_url),
-                        gcp.cloudrunv2.ServiceTemplateContainerEnvArgs(
-                            name="FRONTEND_URL",
-                            value=backend_service_cfg.frontend_url),
-                        gcp.cloudrunv2.ServiceTemplateContainerEnvArgs(
-                            name="BACKEND_ENABLE_SENTRY",
-                            value=backend_service_cfg.enable_sentry),
-                        gcp.cloudrunv2.ServiceTemplateContainerEnvArgs(
-                            name="BACKEND_SENTRY_DSN",
-                            value=backend_service_cfg.sentry_dsn),
-                        gcp.cloudrunv2.ServiceTemplateContainerEnvArgs(
-                            name="BACKEND_SENTRY_CONFIG",
-                            value=backend_service_cfg.sentry_config),
-                        gcp.cloudrunv2.ServiceTemplateContainerEnvArgs(
-                            name="VERSION_DATE",
-                            value=backend_service_cfg.version_date),
-                        gcp.cloudrunv2.ServiceTemplateContainerEnvArgs(
-                            name="VERSION_BRANCH",
-                            value=backend_service_cfg.version_branch),
-                        gcp.cloudrunv2.ServiceTemplateContainerEnvArgs(
-                            name="VERSION_BUILD_NUMBER",
-                            value=backend_service_cfg.version_build_number),
-                        gcp.cloudrunv2.ServiceTemplateContainerEnvArgs(
-                            name="VERSION_SHA",
-                            value=backend_service_cfg.version_sha),
-                        # Add more environment variables here
-                    ],
-                )
-            ],
-            service_account=service_account.email,
-            vpc_access=gcp.cloudrunv2.ServiceTemplateVpcAccessArgs(
-                network_interfaces=[
-                    gcp.cloudrunv2.ServiceTemplateVpcAccessNetworkInterfaceArgs(
-                        network=nat_network.id,
-                        subnetwork=nat_sub_network.id,
-                    )
-                ],
-                # All traffic in the system should pass through the network
-                egress="ALL_TRAFFIC",
-            )
-        ),
-        opts=pulumi.ResourceOptions(
-            depends_on=dependencies + nat_dependencies + [service_account],
-            provider=basic_config.provider,
-        ),
+
+def _get_cloud_run_service_uri(*, project: str, region: str) -> str:
+    """Fetch the URI of the already-deployed Cloud Run service via gcloud."""
+    result = subprocess.run(
+        ["gcloud", "run", "services", "describe", CLOUD_RUN_SERVICE_NAME,
+         f"--project={project}", f"--region={region}", "--format=value(status.url)"],
+        capture_output=True, text=True, check=True
     )
-    pulumi.export("cloud_run_url", service.uri)
-    return service, service_account
+    return result.stdout.strip()
 
 
-# export a function build_and_push_image that will be used in the main pulumi program
 def deploy_backend(
         *,
         location: str,
         project: str | Output[str],
-        project_number: Output[str],
         backend_service_cfg: BackendServiceConfig,
-        docker_repository: pulumi.Output[gcp.artifactregistry.Repository],
         deployable_version: Version,
 ):
     """
-    Deploy the backend infrastructure
+    Deploy the backend infrastructure.
+
+    The Cloud Run service itself is built and deployed by `scripts/up.py` via
+    `gcloud run deploy --source` (Cloud Build manages the image in a per-project AR repo).
+    This Pulumi stack is responsible for the surrounding infrastructure:
+      - NAT gateway (static egress IP)
+      - Backend service account
+      - API Gateway (Firebase JWT verification, rate limiting, Cloud Run invoker binding)
+
+    The Cloud Run service is imported as an existing resource so the API Gateway can
+    reference its URI without re-deploying it.
     """
     basic_config = get_project_base_config(project=project, location=location)
-    docker_tag = construct_docker_tag(
-        git_branch_name=deployable_version.git_branch_name,
-        git_sha=deployable_version.git_sha
-    )
 
-    # grant the project service account access to the docker repository so that it can pull images
-    membership = _grant_docker_repository_access_to_project_service_account(
-        basic_config,
-        project_number,
-        docker_repository.apply(lambda repo: repo.get("project")),
-        docker_repository.apply(lambda repo: repo.get("name")),
-        docker_repository.apply(lambda repo: repo.get("location")),
-    )
+    nat_network, nat_sub_network, nat_dependencies = _setup_nat_gateway(basic_config=basic_config)
 
-    # get fully qualified image name
-    fully_qualified_image_name = _get_fully_qualified_image_name(
-        docker_repository=docker_repository,
-        tag=docker_tag
-    )
-
-    # Deploy the image as a cloud run service
-    cloud_run, cloud_run_sa = _deploy_cloud_run_service(
+    service_account = _create_backend_service_account(
         basic_config=basic_config,
-        fully_qualified_image_name=fully_qualified_image_name,
-        backend_service_cfg=backend_service_cfg,
-        dependencies=[membership],
+        dependencies=nat_dependencies,
     )
 
-    _api_gateway = _setup_api_gateway(
+    # Import the Cloud Run service that was deployed by gcloud run deploy --source.
+    # The service already exists; Pulumi tracks it for state and so the API Gateway
+    # can reference its URI and name.
+    cloudrun_service = gcp.cloudrunv2.Service.get(
+        get_resource_name(resource="cloudrun", resource_type="service"),
+        id=Output.all(basic_config.project, location).apply(
+            lambda args: f"projects/{args[0]}/locations/{args[1]}/services/{CLOUD_RUN_SERVICE_NAME}"
+        ),
+        opts=pulumi.ResourceOptions(provider=basic_config.provider),
+    )
+
+    pulumi.export("cloud_run_url", cloudrun_service.uri)
+
+    _setup_api_gateway(
         basic_config=basic_config,
-        cloudrun=cloud_run,
+        cloudrun_uri=cloudrun_service.uri,
+        cloudrun_name=cloudrun_service.name,
         artifacts_version=deployable_version,
         backend_service_cfg=backend_service_cfg,
-        dependencies=[cloud_run]
+        dependencies=[cloudrun_service, service_account],
     )
+
+    # Export nat network/subnet IDs so scripts/up.py can pass them to gcloud run deploy --source
+    pulumi.export("nat_network_id", nat_network.id)
+    pulumi.export("nat_subnet_id", nat_sub_network.id)
+    pulumi.export("backend_sa_email", service_account.email)

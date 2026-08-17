@@ -1,12 +1,7 @@
-name: Frontend CI & Artifact Upload
+name: Frontend CI
 
 on:
   workflow_call:
-    inputs:
-      upload-artifacts:
-        required: true
-        type: boolean
-        description: 'Whether to build and upload the frontend tarball to Artifact Registry'
 
 jobs:
   test:
@@ -46,7 +41,7 @@ jobs:
         run: npx playwright install --with-deps chromium && yarn run test:storybook
         working-directory: frontend
 
-      - name: Build
+      - name: Build (correctness gate — artifact discarded)
         run: yarn run build
         working-directory: frontend
 
@@ -77,39 +72,3 @@ jobs:
       - name: Accessibility tests
         run: npx playwright install --with-deps chromium && yarn run test:accessibility
         working-directory: frontend
-
-  build-and-upload:
-    runs-on: ubuntu-latest
-    if: ${{ inputs.upload-artifacts }}
-    needs: [test, accessibility]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Use Node.js 24.x
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24.x
-          cache: "yarn"
-          cache-dependency-path: frontend/yarn.lock
-
-      - name: Install node packages
-        run: yarn install --frozen-lockfile
-        working-directory: frontend
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ vars.WIF_PROVIDER_LOWER }}
-          service_account: ${{ vars.DEPLOY_SA_LOWER }}
-
-      - name: Run build and upload script
-        shell: bash
-        run: |
-          ./iac/scripts/build-and-upload-fe.sh \
-            ${{ vars.ARTIFACT_REGISTRY_REGION }} \
-            ${{ vars.GCP_REALM_ROOT_PROJECT_ID }} \
-            $GITHUB_STEP_SUMMARY \
-            $GITHUB_RUN_NUMBER
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}

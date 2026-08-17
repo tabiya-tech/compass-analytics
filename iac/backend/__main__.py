@@ -36,9 +36,7 @@ def main():
 
     # Get stack references
     env_reference = pulumi.StackReference(f"tabiya-tech/analytics-environment/{stack_name}")
-    docker_repository = getstackref(env_reference, "docker_repository")
     project = getstackref(env_reference, "project_id")
-    project_number = getstackref(env_reference, "project_number")
     environment_type = getstackref(env_reference, "environment_type")
 
     backend_url = getstackref(env_reference, "backend_url")
@@ -80,13 +78,13 @@ def main():
         git_sha=getenv("TARGET_GIT_SHA")
     )
 
-    # Deploy the backend
+    # Deploy the backend infrastructure.
+    # The Cloud Run service itself is deployed by scripts/up.py via gcloud run deploy --source
+    # before pulumi up runs. This stack handles the API Gateway, NAT, and service account.
     deploy_backend(
         project=project,
         location=location,
-        project_number=project_number,
         backend_service_cfg=backend_service_cfg,
-        docker_repository=docker_repository,
         deployable_version=deployable_version,
     )
 

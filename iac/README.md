@@ -6,9 +6,9 @@ Deployments are served at **`<deployment>.analytics.tabiya.tech`** — e.g. `zam
 ---
 
 ## Architecture
-
+![deployment_flow.png](deployment_flow.png)
 ```
-GitHub push ──▶ main.yml ──▶ frontend-ci + backend-ci (test; on main/[pulumi up]: build + push)
+main.yml ──▶ frontend-ci + backend-ci (test; on main/[pulumi up]: build + push)
                                       │
                                       ▼ (on main or [pulumi up])
                                   deploy.yml (WIF → prepare.py → up.py)

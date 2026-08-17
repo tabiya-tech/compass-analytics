@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { getAppName, getLogoInverseUrl } from "@/branding/brandingConfig";
+import { getAppName, getLogoInverseUrl } from "@/branding/branding";
 
 const uniqueId = "2dce0a1d-275e-4a46-952a-d9193ddd1c15";
 

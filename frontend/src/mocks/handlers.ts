@@ -1,40 +1,10 @@
 import { http, HttpResponse, type HttpHandler } from "msw";
-import type { BrandingConfig } from "@/branding/brandingConfig";
+import type { ReachResponse } from "@/analytics/analytics.types";
+import type { MeResponse } from "@/user/user.types";
 import { buildOverviewMetrics, parseOverviewMetricsQuery } from "@/mocks/overview-metrics";
 import { OVERVIEW_API_BASE } from "@/pages/Overview/services/OverviewMetrics.service";
 import type { InstitutionSortKey, SortDirection } from "@/institutions/institutions.types";
 import { findInstitutionDetail, queryInstitutions } from "@/mocks/data/institutions";
-import type { ReachResponse } from "@/analytics/analytics.types";
-import type { MeResponse } from "@/user/user.types";
-
-/**
- * Mirrors public/branding.json. Kept as a plain object (not imported from
- * public/, which Vite disallows importing as a JS module) so jsdom — which
- * has no dev server to serve static files from — gets the same response
- * Vite/Storybook's real dev server would serve for this request.
- */
-const defaultBranding: BrandingConfig = {
-  appName: "Compass Analytics",
-  browserTabTitle: "Compass Analytics",
-  metaDescription:
-    "Central analytics dashboard for Tabiya's products, giving reach, engagement, and outcome data to implementers and funders.",
-  assets: {
-    logo: "/logos/tabiya-logo-color.svg",
-    logoInverse: "/logos/tabiya-logo-white.svg",
-    favicon: "/logos/tabiya-logo-color.svg",
-  },
-  theme: {
-    "tabiya-blue": "#002147",
-    "tabiya-green": "#00ff91",
-    "light-green": "#e4f8e2",
-    "tabiya-grey": "#f8f5f0",
-    "green-2": "#26b87d",
-    "green-3": "#247066",
-    "grey-text": "#757575",
-    "font-primary": "'DM Sans', system-ui, -apple-system, sans-serif",
-    "font-mono": "'DM Mono', 'SF Mono', ui-monospace, monospace",
-  },
-};
 
 const stubReach: ReachResponse = {
   summary: {
@@ -62,9 +32,6 @@ const stubMe: MeResponse = {
   scope: { type: "all", institution_ids: [] },
   active_modules: ["build-your-profile", "job-readiness", "career-explorer", "jobs"],
 };
-
-/** Exported individually so the browser dev worker can include only this one. */
-export const brandingHandler = http.get("/branding.json", () => HttpResponse.json(defaultBranding));
 
 /** Applies the query server-side, the way the real endpoint will: search, filter, sort, paginate. */
 export const institutionsHandler = http.get("/api/institutions", ({ request }) => {
@@ -95,16 +62,12 @@ export const overviewMetricsHandler = http.get(`${OVERVIEW_API_BASE}/metrics`, (
   return HttpResponse.json(buildOverviewMetrics(parseOverviewMetricsQuery(query)));
 });
 
-/**
- * Full handler list for tests and Storybook — includes all API stubs so
- * components render with realistic data without needing the backend running.
- */
+/** Full handler list for tests and Storybook, so components render with realistic data without the backend running. */
 export const handlers: HttpHandler[] = [
-  brandingHandler,
   overviewMetricsHandler,
+  institutionsHandler,
+  institutionDetailHandler,
   http.post("/api/users/register", () => new HttpResponse(null, { status: 201 })),
   http.get("/api/me", () => HttpResponse.json(stubMe)),
   http.get("/api/reach", () => HttpResponse.json(stubReach)),
-  institutionsHandler,
-  institutionDetailHandler,
 ];

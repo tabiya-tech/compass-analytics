@@ -32,7 +32,6 @@ def main():
 
     billing_account = getstackref(realm_reference, "billing_account_id", True)
     root_project_id = getstackref(realm_reference, "root_project_id")
-    docker_repository = getstackref(realm_reference, "docker_repository")
     base_domain_name = getstackref(realm_reference, "base_domain_name")
 
     # if the environment is prod, use the analytics upper folder, otherwise use the analytics lower folder
@@ -44,7 +43,6 @@ def main():
     # export realm values to simplify the stack references downstream
     pulumi.export("realm_name", realm_name)
     pulumi.export("root_project_id", root_project_id)
-    pulumi.export("docker_repository", docker_repository)
     pulumi.export("environment_type", environment_type.value)
     # DOMAIN_NAME=<ENVIRONMENT_NAME>.<BASE_DOMAIN_NAME> where BASE_DOMAIN_NAME is analytics.tabiya.tech
     domain_name = base_domain_name.apply(lambda _base_domain_name: f"{environment_name}.{_base_domain_name}")
