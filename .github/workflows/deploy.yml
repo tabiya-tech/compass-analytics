@@ -62,7 +62,19 @@ jobs:
         with:
           ref: ${{ inputs.target-git-sha }}
 
-      # 2. Python + pip deps (Pulumi SDK, google-cloud-*, etc.)
+      # 2a. Node.js — needed for `yarn build` which runs at deploy time (VITE_* vars baked per deployment).
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: "yarn"
+          cache-dependency-path: frontend/yarn.lock
+
+      - name: Install frontend dependencies
+        run: yarn install --frozen-lockfile
+        working-directory: frontend
+
+      # 2b. Python + pip deps (Pulumi SDK, google-cloud-*, etc.)
       - name: Setup Python
         uses: actions/setup-python@v5
         with:

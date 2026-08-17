@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import datetime
 import os
-
+import subprocess
 import sys
 import argparse
 import time
@@ -13,6 +13,7 @@ import requests
 
 # Determine the absolute path to the 'iac' directory
 iac_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+repo_dir = os.path.abspath(os.path.join(iac_dir, '..'))
 # Add this directory to sys.path,
 # so that we can import the iac/lib module when we run pulumi from withing the iac/scripts directory.
 sys.path.insert(0, iac_dir)
@@ -22,6 +23,7 @@ from _types import IaCModules, Environment
 from frontend.prepare_frontend import prepare_frontend
 from lib import load_dot_realm_env, getenv, get_pulumi_stack_outputs, Version, clear_dot_env
 from _common import add_select_environments_arguments, run_pulumi_up, find_environments
+from backend.deploy_backend import BackendServiceConfig, build_gcloud_deploy_command
 
 
 def _run_smoke_tests(version_json_url: str, max_retries: int = 10):
@@ -64,11 +66,85 @@ def _deploy_frontend(stack_name: str):
     _run_smoke_tests(f"{bucket_url}/data/version.json")
 
 
+def _gcloud_deploy_backend(*, stack_name: str):
+    """
+    Build the backend Docker image via Cloud Build and deploy to Cloud Run using
+    `gcloud run deploy --source`. Cloud Build manages a Google-owned Artifact Registry
+    repo in the deployment project — no shared realm-level AR is needed.
+
+    The NAT network/subnet and backend SA must already exist (created by a prior
+    `pulumi up backend` run or on the first deploy they are created together with
+    Cloud Run via this call).  On first deploy we use Direct VPC so we pass the
+    network/subnet via `gcloud run deploy` flags and let Cloud Build create the AR repo.
+    """
+    # Pull the environment variables that carry deployment metadata.
+    env_vars_cfg = BackendServiceConfig(
+        analytics_mongodb_uri=getenv("ANALYTICS_MONGODB_URI", True),
+        analytics_database_name=getenv("ANALYTICS_DATABASE_NAME"),
+        compass_api_key=getenv("COMPASS_API_KEY", True),
+        compass_base_url=getenv("COMPASS_BASE_URL"),
+        firebase_project_id=getenv("FIREBASE_PROJECT_ID", False, False),
+        target_environment_name=getenv("TARGET_ENVIRONMENT_NAME", False, False) or stack_name.split(".")[-1],
+        target_environment_type=getenv("TARGET_ENVIRONMENT_TYPE", False, False) or "lower",
+        backend_url=getenv("BACKEND_URL", False, False) or "",
+        frontend_url=getenv("FRONTEND_URL", False, False) or "",
+        sentry_dsn=getenv("BACKEND_SENTRY_DSN", True, False),
+        sentry_config=getenv("BACKEND_SENTRY_CONFIG", False, False),
+        enable_sentry=getenv("BACKEND_ENABLE_SENTRY"),
+        version_date=getenv("VERSION_DATE", False, False),
+        version_branch=getenv("VERSION_BRANCH", False, False),
+        version_build_number=getenv("VERSION_BUILD_NUMBER", False, False),
+        version_sha=getenv("VERSION_SHA", False, False),
+        cloudrun_max_instance_request_concurrency=int(os.getenv("CLOUDRUN_MAX_CONCURRENCY", "80")),
+        cloudrun_min_instance_count=int(os.getenv("CLOUDRUN_MIN_INSTANCES", "0")),
+        cloudrun_max_instance_count=int(os.getenv("CLOUDRUN_MAX_INSTANCES", "5")),
+        cloudrun_request_timeout=os.getenv("CLOUDRUN_REQUEST_TIMEOUT", "300s"),
+        cloudrun_memory_limit=os.getenv("CLOUDRUN_MEMORY_LIMIT", "1Gi"),
+        cloudrun_cpu_limit=os.getenv("CLOUDRUN_CPU_LIMIT", "2"),
+        api_gateway_timeout=os.getenv("API_GATEWAY_TIMEOUT", "60s"),
+        api_gateway_rate_limit=os.getenv("API_GATEWAY_RATE_LIMIT", "100"),
+    )
+
+    # Fetch NAT network/subnet from prior Pulumi backend stack outputs (empty on first run).
+    try:
+        backend_outputs = get_pulumi_stack_outputs(stack_name, IaCModules.BACKEND.value)
+        nat_network_id = backend_outputs.get("nat_network_id", {}).value or ""
+        nat_subnet_id = backend_outputs.get("nat_subnet_id", {}).value or ""
+        backend_sa_email = backend_outputs.get("backend_sa_email", {}).value or ""
+    except Exception:
+        nat_network_id = ""
+        nat_subnet_id = ""
+        backend_sa_email = ""
+
+    env_outputs = get_pulumi_stack_outputs(stack_name, IaCModules.ENVIRONMENT.value)
+    project = env_outputs["project_id"].value
+    location = os.getenv("GCP_REGION", "europe-west1")
+
+    source_dir = os.path.join(repo_dir, "backend")
+
+    cmd = build_gcloud_deploy_command(
+        source_dir=source_dir,
+        project=project,
+        region=location,
+        service_account_email=backend_sa_email,
+        network_id=nat_network_id,
+        subnet_id=nat_subnet_id,
+        cfg=env_vars_cfg,
+    )
+
+    print(f"info: running gcloud run deploy --source for {stack_name}")
+    subprocess.run(cmd, check=True)
+
+
 def _deploy_backend(stack_name: str):
-    # run pulumi up on the backend
+    # 1. Build and deploy Cloud Run via gcloud run deploy --source (Cloud Build).
+    #    This must run before pulumi up so the Cloud Run service exists for import.
+    _gcloud_deploy_backend(stack_name=stack_name)
+
+    # 2. Run pulumi up on the backend (NAT, SA, API Gateway, imports Cloud Run service).
     up_results = run_pulumi_up(stack_name, IaCModules.BACKEND)
 
-    # run the smoke tests for the backend.
+    # 3. Run the smoke tests for the backend.
     apigateway_url = up_results.outputs["apigateway_url"].value
     _run_smoke_tests(f"{apigateway_url}/version")
 

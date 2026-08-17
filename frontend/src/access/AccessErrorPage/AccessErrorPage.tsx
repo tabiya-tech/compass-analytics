@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { getLogoUrl } from "@/branding/brandingConfig";
+import { getLogoUrl } from "@/branding/branding";
 import { Button } from "@/components/ui/button";
 import { AuthenticationServiceFactory } from "@/auth/services/Authentication.service.factory";
 

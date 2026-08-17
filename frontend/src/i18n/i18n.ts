@@ -1,7 +1,7 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import LanguageDetector from "i18next-browser-languagedetector";
-import { getAppName } from "@/branding/brandingConfig";
+import { getAppName } from "@/branding/branding";
 import { FALL_BACK_LOCALE, Locale, SupportedLocales } from "./constants";
 import enGb from "./locales/en-GB/translation.json";
 

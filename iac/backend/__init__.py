@@ -11,7 +11,9 @@ REQUIRED_SERVICES = [
     "servicecontrol.googleapis.com",
     # Service Management - required by API Gateway managed services
     "servicemanagement.googleapis.com",
-    # GCP Artifact Registry (for pulling the backend docker image)
+    # GCP Cloud Build (used by `gcloud run deploy --source` to build and push the Docker image)
+    "cloudbuild.googleapis.com",
+    # GCP Artifact Registry (created automatically by Cloud Build per-project for --source deployments)
     "artifactregistry.googleapis.com",
     # Serverless VPC Access (for the Cloud Run NAT gateway egress)
     "vpcaccess.googleapis.com",

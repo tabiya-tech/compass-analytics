@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import * as Sentry from "@sentry/react";
 import "./index.css";
 import App from "@/app";
-import { applyBranding } from "./branding/applyBranding";
+import { applyBranding } from "./branding/branding";
 import { initI18n } from "./i18n/i18n";
 import { initSentry } from "./sentry/sentryInit";
 import { ErrorFallback } from "./sentry/ErrorFallback";
@@ -24,9 +24,9 @@ async function enableMocking() {
 
 async function boot() {
   await enableMocking();
-  // Branding must resolve before i18n init, since i18n captures the app name
-  // as a default interpolation variable available to every translation.
-  await applyBranding();
+  // Branding is synchronous (VITE_* vars baked at build time), so it must run
+  // before i18n init which captures the app name as a default interpolation variable.
+  applyBranding();
   await initI18n();
 
   const { AuthProvider } = await import("./auth/AuthContext");

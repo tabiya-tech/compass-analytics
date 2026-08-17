@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, Mail, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getAppName } from "@/branding/brandingConfig";
+import { getAppName } from "@/branding/branding";
 import { AuthLayout } from "@/auth/components/AuthLayout";
 import { Field } from "@/auth/components/Field";
 import { SocialAuth } from "@/auth/components/SocialAuth";

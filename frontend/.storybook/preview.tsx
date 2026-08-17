@@ -5,7 +5,6 @@ import { I18nextProvider } from "react-i18next";
 import { HashRouter } from "react-router-dom";
 import "../src/index.css";
 import { handlers } from "../src/mocks/handlers";
-import { loadBrandingConfig } from "../src/branding/brandingConfig";
 import { initI18n } from "../src/i18n/i18n";
 import { Locale, LocalesLabels, SupportedLocales } from "../src/i18n/constants";
 import { AuthContext, type AuthContextValue } from "../src/auth/AuthContext";
@@ -40,9 +39,7 @@ const preview: Preview = {
   },
   loaders: [
     mswLoader,
-    async () => ({ branding: await loadBrandingConfig() }),
-    // Branding must load before i18n init, since i18n captures the app name
-    // as a default interpolation variable — same ordering as src/main.tsx.
+    // Branding is now synchronous (VITE_* vars baked at build time) — no loader needed.
     async () => ({ i18n: await initI18n() }),
   ],
   decorators: [

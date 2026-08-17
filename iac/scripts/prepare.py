@@ -18,77 +18,17 @@ iac_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 # so that we can import the iac/lib module when we run pulumi from withing the iac/scripts directory.
 sys.path.insert(0, iac_folder)
 
-from frontend.prepare_frontend import download_frontend_bundle
-
 from environment.env_types import EnvironmentTypes
 from _types import IaCModules, Environment, StackConfigs
-from scripts.formatters import construct_artifacts_version
-from lib import get_pulumi_stack_outputs, MAIN_SECRET_VERSION, construct_artifacts_dir, \
-    download_generic_artifacts_file, get_file_as_string, Version
+from lib import MAIN_SECRET_VERSION, get_file_as_string, Version
 from _common import add_select_environments_arguments, write_config_to_pulumi_yaml_file, \
     get_environment_stack_configurations, get_environment_environment_variables, compare_to_template, find_environments
 
 
 base_templates_dir = os.path.join(iac_folder, "templates")
-templates_dir = os.path.join(iac_folder, "scripts", "_tmp")
 environment_variables_added_by_the_script = ["DEPLOYMENT_RUN_NUMBER", "TARGET_GIT_BRANCH_NAME",
                                              "TARGET_GIT_SHA", "PREPARE_TIME", "ENV_VARS_SECRETS_PATH",
                                              "STACK_CONFIG_SECRET_PATH"]
-
-
-def _download_templates(*,
-                        realm_name: str,
-                        deployment_number: str,
-                        version: Version) -> None:
-    """
-    Download the templates necessary for this configuration.
-    """
-    formatted_artifacts_version = construct_artifacts_version(
-        git_branch_name=version.git_branch_name,
-        git_sha=version.git_sha
-    )
-
-    realm_outputs = get_pulumi_stack_outputs(stack_name=realm_name, module="realm")
-    realm_generic_repository = realm_outputs["generic_repository"].value
-
-    current_templates_dir = construct_artifacts_dir(
-        deployment_number=deployment_number,
-        fully_qualified_version=formatted_artifacts_version)
-
-    # artifacts dir, the folder to store the templates files.
-    artifacts_destination_dir = os.path.join(templates_dir, current_templates_dir)
-    os.makedirs(artifacts_destination_dir, exist_ok=False)
-
-    download_generic_artifacts_file(
-        repository=realm_generic_repository,
-        output_dir=artifacts_destination_dir,
-        version=formatted_artifacts_version,
-        file_name="env.template",
-    )
-
-    download_generic_artifacts_file(
-        repository=realm_generic_repository,
-        output_dir=artifacts_destination_dir,
-        version=formatted_artifacts_version,
-        file_name="stack_config.template.yaml",
-    )
-
-
-def _download_artifacts_and_config(_realm_name: str, _artifacts_version: Version, _deployment_number: str):
-    """
-    Download the necessary configurations and artifacts.
-    """
-
-    _download_templates(
-        realm_name=_realm_name,
-        version=_artifacts_version,
-        deployment_number=_deployment_number)
-
-    download_frontend_bundle(
-        realm_name=_realm_name,
-        artifacts_version=_artifacts_version,
-        deployment_number=_deployment_number
-    )
 
 
 def _prepare_env_file(
@@ -226,9 +166,8 @@ def _main(*, realm_name: str, env_name: str, env_type: EnvironmentTypes, target_
     deployment_number = uuid.uuid4().__str__()
 
     print(f"Preparing the deployment of version: {target_version}, deployment number: {deployment_number}")
-    _download_artifacts_and_config(realm_name, target_version, deployment_number)
 
-    # 2.3 prepare the deployment of each environment in the target list.
+    # Prepare the deployment of each environment in the target list.
     for environment in targeted_environments:
         _prepare_environment_deployment(
             environment=environment,
