@@ -1,3 +1,5 @@
+import datetime
+import json
 import os
 import shutil
 import subprocess
@@ -50,6 +52,24 @@ def _build_frontend(*, stack_name: str, dot_env_path: str) -> None:
     print("info: frontend build complete.")
 
 
+def _write_version_json(staging_dir: str) -> None:
+    """
+    Write data/version.json into the staging directory, replacing the ###placeholder### tokens
+    that Vite copied verbatim from public/data/version.json.
+    """
+    version_json_path = os.path.join(staging_dir, "data", "version.json")
+    version = {
+        "date": datetime.datetime.now(tz=datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S.000 UTC"),
+        "branch": getenv("TARGET_GIT_BRANCH_NAME"),
+        "buildNumber": getenv("DEPLOYMENT_RUN_NUMBER"),
+        "sha": getenv("TARGET_GIT_SHA"),
+    }
+    os.makedirs(os.path.dirname(version_json_path), exist_ok=True)
+    with open(version_json_path, "w", encoding="utf-8") as f:
+        json.dump(version, f, indent=2)
+    print(f"info: version.json written: {version}")
+
+
 def prepare_frontend(*, stack_name: str) -> str:
     """
     Build the frontend at deploy time (VITE_* vars baked into the bundle) and copy
@@ -67,6 +87,10 @@ def prepare_frontend(*, stack_name: str) -> str:
     if os.path.exists(stack_staging_dir):
         shutil.rmtree(stack_staging_dir)
     shutil.copytree(_frontend_dist_dir, stack_staging_dir)
+
+    # Stamp the real build metadata into data/version.json (Vite copies the
+    # public/data/version.json template verbatim; we fill it in here).
+    _write_version_json(stack_staging_dir)
 
     print(f"info: frontend staged at {stack_staging_dir}")
     return stack_staging_dir

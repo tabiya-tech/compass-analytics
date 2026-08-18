@@ -5,7 +5,7 @@ from app.version.types import VersionInfo
 
 
 def add_version_routes(app: FastAPI) -> None:
-    router = APIRouter(tags=["Version"])
+    router = APIRouter(tags=["Version"], prefix="/api")
 
     @router.get("/version", response_model=VersionInfo)
     async def get_version() -> VersionInfo:

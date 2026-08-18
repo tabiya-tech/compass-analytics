@@ -180,6 +180,15 @@ for ROLE in \
     --role=$ROLE
 done
 
+# Allow the SA to impersonate itself — needed for gcloud auth print-identity-token
+# --impersonate-service-account, which the deploy pipeline uses to obtain an OIDC ID
+# token for authenticating to Cloud Run when fetching the OpenAPI spec.
+gcloud iam service-accounts add-iam-policy-binding \
+  analytics-deploy-lower@${PROJECT}.iam.gserviceaccount.com \
+  --project=$PROJECT \
+  --member="serviceAccount:analytics-deploy-lower@${PROJECT}.iam.gserviceaccount.com" \
+  --role=roles/iam.serviceAccountTokenCreator
+
 # Allow the GitHub repo to impersonate the SA
 POOL_ID=$(gcloud iam workload-identity-pools describe analytics-github \
   --project=$PROJECT --location=global --format="value(name)")

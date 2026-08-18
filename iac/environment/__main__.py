@@ -56,14 +56,16 @@ def main():
     pulumi.export("frontend_url", domain_name.apply(lambda _domain_name: f"https://{_domain_name}"))
 
     pulumi.export("backend_domain", domain_name)
-    pulumi.export("backend_url", domain_name.apply(lambda _domain_name: f"https://{_domain_name}/api"))
+    pulumi.export("backend_url", domain_name.apply(lambda _domain_name: f"https://{_domain_name}"))
 
     create_new_environment(
         realm_name=realm_name,
         region=gcp_region,
         folder_id=folder_id,
         billing_account=billing_account,
-        environment_name=environment_name
+        environment_name=environment_name,
+        root_project_id=root_project_id,
+        environment_type=environment_type.value,
     )
 
 

@@ -36,16 +36,16 @@ def _grant_folder_roles_to_group(*, folder_id: pulumi.Output[str] | str, folder_
 def _create_secrets(
         *,
         root_project_id: str,
-        developers_group: gcp.cloudidentity.Group,
-        admins_group: gcp.cloudidentity.Group,
         provider: gcp.Provider,
         dependencies: list[pulumi.Resource],
+        developers_group: gcp.cloudidentity.Group | None = None,
+        admins_group: gcp.cloudidentity.Group | None = None,
 ) -> gcp.secretmanager.Secret:
     """
     Create secrets required by the realm.
          a) environments config.
 
-    And grant the necessary permissions to the developers and admins groups.
+    Optionally grants access to developers/admins groups when they are provided.
     """
 
     environments_config_secret = gcp.secretmanager.Secret(
@@ -58,21 +58,21 @@ def _create_secrets(
         },
         opts=pulumi.ResourceOptions(provider=provider, depends_on=dependencies))
 
-    # allow the developers to only view the secret
-    gcp.secretmanager.SecretIamMember(
-        get_resource_name(resource="devs-group-environments-config-secret-accessor", resource_type="iam-member"),
-        secret_id=environments_config_secret.id,
-        role="roles/secretmanager.secretAccessor",
-        member=developers_group.group_key.apply(lambda group: f"group:{group.id}"),
-        opts=pulumi.ResourceOptions(provider=provider, depends_on=[environments_config_secret, developers_group]))
+    if developers_group is not None:
+        gcp.secretmanager.SecretIamMember(
+            get_resource_name(resource="devs-group-environments-config-secret-accessor", resource_type="iam-member"),
+            secret_id=environments_config_secret.id,
+            role="roles/secretmanager.secretAccessor",
+            member=developers_group.group_key.apply(lambda group: f"group:{group.id}"),
+            opts=pulumi.ResourceOptions(provider=provider, depends_on=[environments_config_secret, developers_group]))
 
-    # allow the admins to admin the secret
-    gcp.secretmanager.SecretIamMember(
-        get_resource_name(resource="admins-group-environments-config-secret-admin", resource_type="iam-member"),
-        secret_id=environments_config_secret.id,
-        role="roles/secretmanager.admin",
-        member=admins_group.group_key.apply(lambda group: f"group:{group.id}"),
-        opts=pulumi.ResourceOptions(provider=provider, depends_on=[environments_config_secret, admins_group]))
+    if admins_group is not None:
+        gcp.secretmanager.SecretIamMember(
+            get_resource_name(resource="admins-group-environments-config-secret-admin", resource_type="iam-member"),
+            secret_id=environments_config_secret.id,
+            role="roles/secretmanager.admin",
+            member=admins_group.group_key.apply(lambda group: f"group:{group.id}"),
+            opts=pulumi.ResourceOptions(provider=provider, depends_on=[environments_config_secret, admins_group]))
 
     return environments_config_secret
 
@@ -80,23 +80,23 @@ def _create_secrets(
 def _create_organizational_base(*,
                                 provider: gcp.Provider,
                                 organization_id: str,
-                                customer_id: str,
+                                customer_id: str | None,
                                 billing_account_id: str,
                                 realm_name: str,
                                 root_folder_id: str,
                                 upper_env_google_oauth_projects_folder_id: str,
                                 lower_env_google_oauth_projects_folder_id: str,
                                 dependencies: list[pulumi.Resource]
-                                ) -> tuple[gcp.organizations.Folder, gcp.organizations.Folder, gcp.cloudidentity.Group, gcp.cloudidentity.Group]:
+                                ) -> tuple[gcp.organizations.Folder, gcp.organizations.Folder, gcp.cloudidentity.Group | None, gcp.cloudidentity.Group | None]:
     """
     Create the realm's organizational base:
         - create folders
-        - create groups
+        - create groups (only when customer_id is provided)
         - create custom roles
         - add necessary permissions to the groups for the folders
     :param provider: the provider to use
     :param organization_id: the id of the organization
-    :param customer_id: the id of the customer
+    :param customer_id: the id of the customer (optional — groups are skipped when absent)
     :param realm_name: the name of the realm
     :param root_folder_id: the id of the realm's root folder
     :return: Folders created
@@ -121,104 +121,100 @@ def _create_organizational_base(*,
         opts=pulumi.ResourceOptions(protect=protected_from_deletion, depends_on=dependencies, provider=provider)
     )
 
-    # Create a custom role for the developers and admins
-    realm_developers_admin_extra_role = gcp.organizations.IAMCustomRole(
-        get_resource_name(resource="developers-admins-extra-permissions", resource_type="custom-role"),
-        role_id=f"{_get_custom_role_valid_name(realm_name)}_devs_admins_extra_permissions",
-        title=f"Developers-admins extra permissions for: {realm_name}",
-        org_id=organization_id,
-        description=f"This role is used to give extra permissions to the developers and admins groups of the realm {realm_name}"
-                    "that are not part of the default roles",
-        permissions=[
-            # Developers currently have owner and editor permissions on some of the environments,
-            # so we assign them the projects.getIamPolicy to allow them to see the permissions they have on the projects.
-            # Note: This is only required for developers not admins.
-            "resourcemanager.projects.getIamPolicy",
-            "resourcemanager.folders.getIamPolicy",
-        ],
-        opts=pulumi.ResourceOptions(protect=protected_from_deletion, depends_on=dependencies, provider=provider)
-    )
+    realm_developers = None
+    realm_admins = None
 
-    # Create groups
-    #  - admins
-    #  - developers
+    if customer_id is not None:
+        realm_developers_admin_extra_role = gcp.organizations.IAMCustomRole(
+            get_resource_name(resource="developers-admins-extra-permissions", resource_type="custom-role"),
+            role_id=f"{_get_custom_role_valid_name(realm_name)}_devs_admins_extra_permissions",
+            title=f"Developers-admins extra permissions for: {realm_name}",
+            org_id=organization_id,
+            description=f"This role is used to give extra permissions to the developers and admins groups of the realm {realm_name}"
+                        "that are not part of the default roles",
+            permissions=[
+                "resourcemanager.projects.getIamPolicy",
+                "resourcemanager.folders.getIamPolicy",
+            ],
+            opts=pulumi.ResourceOptions(protect=protected_from_deletion, depends_on=dependencies, provider=provider)
+        )
 
-    realm_developers = gcp.cloudidentity.Group(
-        get_resource_name(resource="developers", resource_type="group"),
-        description="Developers have read-write access to lower and read-only access to production environments",
-        display_name=f"{realm_name}-developers",
-        group_key=gcp.cloudidentity.GroupGroupKeyArgs(
-            id=f"{realm_name}.developers@tabiya.org",
-        ),
-        labels={
-            "cloudidentity.googleapis.com/groups.discussion_forum": "",
-        },
-        parent=customer_id,
-        opts=pulumi.ResourceOptions(protect=protected_from_deletion, depends_on=dependencies, provider=provider)
-    )
+    if customer_id is not None:
+        realm_developers = gcp.cloudidentity.Group(
+            get_resource_name(resource="developers", resource_type="group"),
+            description="Developers have read-write access to lower and read-only access to production environments",
+            display_name=f"{realm_name}-developers",
+            group_key=gcp.cloudidentity.GroupGroupKeyArgs(
+                id=f"{realm_name}.developers@tabiya.org",
+            ),
+            labels={
+                "cloudidentity.googleapis.com/groups.discussion_forum": "",
+            },
+            parent=customer_id,
+            opts=pulumi.ResourceOptions(protect=protected_from_deletion, depends_on=dependencies, provider=provider)
+        )
 
-    realm_admins = gcp.cloudidentity.Group(
-        get_resource_name(resource="admins", resource_type="group"),
-        description="Admins have write access to both lower and production environments",
-        display_name=f"{realm_name}-admins",
-        group_key=gcp.cloudidentity.GroupGroupKeyArgs(
-            id=f"{realm_name}.admins@tabiya.org",
-        ),
-        labels={
-            "cloudidentity.googleapis.com/groups.discussion_forum": "",
-        },
-        parent=customer_id,
-        opts=pulumi.ResourceOptions(protect=protected_from_deletion, depends_on=dependencies, provider=provider)
-    )
+        realm_admins = gcp.cloudidentity.Group(
+            get_resource_name(resource="admins", resource_type="group"),
+            description="Admins have write access to both lower and production environments",
+            display_name=f"{realm_name}-admins",
+            group_key=gcp.cloudidentity.GroupGroupKeyArgs(
+                id=f"{realm_name}.admins@tabiya.org",
+            ),
+            labels={
+                "cloudidentity.googleapis.com/groups.discussion_forum": "",
+            },
+            parent=customer_id,
+            opts=pulumi.ResourceOptions(protect=protected_from_deletion, depends_on=dependencies, provider=provider)
+        )
 
-    # Assign roles to the groups
-    # Developers roles
-    root_folder_dev_roles = ["roles/viewer", "roles/resourcemanager.folderViewer"]
-    _grant_folder_roles_to_group(folder_id=root_folder_id, folder_name="realm-root-folder", group_name="devs", group=realm_developers,
-                                 roles=root_folder_dev_roles,
-                                 provider=provider)
-    gcp.folder.IAMMember(
-        get_resource_name(resource="devs-group-extra", resource_type="iam-member"),
-        folder=root_folder_id,
-        role=realm_developers_admin_extra_role.name,
-        member=realm_developers.group_key.apply(lambda group: f"group:{group.id}"),
-        opts=pulumi.ResourceOptions(depends_on=[realm_developers], provider=provider)
-    )
+        # Developers roles
+        root_folder_dev_roles = ["roles/viewer", "roles/resourcemanager.folderViewer"]
+        _grant_folder_roles_to_group(folder_id=root_folder_id, folder_name="realm-root-folder", group_name="devs", group=realm_developers,
+                                     roles=root_folder_dev_roles,
+                                     provider=provider)
+        gcp.folder.IAMMember(
+            get_resource_name(resource="devs-group-extra", resource_type="iam-member"),
+            folder=root_folder_id,
+            role=realm_developers_admin_extra_role.name,
+            member=realm_developers.group_key.apply(lambda group: f"group:{group.id}"),
+            opts=pulumi.ResourceOptions(depends_on=[realm_developers], provider=provider)
+        )
 
-    lower_env_folder_dev_roles = ["roles/editor", "roles/resourcemanager.projectCreator", "roles/resourcemanager.projectDeleter",
-                                  "roles/serviceusage.serviceUsageAdmin"]
-    _grant_folder_roles_to_group(folder_id=lower_envs_folder.folder_id, folder_name="lower-env-folder", group_name="devs", group=realm_developers,
-                                 roles=lower_env_folder_dev_roles, provider=provider)
-    _grant_folder_roles_to_group(folder_id=lower_env_google_oauth_projects_folder_id, folder_name="lower-env-identity-projects-folder", group_name="devs",
-                                 group=realm_developers,
-                                 roles=lower_env_folder_dev_roles, provider=provider)
-    gcp.billing.AccountIamMember(
-        get_resource_name(resource="devs-group-billing-user", resource_type="iam-member"),
-        billing_account_id=billing_account_id,
-        role="roles/billing.user",
-        member=realm_developers.group_key.apply(lambda group: f"group:{group.id}"),
-        opts=pulumi.ResourceOptions(depends_on=[realm_developers], provider=provider)
-    )
+        lower_env_folder_dev_roles = ["roles/editor", "roles/resourcemanager.projectCreator", "roles/resourcemanager.projectDeleter",
+                                      "roles/serviceusage.serviceUsageAdmin"]
+        _grant_folder_roles_to_group(folder_id=lower_envs_folder.folder_id, folder_name="lower-env-folder", group_name="devs", group=realm_developers,
+                                     roles=lower_env_folder_dev_roles, provider=provider)
+        _grant_folder_roles_to_group(folder_id=lower_env_google_oauth_projects_folder_id, folder_name="lower-env-identity-projects-folder", group_name="devs",
+                                     group=realm_developers,
+                                     roles=lower_env_folder_dev_roles, provider=provider)
+        gcp.billing.AccountIamMember(
+            get_resource_name(resource="devs-group-billing-user", resource_type="iam-member"),
+            billing_account_id=billing_account_id,
+            role="roles/billing.user",
+            member=realm_developers.group_key.apply(lambda group: f"group:{group.id}"),
+            opts=pulumi.ResourceOptions(depends_on=[realm_developers], provider=provider)
+        )
 
-    # Admin roles
-    root_folder_admin_roles = ["roles/owner", "roles/resourcemanager.projectCreator", "roles/resourcemanager.projectDeleter",
-                               "roles/serviceusage.serviceUsageAdmin", "roles/resourcemanager.folderViewer"]
-    _grant_folder_roles_to_group(folder_id=root_folder_id, folder_name="realm-root-folder", group_name="admins", group=realm_admins,
-                                 roles=root_folder_admin_roles, provider=provider)
-    gcp.folder.IAMMember(
-        get_resource_name(resource="admins-group-extra", resource_type="iam-member"),
-        folder=root_folder_id,
-        role=realm_developers_admin_extra_role.name,
-        member=realm_admins.group_key.apply(lambda group: f"group:{group.id}"),
-        opts=pulumi.ResourceOptions(depends_on=[realm_admins], provider=provider)
-    )
-    gcp.billing.AccountIamMember(
-        get_resource_name(resource="admins-group-billing-user", resource_type="iam-member"),
-        billing_account_id=billing_account_id,
-        role="roles/billing.user",
-        member=realm_admins.group_key.apply(lambda group: f"group:{group.id}"),
-        opts=pulumi.ResourceOptions(depends_on=[realm_admins], provider=provider)
-    )
+        # Admin roles
+        root_folder_admin_roles = ["roles/owner", "roles/resourcemanager.projectCreator", "roles/resourcemanager.projectDeleter",
+                                   "roles/serviceusage.serviceUsageAdmin", "roles/resourcemanager.folderViewer"]
+        _grant_folder_roles_to_group(folder_id=root_folder_id, folder_name="realm-root-folder", group_name="admins", group=realm_admins,
+                                     roles=root_folder_admin_roles, provider=provider)
+        gcp.folder.IAMMember(
+            get_resource_name(resource="admins-group-extra", resource_type="iam-member"),
+            folder=root_folder_id,
+            role=realm_developers_admin_extra_role.name,
+            member=realm_admins.group_key.apply(lambda group: f"group:{group.id}"),
+            opts=pulumi.ResourceOptions(depends_on=[realm_admins], provider=provider)
+        )
+        gcp.billing.AccountIamMember(
+            get_resource_name(resource="admins-group-billing-user", resource_type="iam-member"),
+            billing_account_id=billing_account_id,
+            role="roles/billing.user",
+            member=realm_admins.group_key.apply(lambda group: f"group:{group.id}"),
+            opts=pulumi.ResourceOptions(depends_on=[realm_admins], provider=provider)
+        )
 
     return lower_envs_folder, prod_envs_folder, realm_developers, realm_admins
 
@@ -258,7 +254,7 @@ def _enable_required_services(*, provider: gcp.Provider) -> time.Sleep:
 
 def create_realm(*,
                  organization_id: str,
-                 customer_id: str,
+                 customer_id: str | None,
                  billing_account_id: str,
                  root_folder_id: str,
                  root_project_id: str,
@@ -297,8 +293,8 @@ def create_realm(*,
 
     environments_config_secret = _create_secrets(
         root_project_id=root_project_id,
-        admins_group=realm_admins,
         developers_group=realm_developers,
+        admins_group=realm_admins,
         provider=provider,
         dependencies=wait_for_dependencies
     )

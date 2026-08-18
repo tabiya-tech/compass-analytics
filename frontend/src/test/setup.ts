@@ -1,7 +1,18 @@
 import "@testing-library/jest-dom/vitest";
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
 import { server } from "@/mocks/server";
-import { MockTrans, mockI18nInstance, useTranslationMock } from "@/i18n/i18nMock";
+
+// vi.mock factories are hoisted above imports, so any module-level imports they
+// reference are undefined at factory time. vi.hoisted() runs before the hoist,
+// giving us a stable reference the factories can close over.
+const { MockTrans, mockI18nInstance, useTranslationMock } = await vi.hoisted(async () => {
+  const mod = await import("@/i18n/i18nMock");
+  return {
+    MockTrans: mod.MockTrans,
+    mockI18nInstance: mod.mockI18nInstance,
+    useTranslationMock: mod.useTranslationMock,
+  };
+});
 
 // Mock Firebase Auth so tests never hit the real Firebase SDK or network.
 // AuthContext and AuthenticationService are both covered by unit tests that

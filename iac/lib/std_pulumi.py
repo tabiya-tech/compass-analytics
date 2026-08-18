@@ -52,7 +52,7 @@ def getstackref(stack_ref: pulumi.StackReference, name: str, secret: bool = Fals
     return value_output
 
 
-def getconfig(name: str, config: Optional[str] = None, *, secret: bool = False) -> str:
+def getconfig(name: str, config: Optional[str] = None, *, secret: bool = False, default: Optional[str] = ...) -> Optional[str]:
     """
     Get the configuration value from the pulumi configuration. Log the value if it is not a secret,
     otherwise log the secret value as a series of '*'
@@ -60,11 +60,18 @@ def getconfig(name: str, config: Optional[str] = None, *, secret: bool = False) 
     :param name: the configuration name
     :param config: the pulumi configuration namespace
     :param secret: whether the configuration is a secret
-    :return: the configuration value
-    :raises ValueError: if the configuration value is not set.
+    :param default: returned when the key is absent; omit to raise on missing (original behaviour)
+    :return: the configuration value, or default if absent and default was supplied
+    :raises ValueError: if the configuration value is not set and no default was provided.
     """
 
-    value = pulumi.Config(config).require(name)
+    _sentinel = ...
+    if default is _sentinel:
+        value = pulumi.Config(config).require(name)
+    else:
+        value = pulumi.Config(config).get(name)
+        if not value:
+            return default
     if not value:
         raise ValueError(f"configuration value {name} is not set")
 
@@ -162,6 +169,7 @@ def get_project_base_config(*, project: str | pulumi.Output[str], location: str)
     gcp_provider = gcp.Provider(
         "gcp_provider",
         project=project,
+        billing_project=project,
         user_project_override=True)
     return ProjectBaseConfig(project=project, location=location, provider=gcp_provider)
 
@@ -177,6 +185,15 @@ def get_resource_name(*, resource: str, resource_type: str = None):
     if resource_type:
         return f"{resource}-{resource_type}"
     return resource
+
+
+def get_labels(*, realm_name: str, environment_name: str) -> dict[str, str]:
+    """Standard resource labels applied to all GCP resources."""
+    return {
+        "realm": realm_name,
+        "environment": environment_name,
+        "managed-by": "pulumi",
+    }
 
 
 def enable_services(provider: gcp.Provider, service_names: list[str], dependencies: list) -> list[gcp.projects.Service]:
@@ -460,6 +477,7 @@ def download_generic_artifacts_file(
             f'--repository={repository["name"]}',
             f'--location={repository["location"]}',
             f'--project={repository["project"]}',
+            f'--billing-project={repository["project"]}',
             f"--local-filename={file_name}",
             f'artifacts:{version}:{file_name}'
         ],

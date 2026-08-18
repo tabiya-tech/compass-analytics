@@ -1,5 +1,9 @@
 import base64
+import os
 import subprocess
+import tempfile
+
+import yaml
 from dataclasses import dataclass
 from typing import Optional
 
@@ -8,7 +12,7 @@ import pulumi_gcp as gcp
 
 from pulumi import Output
 
-from backend._construct_api_gateway_cfg import construct_api_gateway_cfg
+from backend._construct_api_gateway_cfg import construct_api_gateway_cfg, get_id_token
 from lib import ProjectBaseConfig, get_resource_name, get_project_base_config, Version
 
 api_gateway_config_file_name = "api_gateway_config.yaml"
@@ -48,6 +52,41 @@ class BackendServiceConfig:
     api_gateway_rate_limit: str
 
 
+def _write_env_vars_file(cfg: BackendServiceConfig) -> str:
+    """
+    Write Cloud Run env vars to a temp YAML file for --env-vars-file.
+    This avoids comma-delimiter issues with --set-env-vars when values
+    contain commas (e.g. BACKEND_SENTRY_CONFIG JSON).
+    Returns the path to the temp file.
+    """
+    entries = {k: v for k, v in [
+        ("ANALYTICS_MONGODB_URI", cfg.analytics_mongodb_uri),
+        ("ANALYTICS_DATABASE_NAME", cfg.analytics_database_name),
+        ("COMPASS_API_KEY", cfg.compass_api_key),
+        ("COMPASS_BASE_URL", cfg.compass_base_url),
+        ("FIREBASE_PROJECT_ID", cfg.firebase_project_id),
+        ("TARGET_ENVIRONMENT_NAME", cfg.target_environment_name),
+        ("TARGET_ENVIRONMENT_TYPE", cfg.target_environment_type),
+        ("BACKEND_URL", cfg.backend_url),
+        ("FRONTEND_URL", cfg.frontend_url),
+        ("BACKEND_ENABLE_SENTRY", cfg.enable_sentry),
+        ("BACKEND_SENTRY_DSN", cfg.sentry_dsn),
+        ("BACKEND_SENTRY_CONFIG", cfg.sentry_config),
+        ("VERSION_DATE", cfg.version_date),
+        ("VERSION_BRANCH", cfg.version_branch),
+        ("VERSION_BUILD_NUMBER", cfg.version_build_number),
+        ("VERSION_SHA", cfg.version_sha),
+    ] if v is not None}
+
+    for k, v in entries.items():
+        if not isinstance(v, str):
+            raise TypeError(f"env var {k} must be a plain str before writing to --env-vars-file, got {type(v)}")
+    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
+    yaml.dump(entries, tmp, default_flow_style=False, allow_unicode=True)
+    tmp.close()
+    return tmp.name
+
+
 def build_gcloud_deploy_command(
         *,
         source_dir: str,
@@ -57,32 +96,21 @@ def build_gcloud_deploy_command(
         network_id: str,
         subnet_id: str,
         cfg: BackendServiceConfig,
-) -> list[str]:
+) -> tuple[list[str], str]:
     """
     Build the `gcloud run deploy --source` command that Cloud Build uses to build the Docker image
     and deploy it to Cloud Run. Cloud Build automatically manages an Artifact Registry repo in the
     deployment project — no shared realm-level AR is needed.
+
+    Returns (cmd, env_vars_file_path) — the caller must delete the temp file after the command runs.
     """
-    env_vars = ",".join(filter(None, [
-        f"ANALYTICS_MONGODB_URI={cfg.analytics_mongodb_uri}",
-        f"ANALYTICS_DATABASE_NAME={cfg.analytics_database_name}",
-        f"COMPASS_API_KEY={cfg.compass_api_key}",
-        f"COMPASS_BASE_URL={cfg.compass_base_url}",
-        f"FIREBASE_PROJECT_ID={cfg.firebase_project_id}" if cfg.firebase_project_id else None,
-        f"TARGET_ENVIRONMENT_NAME={cfg.target_environment_name}",
-        f"BACKEND_ENABLE_SENTRY={cfg.enable_sentry}",
-        f"BACKEND_SENTRY_DSN={cfg.sentry_dsn}" if cfg.sentry_dsn else None,
-        f"BACKEND_SENTRY_CONFIG={cfg.sentry_config}" if cfg.sentry_config else None,
-        f"VERSION_DATE={cfg.version_date}" if cfg.version_date else None,
-        f"VERSION_BRANCH={cfg.version_branch}" if cfg.version_branch else None,
-        f"VERSION_BUILD_NUMBER={cfg.version_build_number}" if cfg.version_build_number else None,
-        f"VERSION_SHA={cfg.version_sha}" if cfg.version_sha else None,
-    ]))
+    env_vars_file = _write_env_vars_file(cfg)
 
     cmd = [
         "gcloud", "run", "deploy", CLOUD_RUN_SERVICE_NAME,
         f"--source={source_dir}",
         f"--project={project}",
+        f"--billing-project={project}",
         f"--region={region}",
         "--platform=managed",
         "--no-allow-unauthenticated",
@@ -93,7 +121,7 @@ def build_gcloud_deploy_command(
         f"--concurrency={cfg.cloudrun_max_instance_request_concurrency}",
         f"--timeout={cfg.cloudrun_request_timeout}",
         "--execution-environment=gen2",
-        f"--set-env-vars={env_vars}",
+        f"--env-vars-file={env_vars_file}",
     ]
 
     if service_account_email:
@@ -106,13 +134,25 @@ def build_gcloud_deploy_command(
             "--vpc-egress=all-traffic",
         ]
 
-    return cmd
+    return cmd, env_vars_file
+
+
+def _get_cloud_run_service_uri(*, project: str, region: str) -> str:
+    """Fetch the URI of the already-deployed Cloud Run service via gcloud."""
+    result = subprocess.run(
+        ["gcloud", "run", "services", "describe", CLOUD_RUN_SERVICE_NAME,
+         f"--project={project}", f"--billing-project={project}", f"--region={region}",
+         "--format=value(status.url)"],
+        capture_output=True, text=True, check=True,
+    )
+    return result.stdout.strip()
 
 
 def _setup_api_gateway(*,
                        basic_config: ProjectBaseConfig,
                        cloudrun_uri: pulumi.Output[str],
                        cloudrun_name: pulumi.Output[str],
+                       id_token_str: str,
                        backend_service_cfg: BackendServiceConfig,
                        dependencies: list[pulumi.Resource],
                        artifacts_version: Version):
@@ -134,13 +174,18 @@ def _setup_api_gateway(*,
 
     apigw_config_yml_string = cloudrun_uri.apply(
         lambda cloudrun_url: construct_api_gateway_cfg(cloud_run_url=cloudrun_url,
+                                                       id_token_str=id_token_str,
                                                        expected_version=artifacts_version))
 
-    apigw_config_yaml = pulumi.Output.all(basic_config.project, cloudrun_uri, apigw_config_yml_string).apply(
+    firebase_project_id = backend_service_cfg.firebase_project_id
+    if not firebase_project_id:
+        raise ValueError("FIREBASE_PROJECT_ID is required — it is used as the JWT issuer in the API Gateway config.")
+
+    apigw_config_yaml = pulumi.Output.all(cloudrun_uri, apigw_config_yml_string).apply(
         lambda args:
-        args[2]
-        .replace('__PROJECT_ID__', args[0])
-        .replace('__BACKEND_URI__', args[1])
+        args[1]
+        .replace('__PROJECT_ID__', firebase_project_id)
+        .replace('__BACKEND_URI__', args[0])
         .replace("__API_GATEWAY_TIMEOUT__", backend_service_cfg.api_gateway_timeout)
         .replace("__ENVIRONMENT_NAME__", backend_service_cfg.target_environment_name)
         .replace("__API_GATEWAY_RATE_LIMIT__", backend_service_cfg.api_gateway_rate_limit)
@@ -202,7 +247,8 @@ def _setup_api_gateway(*,
 
 
 def _setup_nat_gateway(*,
-                       basic_config: ProjectBaseConfig
+                       basic_config: ProjectBaseConfig,
+                       labels: dict,
                        ) -> tuple[gcp.compute.Network, gcp.compute.Subnetwork, list[pulumi.Resource]]:
     """
     Sets up a NAT Gateway so all Cloud Run egress exits through a static IP.
@@ -220,9 +266,11 @@ def _setup_nat_gateway(*,
         network=network.id,
         opts=pulumi.ResourceOptions(provider=basic_config.provider, depends_on=[network]))
 
-    static_ip = gcp.compute.Address(get_resource_name(resource="nat-gateway", resource_type="static-ip"),
-                                    region=basic_config.location,
-                                    opts=pulumi.ResourceOptions(provider=basic_config.provider))
+    static_ip = gcp.compute.Address(
+        get_resource_name(resource="nat-gateway", resource_type="static-ip"),
+        region=basic_config.location,
+        labels=labels,
+        opts=pulumi.ResourceOptions(provider=basic_config.provider, protect=True))
 
     router = gcp.compute.Router(
         get_resource_name(resource="nat-gateway", resource_type="router"),
@@ -259,22 +307,14 @@ def _create_backend_service_account(
     )
 
 
-def _get_cloud_run_service_uri(*, project: str, region: str) -> str:
-    """Fetch the URI of the already-deployed Cloud Run service via gcloud."""
-    result = subprocess.run(
-        ["gcloud", "run", "services", "describe", CLOUD_RUN_SERVICE_NAME,
-         f"--project={project}", f"--region={region}", "--format=value(status.url)"],
-        capture_output=True, text=True, check=True
-    )
-    return result.stdout.strip()
-
-
 def deploy_backend(
         *,
         location: str,
         project: str | Output[str],
+        project_id: str,
         backend_service_cfg: BackendServiceConfig,
         deployable_version: Version,
+        labels: dict,
 ):
     """
     Deploy the backend infrastructure.
@@ -291,7 +331,7 @@ def deploy_backend(
     """
     basic_config = get_project_base_config(project=project, location=location)
 
-    nat_network, nat_sub_network, nat_dependencies = _setup_nat_gateway(basic_config=basic_config)
+    nat_network, nat_sub_network, nat_dependencies = _setup_nat_gateway(basic_config=basic_config, labels=labels)
 
     service_account = _create_backend_service_account(
         basic_config=basic_config,
@@ -311,10 +351,17 @@ def deploy_backend(
 
     pulumi.export("cloud_run_url", cloudrun_service.uri)
 
+    # Fetch the Cloud Run URL and ID token eagerly — before entering any Pulumi apply()
+    # callback — because google.auth.default() and fetch_id_token both fail under WIF
+    # inside async apply contexts.
+    cloudrun_url_plain = _get_cloud_run_service_uri(project=project_id, region=location)
+    id_token_str = get_id_token(cloudrun_url_plain)
+
     _setup_api_gateway(
         basic_config=basic_config,
         cloudrun_uri=cloudrun_service.uri,
         cloudrun_name=cloudrun_service.name,
+        id_token_str=id_token_str,
         artifacts_version=deployable_version,
         backend_service_cfg=backend_service_cfg,
         dependencies=[cloudrun_service, service_account],

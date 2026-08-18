@@ -11,11 +11,12 @@ sys.path.insert(0, libs_dir)
 
 from deploy_frontend import deploy_frontend
 from lib import getconfig, parse_realm_env_name_from_stack, getstackref, load_dot_realm_env, getenv, Version
+from lib.std_pulumi import get_labels
 from frontend.prepare_frontend import deployments_dir
 
 
 def main():
-    _, _, stack_name = parse_realm_env_name_from_stack()
+    realm_name, environment_name, stack_name = parse_realm_env_name_from_stack()
 
     # Load environment variables
     load_dot_realm_env(stack_name)
@@ -32,11 +33,14 @@ def main():
     # Point at the per-stack staging directory that prepare_frontend copied the dist/ into.
     stack_staging_dir = os.path.join(deployments_dir, stack_name)
 
+    labels = get_labels(realm_name=realm_name, environment_name=environment_name)
+
     # Deploy the frontend
     deploy_frontend(
         project=project,
         location=location,
         artifacts_dir=stack_staging_dir,
+        labels=labels,
     )
 
 
