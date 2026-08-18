@@ -38,7 +38,7 @@ def _get_id() -> str:
         2 ** 32 - 1,  # 32bit integer
         2 ** 64 - 1)  # 64bit integer
     random_id = int_to_base36(random_int)
-    return f"ssl-staus-{random_id}"
+    return f"ssl-status-{random_id}"
 
 
 class CertificateStatusProvider(ResourceProvider):

@@ -153,8 +153,8 @@ def _main(*, realm_name: str, env_name: str, env_type: EnvironmentTypes, target_
 
     if len(targeted_environments) == 0:
         print(f"error: No environments found to prepare for the given selection criteria "
-              f"environment_name: {realm_name}, environment_type: {env_name} "
-              f"in realm: {env_type}")
+              f"environment_name: {env_name}, environment_type: {env_type} "
+              f"in realm: {realm_name}")
         exit(1)
 
     # Download the artifacts and configurations for version to be deployed.

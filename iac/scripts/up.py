@@ -39,9 +39,9 @@ def _run_smoke_tests(version_json_url: str, max_retries: int = 10):
 
     for _i in range(max_retries):
         try:
-            version_json_response = requests.get(version_json_url)
+            version_json_response = requests.get(version_json_url, timeout=30)
             if version_json_response.status_code == 200:
-                break
+                if version_json_response.status_code == 200:break
             print(f"info: retrying after 10 seconds the request to {version_json_url} "
                   f"due to non-200 status: {version_json_response.status_code}")
             time.sleep(10)

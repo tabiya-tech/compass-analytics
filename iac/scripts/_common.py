@@ -436,10 +436,10 @@ def compare_to_template(*, template: dict, actual_cfg: dict, parent: str = "root
                 regex_pattern = r"[\s\S]+"
 
             if isinstance(template_value, dict):
-                if not isinstance(actual_cfg[key], dict):
+                if not isinstance(actual_value, dict):
                     print(f"Error: {parent}.{key} should be a dictionary in actual_cfg but is not.")
                     return False
-                if not compare_to_template(template=template_value, actual_cfg=actual_cfg[key], parent=f"{parent}.{key}", strict=strict):
+                if not compare_to_template(template=template_value, actual_cfg=actual_value, parent=f"{parent}.{key}", strict=strict):
                     return False
 
             # Handle regex validation
