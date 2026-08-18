@@ -47,6 +47,8 @@ def _prepare_env_file(
         TARGET_GIT_BRANCH_NAME={artifacts_version.git_branch_name}
         TARGET_GIT_SHA={artifacts_version.git_sha}
         DEPLOYMENT_RUN_NUMBER={deployment_run_number}
+        VERSION_BRANCH={artifacts_version.git_branch_name}
+        VERSION_SHA={artifacts_version.git_sha}
 
         # Configurations used details.
         PREPARE_TIME={datetime.datetime.now(tz=datetime.timezone.utc).isoformat()}
@@ -116,7 +118,7 @@ def _prepare_environment_deployment(*,
     write_config_to_pulumi_yaml_file(
         stack_name=environment.stack_name,
         module=IaCModules.ENVIRONMENT,
-        content=stack_configs.environment.config)
+        content=stack_configs.environment_pulumi_config)
 
     write_config_to_pulumi_yaml_file(
         stack_name=environment.stack_name,

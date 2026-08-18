@@ -15,19 +15,22 @@ def _setup_loadbalancer(*,
                         frontend_bucket_name: pulumi.Output[str],
                         backend_url: pulumi.Output[str],
                         backend_location: pulumi.Output[str],
-                        api_gateway_id: pulumi.Output[str]) -> pulumi.Resource:
+                        api_gateway_id: pulumi.Output[str],
+                        labels: dict) -> pulumi.Resource:
     # Normalize all domains to pulumi.Output so they're safe to use in .apply(), Output.all(), and host rules
     frontend_domains = [pulumi.Output.from_input(d) for d in frontend_domains]
 
     # The primary domain is the first entry — used for the DNS A record
     frontend_domain = frontend_domains[0]
 
-    # Create a global IP address for the load balancer
+    # Create a global IP address for the load balancer — protected to avoid accidental deletion
+    # (losing the IP breaks DNS and requires TTL propagation time to recover).
     ipaddress = gcp.compute.GlobalAddress(
         get_resource_name(resource="lb", resource_type="global-ip-address"),
         project=basic_config.project,
         address_type="EXTERNAL",
-        opts=pulumi.ResourceOptions(provider=basic_config.provider)
+        labels=labels,
+        opts=pulumi.ResourceOptions(provider=basic_config.provider, protect=True)
     )
 
     # Add an A record with the GLB IP
@@ -79,7 +82,7 @@ def _setup_loadbalancer(*,
         opts=pulumi.ResourceOptions(depends_on=[endpoint_group], provider=basic_config.provider),
     )
 
-    route_action = gcp.compute.URLMapPathMatcherPathRuleRouteActionArgs(
+    frontend_route_action = gcp.compute.URLMapPathMatcherPathRuleRouteActionArgs(
         url_rewrite=gcp.compute.URLMapPathMatcherPathRuleRouteActionUrlRewriteArgs(
             path_prefix_rewrite="/",
         )
@@ -97,16 +100,15 @@ def _setup_loadbalancer(*,
     frontend_path_rule = frontend_url.apply(_get_path_rule)
     frontend_rule = gcp.compute.URLMapPathMatcherPathRuleArgs(paths=[frontend_path_rule],
                                                               service=frontend_service_bucket.id,
-                                                              route_action=route_action)
+                                                              route_action=frontend_route_action)
 
-    # Map <backend_url>/* -> /* of the backend service.
-    backend_path_rule = backend_url.apply(_get_path_rule)
-    backend_rule = gcp.compute.URLMapPathMatcherPathRuleArgs(paths=[backend_path_rule],
-                                                             service=api_gateway_backend_service.id,
-                                                             route_action=route_action)
+    # All backend routes are under /api/*. Hardcode the path prefix rather than
+    # deriving it from backend_url, since backend_url is now the domain root (no /api suffix).
+    backend_rule = gcp.compute.URLMapPathMatcherPathRuleArgs(paths=["/api/*"],
+                                                             service=api_gateway_backend_service.id)
 
-    # Swagger UI will request /openapi.json, so we need to rewrite the path to the correct one.
-    backend_openapi_rule = gcp.compute.URLMapPathMatcherPathRuleArgs(paths=["/openapi.json"],
+    # Swagger UI fetches /api/openapi.json — route it through the gateway like all /api/* traffic.
+    backend_openapi_rule = gcp.compute.URLMapPathMatcherPathRuleArgs(paths=["/api/openapi.json"],
                                                                      service=api_gateway_backend_service.id)
 
     https_url_map = gcp.compute.URLMap(
@@ -206,7 +208,8 @@ def deploy_common(*,
                   frontend_bucket_name: pulumi.Output[str],
                   backend_url: pulumi.Output[str],
                   backend_location: pulumi.Output[str],
-                  api_gateway_id: pulumi.Output[str]):
+                  api_gateway_id: pulumi.Output[str],
+                  labels: dict):
     basic_config = get_project_base_config(project=project, location=location)
 
     # Create the Global Load Balancer
@@ -218,4 +221,6 @@ def deploy_common(*,
         frontend_bucket_name=frontend_bucket_name,
         backend_url=backend_url,
         backend_location=backend_location,
-        api_gateway_id=api_gateway_id)
+        api_gateway_id=api_gateway_id,
+        labels=labels,
+    )

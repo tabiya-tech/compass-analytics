@@ -11,11 +11,11 @@ sys.path.insert(0, libs_dir)
 import pulumi
 from deploy_common import deploy_common
 
-from lib.std_pulumi import getconfig, getstackref, parse_realm_env_name_from_stack, load_dot_realm_env
+from lib.std_pulumi import getconfig, getstackref, parse_realm_env_name_from_stack, load_dot_realm_env, get_labels
 
 
 def main():
-    _, _, stack_name = parse_realm_env_name_from_stack()
+    realm_name, environment_name, stack_name = parse_realm_env_name_from_stack()
 
     # Load environment variables.
     load_dot_realm_env(stack_name)
@@ -51,6 +51,8 @@ def main():
     api_gateway_id.apply(lambda _id: print(f"Using API gateway id: {_id}"))
     backend_location = getstackref(backend_stack_ref, "location")
 
+    labels = get_labels(realm_name=realm_name, environment_name=environment_name)
+
     # Deploy common
     deploy_common(
         project=project,
@@ -61,7 +63,9 @@ def main():
         frontend_url=frontend_url,
         backend_location=backend_location,
         backend_url=backend_url,
-        api_gateway_id=api_gateway_id)
+        api_gateway_id=api_gateway_id,
+        labels=labels,
+    )
 
 
 if __name__ == "__main__":

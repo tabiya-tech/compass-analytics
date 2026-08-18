@@ -41,12 +41,38 @@ if any(api in SERVICES_TO_ENABLE for api in _INITIAL_APIS):
     raise ValueError("The initial APIs must not be included in the services to enable")
 
 
+def _grant_deploy_sa_roles(*,
+                           project: gcp.organizations.Project,
+                           deploy_sa_member: pulumi.Output[str],
+                           provider: gcp.Provider,
+                           dependencies: list[pulumi.Resource]):
+    """
+    Grant the deploy service account the roles it needs to deploy resources into this project.
+    These are set here rather than manually so that new environments get the correct bindings automatically.
+    """
+    roles = [
+        "roles/editor",                          # general resource deployment access
+        "roles/serviceusage.serviceUsageAdmin",  # enable/disable GCP APIs
+        "roles/run.admin",                       # set IAM policy on Cloud Run (run.services.setIamPolicy)
+    ]
+    for role in roles:
+        gcp.projects.IAMMember(
+            get_resource_name(resource=f"deploy-sa-{role.split('/')[-1]}", resource_type="iam-member"),
+            project=project.project_id,
+            role=role,
+            member=deploy_sa_member,
+            opts=pulumi.ResourceOptions(provider=provider, depends_on=dependencies),
+        )
+
+
 def create_new_environment(*,
                            region: str,
                            realm_name: str,
                            folder_id: pulumi.Output[str],
                            billing_account: pulumi.Output[str],
-                           environment_name: str
+                           environment_name: str,
+                           root_project_id: pulumi.Output[str],
+                           environment_type: str,
                            ):
     # This is the project for the environment.
     # all the required services are enabled on this micro-task project.
@@ -82,7 +108,9 @@ def create_new_environment(*,
     environment_gcp_provider = gcp.Provider(
         "gcp_provider",
         region=region,
-        project=project.id,
+        project=project.project_id,
+        billing_project=project.project_id,
+        user_project_override=True,
         opts=pulumi.ResourceOptions(depends_on=[project])
     )
 
@@ -164,6 +192,20 @@ def create_new_environment(*,
         provider=environment_gcp_provider,
         service_names=SERVICES_TO_ENABLE,
         dependencies=initial_apis + [sleep_for_a_while]
+    )
+
+    # Grant the deploy SA the roles it needs on this project.
+    # Lower envs use the lower deploy SA; prod uses the prod deploy SA.
+    # The SA email is derived from the realm name and root project — both fixed per realm.
+    deploy_sa_suffix = "upper" if environment_type == "prod" else "lower"
+    deploy_sa_member = root_project_id.apply(
+        lambda root_proj: f"serviceAccount:{realm_name}-deploy-{deploy_sa_suffix}@{root_proj}.iam.gserviceaccount.com"
+    )
+    _grant_deploy_sa_roles(
+        project=project,
+        deploy_sa_member=deploy_sa_member,
+        provider=environment_gcp_provider,
+        dependencies=initial_apis + [sleep_for_a_while],
     )
 
     pulumi.export("project_id", project.id.apply(lambda _id: _id.replace("projects/", "")))

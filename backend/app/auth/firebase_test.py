@@ -1,6 +1,9 @@
+import base64
+import json
+
 import jwt as pyjwt
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials
 
 from app.auth.firebase import Authentication, SignInProvider, UserInfo, _get_user_info
@@ -72,9 +75,15 @@ def _bearer(token: str) -> HTTPAuthorizationCredentials:
     return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 
 
-def _call_dependency(auth: Authentication, credentials: HTTPAuthorizationCredentials) -> UserInfo:
-    """Invoke the actual FastAPI dependency callable (request is unused by it)."""
-    return auth.get_user_info()(request=None, credentials=credentials)
+def _make_request(headers: dict | None = None) -> Request:
+    scope = {"type": "http", "headers": [(k.lower().encode(), v.encode()) for k, v in (headers or {}).items()]}
+    return Request(scope)
+
+
+def _call_dependency(auth: Authentication, credentials: HTTPAuthorizationCredentials,
+                     headers: dict | None = None) -> UserInfo:
+    """Invoke the actual FastAPI dependency callable."""
+    return auth.get_user_info()(request=_make_request(headers), credentials=credentials)
 
 
 class TestAuthenticationLocal:
@@ -118,41 +127,46 @@ class TestAuthenticationLocal:
         assert exc_info.value.status_code == 401
 
 
+def _make_api_gateway_header(claims: dict) -> str:
+    """Encode claims as the API Gateway does in x-apigateway-api-userinfo (no padding)."""
+    return base64.b64encode(json.dumps(claims).encode()).decode().rstrip("=")
+
+
 class TestAuthenticationProduction:
-    def test_should_verify_token_and_return_user_info_in_non_local_mode(self, mocker):
-        # GIVEN a non-local environment with a project id
+    def test_should_read_user_info_from_api_gateway_header_in_non_local_mode(self):
+        # GIVEN a non-local environment
         given_auth = Authentication(firebase_project_id="my-project", environment_type="prod")
-        # AND the Firebase verifier returns decoded claims
-        verify = mocker.patch(
-            "app.auth.firebase._verify_firebase_token",
-            return_value={"sub": "uid-prod", "email": "prod@example.com", "firebase": {"sign_in_provider": "google.com"}},
-        )
+        # AND the API Gateway has validated the JWT and forwarded decoded claims
+        given_claims = {"sub": "uid-prod", "email": "prod@example.com", "firebase": {"sign_in_provider": "google.com"}}
+        given_header = _make_api_gateway_header(given_claims)
 
         # WHEN the auth dependency resolves the request
-        actual_user_info = _call_dependency(given_auth, _bearer("real-firebase-token"))
+        actual_user_info = _call_dependency(
+            given_auth,
+            _bearer("real-firebase-token"),
+            headers={"x-apigateway-api-userinfo": given_header},
+        )
 
-        # THEN the verifier was called with the token + project id
-        verify.assert_called_once_with("real-firebase-token", "my-project")
-        # AND the mapped UserInfo comes back
+        # THEN the mapped UserInfo comes back from the gateway header, not raw JWT verification
         assert actual_user_info.user_id == "uid-prod"
         assert actual_user_info.sign_in_provider == SignInProvider.GOOGLE
 
-    def test_should_401_in_non_local_mode_when_project_id_missing(self):
-        # GIVEN a non-local environment with NO project id configured
-        given_auth = Authentication(firebase_project_id=None, environment_type="prod")
+    def test_should_401_when_api_gateway_header_is_missing(self):
+        # GIVEN a non-local environment but the x-apigateway-api-userinfo header is absent
+        # (e.g. request bypassed the gateway — should never happen in prod)
+        given_auth = Authentication(firebase_project_id="my-project", environment_type="prod")
 
-        # WHEN a token is presented, the ValueError is mapped to 401
+        # WHEN the dependency resolves without the gateway header
+        # THEN it raises 401
         with pytest.raises(HTTPException) as exc_info:
             _call_dependency(given_auth, _bearer("any-token"))
         assert exc_info.value.status_code == 401
 
-    def test_should_401_when_verifier_raises(self, mocker):
-        # GIVEN a non-local environment where verification raises
+    def test_should_401_when_api_gateway_header_is_malformed(self):
+        # GIVEN a non-local environment with a corrupt gateway header
         given_auth = Authentication(firebase_project_id="my-project", environment_type="prod")
-        mocker.patch("app.auth.firebase._verify_firebase_token", side_effect=ValueError("bad token"))
 
-        # WHEN the dependency resolves the request
-        # THEN the exception is mapped to 401
+        # WHEN the dependency resolves with a non-JSON base64 payload
         with pytest.raises(HTTPException) as exc_info:
-            _call_dependency(given_auth, _bearer("bad-token"))
+            _call_dependency(given_auth, _bearer("any-token"), headers={"x-apigateway-api-userinfo": "!!!notbase64!!!"})
         assert exc_info.value.status_code == 401

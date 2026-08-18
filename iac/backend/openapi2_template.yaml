@@ -41,7 +41,7 @@ securityDefinitions:
     x-google-jwks_uri: "https://www.googleapis.com/service_accounts/v1/metadata/x509/securetoken@system.gserviceaccount.com"
     x-google-audiences: "__PROJECT_ID__"
 paths:
-  /docs:
+  /api/docs:
     get:
       summary: Docs endpoint
       operationId: api_docs
@@ -50,7 +50,7 @@ paths:
           description: Docs page
           schema:
             type: string
-  /openapi.json:
+  /api/openapi.json:
     get:
       summary: OAS file
       operationId: oas_file

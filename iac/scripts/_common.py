@@ -445,7 +445,7 @@ def compare_to_template(*, template: dict, actual_cfg: dict, parent: str = "root
             # Handle regex validation
             elif isinstance(template_value, str):
                 if not re.fullmatch(regex_pattern, str(actual_value)):
-                    print(f"Error: {parent}.{key} ({actual_value}) does not match the expected pattern {regex_pattern}.")
+                    print(f"Error: {parent}.{key} does not match the expected pattern {regex_pattern}. (value redacted)")
                     return False
 
         # Check for extra keys if strict mode is enabled
