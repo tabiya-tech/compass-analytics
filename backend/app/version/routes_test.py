@@ -35,8 +35,8 @@ class TestVersionRoutes:
         add_version_routes(given_app)
         given_client = TestClient(given_app)
 
-        # WHEN a GET request is made to /version
-        actual_response = given_client.get("/version")
+        # WHEN a GET request is made to /api/version
+        actual_response = given_client.get("/api/version")
 
         # THEN expect a response with the status OK
         assert actual_response.status_code == HTTPStatus.OK

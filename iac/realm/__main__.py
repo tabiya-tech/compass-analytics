@@ -27,7 +27,7 @@ def main():
 
     # Get the config values
     region = getconfig("region", config="gcp")
-    customer_id = getconfig("gcp_customer_id")
+    customer_id = getconfig("gcp_customer_id", default=None)
     billing_account_id = getconfig("gcp_billing_account_id")
     organization_id = getconfig("gcp_organization_id")
     root_folder_id = getconfig("gcp_root_folder_id")

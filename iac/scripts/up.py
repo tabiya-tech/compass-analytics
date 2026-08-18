@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import dataclasses
 import datetime
 import os
 import subprocess
@@ -38,8 +39,12 @@ def _run_smoke_tests(version_json_url: str, max_retries: int = 10):
 
     for _i in range(max_retries):
         try:
-            version_json_response = requests.get(version_json_url)
-            break
+            version_json_response = requests.get(version_json_url, timeout=30)
+            if version_json_response.status_code == 200:
+                break
+            print(f"info: retrying after 10 seconds the request to {version_json_url} "
+                  f"due to non-200 status: {version_json_response.status_code}")
+            time.sleep(10)
         except requests.exceptions.SSLError:
             print(f"info: retrying after 10 seconds the request to {version_json_url} due to SSL error.")
             time.sleep(10)
@@ -84,10 +89,10 @@ def _gcloud_deploy_backend(*, stack_name: str):
         compass_api_key=getenv("COMPASS_API_KEY", True),
         compass_base_url=getenv("COMPASS_BASE_URL"),
         firebase_project_id=getenv("FIREBASE_PROJECT_ID", False, False),
-        target_environment_name=getenv("TARGET_ENVIRONMENT_NAME", False, False) or stack_name.split(".")[-1],
-        target_environment_type=getenv("TARGET_ENVIRONMENT_TYPE", False, False) or "lower",
-        backend_url=getenv("BACKEND_URL", False, False) or "",
-        frontend_url=getenv("FRONTEND_URL", False, False) or "",
+        target_environment_name=stack_name.split(".")[-1],
+        target_environment_type="prod",
+        backend_url="",
+        frontend_url="",
         sentry_dsn=getenv("BACKEND_SENTRY_DSN", True, False),
         sentry_config=getenv("BACKEND_SENTRY_CONFIG", False, False),
         enable_sentry=getenv("BACKEND_ENABLE_SENTRY"),
@@ -108,9 +113,14 @@ def _gcloud_deploy_backend(*, stack_name: str):
     # Fetch NAT network/subnet from prior Pulumi backend stack outputs (empty on first run).
     try:
         backend_outputs = get_pulumi_stack_outputs(stack_name, IaCModules.BACKEND.value)
-        nat_network_id = backend_outputs.get("nat_network_id", {}).value or ""
-        nat_subnet_id = backend_outputs.get("nat_subnet_id", {}).value or ""
-        backend_sa_email = backend_outputs.get("backend_sa_email", {}).value or ""
+
+        def _output_val(key: str) -> str:
+            out = backend_outputs.get(key)
+            return out.value if out is not None else ""
+
+        nat_network_id = _output_val("nat_network_id")
+        nat_subnet_id = _output_val("nat_subnet_id")
+        backend_sa_email = _output_val("backend_sa_email")
     except Exception:
         nat_network_id = ""
         nat_subnet_id = ""
@@ -119,10 +129,19 @@ def _gcloud_deploy_backend(*, stack_name: str):
     env_outputs = get_pulumi_stack_outputs(stack_name, IaCModules.ENVIRONMENT.value)
     project = env_outputs["project_id"].value
     location = os.getenv("GCP_REGION", "europe-west1")
+    os.environ["DEPLOYMENT_PROJECT_ID"] = project
+
+    # These values are authoritative in the environment stack outputs.
+    env_vars_cfg = dataclasses.replace(
+        env_vars_cfg,
+        frontend_url=env_outputs["frontend_url"].value,
+        backend_url=env_outputs["backend_url"].value,
+        target_environment_type=env_outputs["environment_type"].value,
+    )
 
     source_dir = os.path.join(repo_dir, "backend")
 
-    cmd = build_gcloud_deploy_command(
+    cmd, env_vars_file = build_gcloud_deploy_command(
         source_dir=source_dir,
         project=project,
         region=location,
@@ -133,7 +152,14 @@ def _gcloud_deploy_backend(*, stack_name: str):
     )
 
     print(f"info: running gcloud run deploy --source for {stack_name}")
-    subprocess.run(cmd, check=True)
+    try:
+        result = subprocess.run(cmd, check=False, text=True, capture_output=True)
+        print(result.stdout)
+        print(result.stderr)
+        if result.returncode != 0:
+            raise subprocess.CalledProcessError(result.returncode, cmd)
+    finally:
+        os.unlink(env_vars_file)
 
 
 def _deploy_backend(stack_name: str):
@@ -146,7 +172,7 @@ def _deploy_backend(stack_name: str):
 
     # 3. Run the smoke tests for the backend.
     apigateway_url = up_results.outputs["apigateway_url"].value
-    _run_smoke_tests(f"{apigateway_url}/version")
+    _run_smoke_tests(f"{apigateway_url}/api/version")
 
 
 def _deploy_common(stack_name: str):

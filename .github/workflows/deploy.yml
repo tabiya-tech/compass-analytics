@@ -148,6 +148,8 @@ jobs:
 
       - name: Deploy the infrastructure
         working-directory: iac
+        env:
+          DEPLOY_SERVICE_ACCOUNT: ${{ inputs.env-type == 'prod' && vars.DEPLOY_SA_PROD || vars.DEPLOY_SA_LOWER }}
         run: |
           ./scripts/up.py \
             --realm-name ${{ vars.REALM_NAME }} \

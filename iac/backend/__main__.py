@@ -10,11 +10,12 @@ sys.path.insert(0, libs_dir)
 
 from deploy_backend import deploy_backend, BackendServiceConfig
 from lib import getconfig, getstackref, getenv, parse_realm_env_name_from_stack, load_dot_realm_env, Version
+from lib.std_pulumi import get_labels
 
 
 def main():
     # The environment is the stack name
-    _, environment_name, stack_name = parse_realm_env_name_from_stack()
+    realm_name, environment_name, stack_name = parse_realm_env_name_from_stack()
 
     # Load environment variables
     load_dot_realm_env(stack_name)
@@ -78,14 +79,18 @@ def main():
         git_sha=getenv("TARGET_GIT_SHA")
     )
 
+    labels = get_labels(realm_name=realm_name, environment_name=environment_name)
+
     # Deploy the backend infrastructure.
     # The Cloud Run service itself is deployed by scripts/up.py via gcloud run deploy --source
     # before pulumi up runs. This stack handles the API Gateway, NAT, and service account.
     deploy_backend(
         project=project,
+        project_id=getenv("DEPLOYMENT_PROJECT_ID"),
         location=location,
         backend_service_cfg=backend_service_cfg,
         deployable_version=deployable_version,
+        labels=labels,
     )
 
 

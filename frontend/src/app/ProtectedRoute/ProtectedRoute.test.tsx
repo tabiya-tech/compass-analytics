@@ -34,7 +34,7 @@ function renderAt(path: string, permissions: string[]) {
   );
 }
 
-describe("PermissionRoute", () => {
+describe("ProtectedRoute", () => {
   it("should render the screen when the grant includes the permission it requires", async () => {
     // GIVEN a signed-in user whose grant covers institutions:view
     // WHEN they open the institutions screen
@@ -44,18 +44,16 @@ describe("PermissionRoute", () => {
     await waitFor(() => expect(screen.getByTestId("institutions-screen")).toBeInTheDocument());
   });
 
-  it("should show a forbidden message when the grant misses the required permission", async () => {
+  it("should show a forbidden alert when the user's grant misses the required permission", async () => {
     // GIVEN a signed-in user whose grant does not cover institutions:view
-    // WHEN they navigate to the institutions screen
+    // WHEN they deep-link straight into the institutions screen
     renderAt(routerPaths.INSTITUTIONS, ["dashboard:view"]);
 
-    // THEN they see a forbidden message, not the screen
+    // THEN they see a forbidden notice, not the protected content
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
     expect(screen.queryByTestId("institutions-screen")).not.toBeInTheDocument();
   });
-});
 
-describe("ProtectedRoute", () => {
   it("should render an ungated screen for any signed-in user", async () => {
     // GIVEN a signed-in user with a minimal grant
     const router = createMemoryRouter([

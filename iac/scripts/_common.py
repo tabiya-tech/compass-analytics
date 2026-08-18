@@ -436,16 +436,16 @@ def compare_to_template(*, template: dict, actual_cfg: dict, parent: str = "root
                 regex_pattern = r"[\s\S]+"
 
             if isinstance(template_value, dict):
-                if not isinstance(actual_cfg[key], dict):
+                if not isinstance(actual_value, dict):
                     print(f"Error: {parent}.{key} should be a dictionary in actual_cfg but is not.")
                     return False
-                if not compare_to_template(template=template_value, actual_cfg=actual_cfg[key], parent=f"{parent}.{key}", strict=strict):
+                if not compare_to_template(template=template_value, actual_cfg=actual_value, parent=f"{parent}.{key}", strict=strict):
                     return False
 
             # Handle regex validation
             elif isinstance(template_value, str):
                 if not re.fullmatch(regex_pattern, str(actual_value)):
-                    print(f"Error: {parent}.{key} ({actual_value}) does not match the expected pattern {regex_pattern}.")
+                    print(f"Error: {parent}.{key} does not match the expected pattern {regex_pattern}. (value redacted)")
                     return False
 
         # Check for extra keys if strict mode is enabled

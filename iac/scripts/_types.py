@@ -73,6 +73,8 @@ class StackConfigs:
     """
 
     environment: Environment
+    environment_pulumi_config: Mapping[str, Any]
+    """Raw 'environment' section from the stack-config secret, written as-is to Pulumi.<stack>.yaml."""
     dns: Mapping[str, Any]
     backend: Mapping[str, Any]
     frontend: Mapping[str, Any]
@@ -93,6 +95,7 @@ class StackConfigs:
 
         return StackConfigs(
             environment=environment,
+            environment_pulumi_config=_dict[IaCModules.ENVIRONMENT.value],
             dns=_dict[IaCModules.DNS.value],
             backend=_dict[IaCModules.BACKEND.value],
             frontend=_dict[IaCModules.FRONTEND.value],

@@ -105,8 +105,11 @@ app = FastAPI(
     version=application_config.version_info.to_version_string(),
     description="Backend API for the Compass Analytics dashboard.",
     redirect_slashes=False,
+    docs_url="/api/docs",
+    openapi_url="/api/openapi.json",
     swagger_ui_parameters={"docExpansion": "none"},
-    servers=[{"url": application_config.backend_url, "description": "The backend server"}],
+    # Strip /api so Swagger UI constructs correct URLs: base + /api/... = https://domain/api/...
+    servers=[{"url": application_config.backend_url.removesuffix("/api"), "description": "The backend server"}],
     lifespan=lifespan,
 )
 

@@ -13,17 +13,18 @@ from bucket_content import BucketContent
 from lib.std_pulumi import ProjectBaseConfig, get_project_base_config, get_resource_name
 
 
-def _create_bucket(basic_config: ProjectBaseConfig, bucket_name: str) -> gcp.storage.Bucket:
+def _create_bucket(basic_config: ProjectBaseConfig, bucket_name: str, labels: dict) -> gcp.storage.Bucket:
     return gcp.storage.Bucket(
         get_resource_name(resource=bucket_name, resource_type="bucket"),
         project=basic_config.project,
         location=basic_config.location,
         uniform_bucket_level_access=True,
+        labels=labels,
         website=gcp.storage.BucketWebsiteArgs(
             main_page_suffix="index.html",
             not_found_page="404.html",
         ),
-        opts=pulumi.ResourceOptions(provider=basic_config.provider))
+        opts=pulumi.ResourceOptions(provider=basic_config.provider, protect=True))
 
 
 def _make_bucket_public(basic_config: ProjectBaseConfig, bucket_name: pulumi.Output,
@@ -40,7 +41,8 @@ def _make_bucket_public(basic_config: ProjectBaseConfig, bucket_name: pulumi.Out
 def deploy_frontend(*,
                     project: pulumi.Output[str],
                     location: str,
-                    artifacts_dir: str
+                    artifacts_dir: str,
+                    labels: dict,
                     ):
     """
     Upload the built frontend to GCS.
@@ -49,7 +51,7 @@ def deploy_frontend(*,
     """
     basic_config = get_project_base_config(project=project, location=location)
 
-    bucket = _create_bucket(basic_config, "frontend")
+    bucket = _create_bucket(basic_config, "frontend", labels)
 
     _bucket_content = BucketContent(
         get_resource_name(resource="frontend-artifacts", resource_type="bucket-content"),

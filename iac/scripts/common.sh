@@ -77,6 +77,7 @@ function upload_file() {
           --repository=generic-repository \
           --location="$_region" \
           --project="$_project_id" \
+          --billing-project="$_project_id" \
           --package=artifacts \
           --version="$_artifact_version" \
           --format="value(name)" \
@@ -88,6 +89,7 @@ function upload_file() {
       --repository=generic-repository \
       --location="$_region" \
       --project="$_project_id" \
+      --billing-project="$_project_id" \
       --quiet
   fi
 
@@ -99,6 +101,7 @@ function upload_file() {
            --location="$_region" \
            --source="$_file_path" \
            --project="$_project_id" \
+           --billing-project="$_project_id" \
            --version="$_artifact_version"; then
     echo "error: failed to upload the file"
     exit 1

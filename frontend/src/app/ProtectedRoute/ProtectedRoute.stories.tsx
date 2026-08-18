@@ -32,7 +32,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
-  play: async ({ canvas, globals }) => {
+  play: async ({ canvas, globals }: Parameters<NonNullable<Story["play"]>>[0]) => {
     if (globals.loggedIn) {
       await expect(canvas.getByTestId("content")).toBeVisible();
     } else {
