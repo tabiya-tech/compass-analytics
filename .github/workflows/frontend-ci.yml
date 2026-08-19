@@ -37,6 +37,9 @@ jobs:
         run: yarn run test
         working-directory: frontend
 
+      - name: Fix apt mirrors
+        run: printf 'https://archive.ubuntu.com/ubuntu/\nhttps://security.ubuntu.com/ubuntu/\n' | sudo tee /etc/apt/apt-mirrors.txt
+
       - name: Storybook tests
         run: npx playwright install --with-deps chromium && yarn run test:storybook
         working-directory: frontend
@@ -68,6 +71,9 @@ jobs:
       - name: Install node packages
         run: yarn install --frozen-lockfile
         working-directory: frontend
+
+      - name: Fix apt mirrors
+        run: printf 'https://archive.ubuntu.com/ubuntu/\nhttps://security.ubuntu.com/ubuntu/\n' | sudo tee /etc/apt/apt-mirrors.txt
 
       - name: Accessibility tests
         run: npx playwright install --with-deps chromium && yarn run test:accessibility

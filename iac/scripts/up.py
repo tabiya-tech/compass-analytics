@@ -182,9 +182,9 @@ def _deploy_common(stack_name: str):
     # 2. run smoke tests
     environment_outputs = get_pulumi_stack_outputs(stack_name, IaCModules.ENVIRONMENT.value)
 
-    # 2.1 run smoke tests for the backend
+    # 2.1 run smoke tests for the backend — version route is always at /api/version
     backend_url = environment_outputs["backend_url"].value
-    _run_smoke_tests(f"{backend_url}/version", 30)
+    _run_smoke_tests(f"{backend_url}/api/version", 30)
 
     # 2.2 run smoke tests for the frontend
     frontend_url = environment_outputs["frontend_url"].value
