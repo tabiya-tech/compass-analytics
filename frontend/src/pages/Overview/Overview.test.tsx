@@ -5,7 +5,7 @@ import { fireEvent, render, screen, within } from "@/_test_utilities/test-utils"
 import { server } from "@/mocks/server";
 import { handlers } from "@/mocks/handlers";
 import { buildOverviewMetrics } from "@/mocks/overview-metrics";
-import { AccessProvider, type AccessScope } from "@/access/AccessContext";
+import { AccessProvider, MODULE_IDS, type AccessScope, type ModuleId } from "@/access/AccessContext";
 import { FiltersProvider } from "@/filters/FiltersContext";
 import { createInitialFilters, type FiltersState } from "@/filters/filters";
 import { formatNumber } from "@/components/charts/chart-scale";
@@ -33,9 +33,20 @@ function expectedMetricsFor(institutions: "all" | string[]) {
   return buildOverviewMetrics({ institutions, dateRange: GIVEN_WINDOW, granularity: "month" });
 }
 
-function renderOverview(scope: AccessScope = ONE_INSTITUTION, filters: Partial<FiltersState> = {}) {
+const WHOLE_SUITE: ModuleId[] = [
+  MODULE_IDS.BUILD_YOUR_PROFILE,
+  MODULE_IDS.JOB_READINESS,
+  MODULE_IDS.CAREER_EXPLORER,
+  MODULE_IDS.JOBS,
+];
+
+function renderOverview(
+  scope: AccessScope = ONE_INSTITUTION,
+  filters: Partial<FiltersState> = {},
+  activeModules: readonly ModuleId[] = WHOLE_SUITE
+) {
   return render(
-    <AccessProvider scope={scope}>
+    <AccessProvider scope={scope} activeModules={activeModules}>
       <FiltersProvider initialFilters={{ ...GIVEN_FILTERS, ...filters }}>
         <Overview />
       </FiltersProvider>
@@ -227,5 +238,33 @@ describe("Overview screen loading and failure", () => {
     // THEN the figures arrive and the error state is gone
     expect(await screen.findByTestId(DATA_TEST_ID.TILES)).toBeInTheDocument();
     expect(screen.queryByTestId(DATA_TEST_ID.ERROR)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Where a deployment's module analytics live is one branch, shared with the
+ * Modules screen: one module renders here, several get a screen of their own.
+ */
+describe("Overview screen, for a deployment running a single module", () => {
+  it("should carry that module's own figures, since there is no Modules screen for it", async () => {
+    // GIVEN a deployment running Build Your Profile alone
+    // WHEN the screen loads
+    renderOverview(ONE_INSTITUTION, {}, [MODULE_IDS.BUILD_YOUR_PROFILE]);
+
+    // THEN the module's figures are part of this screen, headed by its own question
+    const actualSection = await screen.findByTestId(DATA_TEST_ID.INLINE_MODULE);
+    expect(actualSection).toHaveAttribute("data-module", "build-your-profile");
+    expect(screen.getByRole("heading", { level: 2, name: "Are people building their profiles?" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Conversation funnel" })).toBeInTheDocument();
+  });
+
+  it("should leave the module analytics to the Modules screen when several are deployed", async () => {
+    // GIVEN a deployment running the whole suite
+    // WHEN the screen loads
+    renderOverview(ONE_INSTITUTION, {}, WHOLE_SUITE);
+
+    // THEN Overview reports reach and demographics only — the modules have a screen of their own
+    expect(await screen.findByTestId(DATA_TEST_ID.TILES)).toBeInTheDocument();
+    expect(screen.queryByTestId(DATA_TEST_ID.INLINE_MODULE)).not.toBeInTheDocument();
   });
 });

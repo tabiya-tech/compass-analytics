@@ -12,6 +12,11 @@ import { LoginMethodPanel } from "@/pages/Overview/components/LoginMethodPanel";
 import { ReachOverTimePanel } from "@/pages/Overview/components/ReachOverTimePanel";
 import type { OverviewMetricsResponse, MetricsScope } from "@/pages/Overview/overview.types";
 import { useOverviewMetrics } from "@/pages/Overview/hooks/use-overview-metrics";
+import { ModuleBody } from "@/pages/Modules/components/ModuleBody";
+import { ModuleHeader } from "@/pages/Modules/components/ModuleHeader";
+import { useModuleMetrics } from "@/pages/Modules/hooks/use-module-metrics";
+import { findModuleMetrics } from "@/pages/Modules/services/ModuleMetrics.service";
+import { soleActiveModule } from "@/pages/Modules/utils";
 import { formatDateRangeLabel, formatPeriodLabel } from "@/pages/Overview/utils";
 
 const uniqueId = "f52d7a90-1c6b-48e3-9d47-0b83e6a5c712";
@@ -25,6 +30,7 @@ export const DATA_TEST_ID = {
   LOADING: `overview-loading-${uniqueId}`,
   ERROR: `overview-error-${uniqueId}`,
   STALE_WARNING: `overview-stale-warning-${uniqueId}`,
+  INLINE_MODULE: `overview-inline-module-${uniqueId}`,
 };
 
 const SPARKLINE_WIDTH = 120;
@@ -65,8 +71,13 @@ function OverviewSkeleton() {
 /** The default landing screen for anyone with dashboard access — one institution reports on itself, several are aggregated into a portfolio. */
 export function Overview() {
   const { t } = useTranslation();
-  const { isMultiInstitution } = useAccess();
+  const { activeModules, isMultiInstitution } = useAccess();
   const { metrics, isLoading, error, reload } = useOverviewMetrics();
+  // A deployment running a single module has no Modules screen — see @/pages/Modules/module-routing.
+  const inlineModuleId = soleActiveModule(activeModules);
+  const moduleMetrics = useModuleMetrics({ enabled: inlineModuleId !== null });
+  const inlineModule =
+    inlineModuleId && moduleMetrics.metrics ? findModuleMetrics(moduleMetrics.metrics, inlineModuleId) : null;
 
   const isPortfolio = isPortfolioScope(metrics?.scope, isMultiInstitution);
 
@@ -162,6 +173,13 @@ export function Overview() {
 
           <DemographicsPanel demographics={metrics.demographics} isLoading={isLoading} />
         </>
+      )}
+
+      {inlineModule && (
+        <section data-testid={DATA_TEST_ID.INLINE_MODULE} data-module={inlineModule.moduleId} className="grid gap-6">
+          <ModuleHeader moduleId={inlineModule.moduleId} />
+          <ModuleBody metrics={inlineModule} isLoading={moduleMetrics.isLoading} />
+        </section>
       )}
     </div>
   );

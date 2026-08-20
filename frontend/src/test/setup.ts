@@ -100,6 +100,57 @@ vi.stubGlobal(
   }
 );
 
+// jsdom implements neither IntersectionObserver nor scrollIntoView
+export class MockIntersectionObserver implements IntersectionObserver {
+  static readonly instances: MockIntersectionObserver[] = [];
+
+  readonly root = null;
+  readonly rootMargin: string;
+  readonly scrollMargin = "0px";
+  readonly thresholds: readonly number[] = [0];
+  readonly targets = new Set<Element>();
+  private readonly callback: IntersectionObserverCallback;
+
+  constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+    this.callback = callback;
+    this.rootMargin = options?.rootMargin ?? "0px";
+    MockIntersectionObserver.instances.push(this);
+  }
+
+  observe(target: Element) {
+    this.targets.add(target);
+  }
+  unobserve(target: Element) {
+    this.targets.delete(target);
+  }
+  disconnect() {
+    this.targets.clear();
+    const index = MockIntersectionObserver.instances.indexOf(this);
+    if (index >= 0) MockIntersectionObserver.instances.splice(index, 1);
+  }
+  takeRecords(): IntersectionObserverEntry[] {
+    return [];
+  }
+
+  /** Reports the given targets as on screen and every other observed one as off it. */
+  report(onScreen: readonly Element[]) {
+    const entries = [...this.targets].map(
+      (target) => ({ target, isIntersecting: onScreen.includes(target) }) as IntersectionObserverEntry
+    );
+    this.callback(entries, this);
+  }
+}
+
+/** Scrolls the given elements into view, as far as every live observer is concerned. */
+export function reportElementsOnScreen(...onScreen: (Element | null)[]) {
+  const visible = onScreen.filter((element): element is Element => element !== null);
+  for (const observer of [...MockIntersectionObserver.instances]) observer.report(visible);
+}
+
+vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
+
+Element.prototype.scrollIntoView ??= () => {};
+
 // jsdom doesn't implement matchMedia; shadcn's use-mobile hook needs it.
 Object.defineProperty(window, "matchMedia", {
   writable: true,

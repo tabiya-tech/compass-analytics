@@ -2,7 +2,9 @@ import { http, HttpResponse, type HttpHandler } from "msw";
 import type { ReachResponse } from "@/analytics/analytics.types";
 import type { MeResponse } from "@/user/user.types";
 import { buildOverviewMetrics, parseOverviewMetricsQuery } from "@/mocks/overview-metrics";
+import { buildModuleMetrics, parseModuleMetricsQuery } from "@/mocks/module-metrics";
 import { OVERVIEW_API_BASE } from "@/pages/Overview/services/OverviewMetrics.service";
+import { MODULES_API_BASE } from "@/pages/Modules/services/ModuleMetrics.service";
 import type { InstitutionSortKey, SortDirection } from "@/institutions/institutions.types";
 import { findInstitutionDetail, queryInstitutions } from "@/mocks/data/institutions";
 import type { ModuleId } from "@/access/AccessContext";
@@ -105,13 +107,23 @@ export const overviewMetricsHandler = http.get(`${OVERVIEW_API_BASE}/metrics`, (
   return HttpResponse.json(buildOverviewMetrics(parseOverviewMetricsQuery(query)));
 });
 
+/** Per-module figures for every module the caller asked for — the Modules screen compares them, so they come back together. */
+export const moduleMetricsHandler = http.get(`${MODULES_API_BASE}/metrics`, ({ request }) => {
+  const query = new URL(request.url).searchParams;
+  return HttpResponse.json(buildModuleMetrics(parseModuleMetricsQuery(query)));
+});
+
+/** Stands in for the real /api/me — exported individually so the browser dev worker can include it too. */
+export const meHandler = http.get("/api/me", () => HttpResponse.json(stubMe));
+
 /** Full handler list for tests and Storybook, so components render with realistic data without the backend running. */
 export const handlers: HttpHandler[] = [
   overviewMetricsHandler,
+  moduleMetricsHandler,
   institutionsHandler,
   institutionDetailHandler,
+  meHandler,
   http.post("/api/users/register", () => new HttpResponse(null, { status: 201 })),
-  http.get("/api/me", () => HttpResponse.json(stubMe)),
   http.get("/api/reach", () => HttpResponse.json(stubReach)),
   jobseekersHandler,
   jobseekerDetailHandler,

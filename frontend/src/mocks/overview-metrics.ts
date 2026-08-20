@@ -11,11 +11,12 @@ import type {
   OverviewMetricsResponse,
   ReachPoint,
   RegionBucket,
+  RequestedInstitutions,
 } from "@/pages/Overview/overview.types";
 import { listPeriods } from "@/pages/Overview/utils";
 import { spanInDays, type AudienceSegmentId, type Granularity, type LoginMethodId } from "@/filters/filters";
 
-interface MockInstitution {
+export interface MockInstitution {
   id: string;
   name: string;
   users: number; // cumulative, over the institution's whole lifetime, before any filtering
@@ -76,11 +77,11 @@ const SPARKLINE_DAYS = 30;
 const SPARKLINE_FLOOR = 0.84;
 
 /** A filtered slice is a subset — the figures have to shrink, or the filters look broken. */
-const AUDIENCE_SEGMENT_FACTOR = 0.45;
-const LOGIN_METHOD_FACTOR = 0.6;
+export const AUDIENCE_SEGMENT_FACTOR = 0.45;
+export const LOGIN_METHOD_FACTOR = 0.6;
 
 /** A value in [0, 1) from the given key. The same key always gives the same number. */
-function pseudoRandom(...parts: (string | number)[]): number {
+export function pseudoRandom(...parts: (string | number)[]): number {
   const input = parts.join(":");
   let hash = 2166136261;
   for (let index = 0; index < input.length; index++) {
@@ -92,7 +93,7 @@ function pseudoRandom(...parts: (string | number)[]): number {
   return ((hash >>> 0) % 100000) / 100000;
 }
 
-function jitter(min: number, max: number, ...seed: (string | number)[]): number {
+export function jitter(min: number, max: number, ...seed: (string | number)[]): number {
   return min + pseudoRandom(...seed) * (max - min);
 }
 
@@ -302,10 +303,14 @@ export function aggregatePortfolio(
 }
 
 /** The requested institutions, or all of them. An unknown id simply matches nothing. */
-function selectInstitutions(request: OverviewMetricsRequest): MockInstitution[] {
-  if (request.institutions === "all") return [...MOCK_INSTITUTIONS];
-  const requested = new Set(request.institutions);
+export function selectMockInstitutions(institutions: RequestedInstitutions): MockInstitution[] {
+  if (institutions === "all") return [...MOCK_INSTITUTIONS];
+  const requested = new Set(institutions);
   return MOCK_INSTITUTIONS.filter((institution) => requested.has(institution.id));
+}
+
+function selectInstitutions(request: OverviewMetricsRequest): MockInstitution[] {
+  return selectMockInstitutions(request.institutions);
 }
 
 /** One institution in scope reports as itself; anything else reports as a portfolio. */

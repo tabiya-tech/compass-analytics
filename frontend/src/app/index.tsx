@@ -10,6 +10,7 @@ import { Overview } from "@/pages/Overview/Overview";
 import { Institutions } from "@/pages/Institutions";
 import { UserAccess } from "@/pages/UserAccess";
 import { Jobseekers } from "@/pages/JobSeekers";
+import { Modules } from "@/pages/Modules";
 
 const router = createHashRouter([
   {
@@ -58,11 +59,19 @@ const router = createHashRouter([
       },
       {
         path: routerPaths.MODULES,
-        element: <ProtectedRoute>Modules</ProtectedRoute>,
+        element: (
+          <PermissionRoute action={Action.View} subject={Subject.Dashboard}>
+            <Modules />
+          </PermissionRoute>
+        ),
       },
       {
         path: routerPaths.MODULE,
-        element: <ProtectedRoute>Module</ProtectedRoute>,
+        element: (
+          <PermissionRoute action={Action.View} subject={Subject.Dashboard}>
+            <Modules />
+          </PermissionRoute>
+        ),
       },
       {
         path: routerPaths.SETTINGS,

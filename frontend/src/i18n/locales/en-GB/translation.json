@@ -401,6 +401,10 @@
     },
     "histogram": {
       "range": "{{from}} to {{to}}"
+    },
+    "funnel": {
+      "dropOff": "Drop-off",
+      "share": "{{value}}% of those who started"
     }
   },
   "overview": {
@@ -469,6 +473,93 @@
         "primary": "Primary",
         "secondary": "Secondary",
         "tertiary": "Tertiary"
+      }
+    }
+  },
+  "modules": {
+    "eyebrow": "Modules",
+    "title": "Module-based analytics",
+    "description": "Jump to any module from the bar below.",
+    "error": "We couldn't load the module metrics.",
+    "timeline": {
+      "label": "Modules",
+      "started": "{{value}}% started",
+      "jump": "Jump to {{module}}"
+    },
+    "headers": {
+      "buildYourProfile": {
+        "eyebrow": "Build Your Profile · Compass core",
+        "headline": "Are people building their profiles?"
+      },
+      "jobReadiness": {
+        "eyebrow": "Job readiness · Get job ready",
+        "headline": "Are people completing the job-readiness courses?"
+      },
+      "careerExplorer": {
+        "eyebrow": "Career Explorer · Discovery",
+        "headline": "Are people exploring careers?"
+      },
+      "jobs": {
+        "eyebrow": "Jobs · Classifier & matching",
+        "headline": "Are people finding and acting on jobs?"
+      }
+    },
+    "buildYourProfile": {
+      "tiles": {
+        "cvsGenerated": {
+          "label": "CVs generated",
+          "caption": "{{share}}% of those who started"
+        },
+        "avgTime": {
+          "label": "Avg time to complete",
+          "value": "{{minutes}}m",
+          "caption": "target {{target}}m"
+        }
+      },
+      "funnel": {
+        "title": "Conversation funnel",
+        "description": "How far people get through the Build Your Profile conversation",
+        "valueCaption": "Reached stage · % of those who started",
+        "phases": {
+          "intro": "Intro",
+          "experiences": "Experiences",
+          "skills": "Skills",
+          "review": "Review",
+          "completed": "Completed"
+        }
+      }
+    },
+    "jobReadiness": {
+      "progress": {
+        "title": "Module starts vs. completions",
+        "description": "Across all jobseekers in scope, per sub-module",
+        "empty": "This deployment has no job-readiness sub-modules yet.",
+        "legend": {
+          "completed": "Completed",
+          "started": "Started"
+        }
+      }
+    },
+    "careerExplorer": {
+      "sectors": {
+        "title": "Top sectors & careers explored",
+        "description": "Where curiosity is going"
+      }
+    },
+    "jobs": {
+      "tiles": {
+        "sourced": {
+          "label": "Jobs sourced",
+          "caption": "in the classifier feed"
+        },
+        "matched": {
+          "label": "Profiles with matches",
+          "caption": "{{share}}% of users"
+        },
+        "viewed": {
+          "label": "Jobs viewed per user",
+          "caption": "among visitors"
+        }
       }
     }
   }

@@ -172,6 +172,14 @@
   --chart-progress-done: var(--green-3);
   --chart-progress-active: #a5d9bf;
 
+  --chart-funnel-1: #5fb37f;
+  --chart-funnel-2: #4f9f79;
+  --chart-funnel-3: #3a7a6b;
+  --chart-funnel-4: #2b5c4e;
+  --chart-funnel-5: var(--tabiya-blue);
+  --chart-funnel-ink-on-light: var(--tabiya-blue);
+  --chart-funnel-ink-on-dark: var(--white);
+
   --sidebar: var(--tabiya-blue);
   --sidebar-foreground: var(--white);
   --sidebar-primary: var(--tabiya-green);
