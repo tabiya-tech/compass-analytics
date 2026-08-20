@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Check, Plus, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ALL_INSTITUTIONS } from "@/user/user.types";
+import { ROLE_LABEL_KEYS } from "@/access/roles";
 import type { UserAccessEntry } from "@/pages/UserAccess/hooks/useUserAccess";
 import { cn } from "@/lib/utils";
 
@@ -28,22 +28,17 @@ export interface AccessRowProps {
 
 export function AccessRow({ entry, onToggle, pending = false, className }: Readonly<AccessRowProps>) {
   const { t } = useTranslation();
-  const granted = entry.dashboardGrant !== null;
-  // Without an institution there is nothing to scope a new grant to.
-  const unscoped = entry.institutionId === null;
+  const { role, hasAccess } = entry;
   const name = displayName(entry);
 
-  const scope = unscoped
-    ? t("userAccess.row.noInstitution")
-    : entry.institutionId === ALL_INSTITUTIONS
-      ? t("userAccess.row.allInstitutions")
-      : entry.institutionId;
-  const detail = entry.user.name && entry.user.email ? `${entry.user.email} · ${scope}` : scope;
+  // Grants matching no known role: say so rather than name a role they do not hold.
+  const access = role ? t(ROLE_LABEL_KEYS[role]) : t(hasAccess ? "userAccess.row.otherAccess" : "userAccess.row.none");
+  const detail = entry.user.name && entry.user.email ? `${entry.user.email} · ${access}` : access;
 
   return (
     <li
       data-testid={DATA_TEST_ID.CONTAINER}
-      data-granted={granted}
+      data-granted={hasAccess}
       className={cn("flex flex-wrap items-center justify-between gap-4 rounded-card bg-muted px-5 py-4", className)}
     >
       <div className="flex min-w-0 items-center gap-4">
@@ -65,17 +60,22 @@ export function AccessRow({ entry, onToggle, pending = false, className }: Reado
 
       <Button
         type="button"
-        variant={granted ? "brand" : "outline"}
-        aria-pressed={granted}
-        disabled={pending || (!granted && unscoped)}
+        variant={hasAccess ? "brand" : "outline"}
+        aria-pressed={hasAccess}
+        disabled={pending}
         onClick={() => onToggle(entry)}
         data-testid={DATA_TEST_ID.TOGGLE}
         // The visible label repeats down the list, so name the button after the user.
-        aria-label={t(granted ? "userAccess.toggle.grantedLabel" : "userAccess.toggle.grantLabel", { user: name })}
-        className="h-11 min-w-[190px] cursor-pointer rounded-pill border-tabiya-blue px-6 text-sm font-semibold"
+        aria-label={t(hasAccess ? "userAccess.toggle.grantedLabel" : "userAccess.toggle.grantLabel", { user: name })}
+        className={cn(
+          "h-11 min-w-[190px] cursor-pointer rounded-pill px-6 text-sm font-semibold",
+          // Granted keeps the brand variant's lighter green. The outline variant would hover to
+          // bg-accent — Tabiya Green, the granted look — so tint it with its own blue instead.
+          !hasAccess && "border-tabiya-blue hover:bg-tabiya-blue/10"
+        )}
       >
-        {granted ? <Check /> : <Plus />}
-        {t(granted ? "userAccess.toggle.granted" : "userAccess.toggle.grant")}
+        {hasAccess ? <Check /> : <Plus />}
+        {t(hasAccess ? "userAccess.toggle.granted" : "userAccess.toggle.grant")}
       </Button>
     </li>
   );

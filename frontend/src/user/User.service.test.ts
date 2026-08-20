@@ -3,7 +3,8 @@ import { http, HttpResponse } from "msw";
 import { server } from "@/mocks/server";
 import { UserService, UserApiError } from "@/user/User.service";
 import { Action, Subject } from "@/access/ability";
-import type { GrantView, ManagedUser, MeResponse } from "@/user/user.types";
+import { Role } from "@/access/roles";
+import { ALL_INSTITUTIONS, type GrantView, type ManagedUser, type MeResponse } from "@/user/user.types";
 
 const givenMe: MeResponse = {
   user_id: "u1",
@@ -95,41 +96,62 @@ describe("UserService.getManagedUsers", () => {
   });
 });
 
-describe("UserService.grantPermission", () => {
-  it("should post the subject, action and institution under the target user", async () => {
+describe("UserService.assignRole", () => {
+  it("should post the role and its scope under the target user", async () => {
     // GIVEN the endpoint records the request it was called with
     let actualUrl: URL | undefined;
     let actualBody: unknown;
     server.use(
-      http.post("/api/users/:userId/grants", async ({ request }) => {
+      http.post("/api/users/:userId/roles", async ({ request }) => {
         actualUrl = new URL(request.url);
         actualBody = await request.json();
-        return HttpResponse.json(givenGrant, { status: 201 });
+        return HttpResponse.json([givenGrant], { status: 201 });
       })
     );
 
-    // WHEN a permission is granted, scoped to one institution
-    const actual = await UserService.getInstance().grantPermission(
+    // WHEN the implementer role is assigned across the whole deployment
+    const actual = await UserService.getInstance().assignRole(
       "user-7",
-      { subject: Subject.Dashboard, action: Action.View, institution_id: "inst-7" },
+      { role: Role.Implementer, institution_id: ALL_INSTITUTIONS },
       "token"
     );
 
-    // THEN the grant is posted under that user, naming all three of its parts
-    expect(actualUrl?.pathname).toBe("/api/users/user-7/grants");
-    expect(actualBody).toEqual({ subject: "dashboard", action: "view", institution_id: "inst-7" });
-    // AND the created grant comes back, so it can be revoked later by its id
-    expect(actual).toEqual(givenGrant);
+    // THEN the role is posted under that user, naming the scope it applies to
+    expect(actualUrl?.pathname).toBe("/api/users/user-7/roles");
+    expect(actualBody).toEqual({ role: "implementer", institution_id: "*" });
+    // AND the grants the server expanded it into come back
+    expect(actual).toEqual([givenGrant]);
+  });
+
+  it("should escape a user id that would otherwise change the path", async () => {
+    // GIVEN a user id containing a slash
+    let actualUrl: URL | undefined;
+    server.use(
+      http.post("/api/users/:userId/roles", ({ request }) => {
+        actualUrl = new URL(request.url);
+        return HttpResponse.json([givenGrant], { status: 201 });
+      })
+    );
+
+    // WHEN a role is assigned to them
+    await UserService.getInstance().assignRole(
+      "user/7",
+      { role: Role.Funder, institution_id: ALL_INSTITUTIONS },
+      "token"
+    );
+
+    // THEN the id stays a single path segment
+    expect(actualUrl?.pathname).toBe("/api/users/user%2F7/roles");
   });
 
   it("should throw a UserApiError with the status on a non-2xx response", async () => {
-    // GIVEN the endpoint refuses the grant
-    server.use(http.post("/api/users/:userId/grants", () => new HttpResponse(null, { status: 403 })));
+    // GIVEN the endpoint refuses the role
+    server.use(http.post("/api/users/:userId/roles", () => new HttpResponse(null, { status: 403 })));
 
-    // WHEN a permission is granted
-    const actualPromise = UserService.getInstance().grantPermission(
+    // WHEN a role is assigned
+    const actualPromise = UserService.getInstance().assignRole(
       "user-7",
-      { subject: Subject.Dashboard, action: Action.View, institution_id: "inst-7" },
+      { role: Role.Implementer, institution_id: ALL_INSTITUTIONS },
       "token"
     );
 

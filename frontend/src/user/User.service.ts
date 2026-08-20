@@ -1,4 +1,4 @@
-import type { GrantRequest, GrantView, ManagedUser, MeResponse } from "@/user/user.types";
+import type { GrantView, ManagedUser, MeResponse, RoleRequest } from "@/user/user.types";
 
 export const USER_API_BASE = "/api";
 
@@ -62,14 +62,14 @@ export class UserService {
     return response.json() as Promise<ManagedUser[]>;
   }
 
-  /** Returns the created grant: revoking it later needs the grant_id, which only the server assigns. */
-  async grantPermission(userId: string, request: GrantRequest, token: string): Promise<GrantView> {
-    const response = await this._send(`/users/${encodeURIComponent(userId)}/grants`, token, {
+  /** Assigns a role; the server expands it into one grant per permission. */
+  async assignRole(userId: string, request: RoleRequest, token: string): Promise<GrantView[]> {
+    const response = await this._send(`/users/${encodeURIComponent(userId)}/roles`, token, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
     });
-    return response.json() as Promise<GrantView>;
+    return response.json() as Promise<GrantView[]>;
   }
 
   async revokePermission(userId: string, grantId: string, token: string): Promise<void> {

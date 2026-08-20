@@ -1,33 +1,29 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent } from "storybook/test";
-import { Action, Subject } from "@/access/AccessContext";
-import type { GrantView } from "@/user/user.types";
+import { Role } from "@/access/roles";
+import { grantsForRole } from "@/_test_utilities/role-grants";
 import type { UserAccessEntry } from "@/pages/UserAccess/hooks/useUserAccess";
+import { AccessRow } from "./AccessRow";
 
-const dashboardGrant: GrantView = {
-  grant_id: "grant-7",
-  subject: Subject.Dashboard,
-  action: Action.View,
-  institution_id: "inst-7",
-};
+const user = { user_id: "user-7", email: "vaani.mumba@example.com", name: "Vaani Mumba" };
 
 const ungrantedEntry: UserAccessEntry = {
-  user: {
-    user_id: "user-7",
-    email: "vaani.mumba@example.com",
-    name: "Vaani Mumba",
-    grants: [{ grant_id: "grant-6", subject: Subject.Jobseekers, action: Action.View, institution_id: "inst-7" }],
-  },
-  institutionId: "inst-7",
-  dashboardGrant: null,
+  user: { ...user, grants: [] },
+  role: null,
+  hasAccess: false,
 };
 
-const grantedEntry: UserAccessEntry = {
-  ...ungrantedEntry,
-  user: { ...ungrantedEntry.user, grants: [dashboardGrant] },
-  dashboardGrant,
+const implementerEntry: UserAccessEntry = {
+  user: { ...user, grants: grantsForRole(Role.Implementer) },
+  role: Role.Implementer,
+  hasAccess: true,
 };
-import { AccessRow } from "./AccessRow";
+
+const funderEntry: UserAccessEntry = {
+  user: { ...user, grants: grantsForRole(Role.Funder) },
+  role: Role.Funder,
+  hasAccess: true,
+};
 
 const meta = {
   component: AccessRow,
@@ -45,21 +41,22 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const NotGranted: Story = {
+export const NoAccessYet: Story = {
   args: { entry: ungrantedEntry },
   play: async ({ args, canvas }) => {
-    const toggle = canvas.getByRole("button", { name: /^Grant access to Vaani Mumba/ });
+    await expect(canvas.getByText(/No access yet$/)).toBeVisible();
 
-    await userEvent.click(toggle);
+    await userEvent.click(canvas.getByRole("button", { name: /^Grant access to Vaani Mumba/ }));
 
     // The row reports the intent; the screen owns the API call and the resulting state.
     await expect(args.onToggle).toHaveBeenCalledWith(ungrantedEntry);
   },
 };
 
-export const Granted: Story = {
-  args: { entry: grantedEntry },
+export const Implementer: Story = {
+  args: { entry: implementerEntry },
   play: async ({ canvas }) => {
+    await expect(canvas.getByText(/Implementer$/)).toBeVisible();
     await expect(canvas.getByRole("button", { name: /^Access granted to Vaani Mumba/ })).toHaveAttribute(
       "aria-pressed",
       "true"
@@ -67,22 +64,30 @@ export const Granted: Story = {
   },
 };
 
+export const Funder: Story = {
+  args: { entry: funderEntry },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText(/Funder$/)).toBeVisible();
+  },
+};
+
+/** Provisioned by hand, holding grants that add up to no role this app knows. */
+export const CustomPermissions: Story = {
+  args: {
+    entry: {
+      user: { ...user, grants: grantsForRole(Role.Implementer).slice(0, 1) },
+      role: null,
+      hasAccess: true,
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText(/Custom permissions$/)).toBeVisible();
+  },
+};
+
 export const Pending: Story = {
   args: { entry: ungrantedEntry, pending: true },
   play: async ({ canvas }) => {
     await expect(canvas.getByRole("button", { name: /^Grant access to Vaani Mumba/ })).toBeDisabled();
-  },
-};
-
-export const NoInstitutionAssigned: Story = {
-  args: {
-    entry: {
-      user: { user_id: "user-9", email: "new.joiner@example.com", name: "New Joiner", grants: [] },
-      institutionId: null,
-      dashboardGrant: null,
-    },
-  },
-  play: async ({ canvas }) => {
-    await expect(canvas.getByRole("button", { name: /^Grant access to New Joiner/ })).toBeDisabled();
   },
 };

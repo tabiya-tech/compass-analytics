@@ -175,20 +175,34 @@
     }
   },
   "userAccess": {
-    "eyebrow": "Funder view",
-    "title": "Dashboard access",
-    "description": "Grant each implementing PM access to their own institution's dashboard. They see only their organisation's jobseekers.",
-    "listLabel": "Users and their dashboard access",
-    "error": "Failed to load dashboard access.",
-    "empty": "There are no users to grant access to yet.",
+    "eyebrow": "Access management",
+    "title": "User access",
+    "description": "Choose the role each person is given. A role decides which pages they can see, and whether they can grant access to other users.",
+    "listLabel": "Users and the access they hold",
+    "error": "Failed to load user access.",
+    "empty": "There are no users to give access to yet.",
     "failure": {
       "grant": "Could not grant access to {{user}}. Please try again.",
       "revoke": "Could not remove {{user}}'s access. Please try again.",
       "refresh": "The change was saved, but the list could not be refreshed."
     },
     "row": {
-      "allInstitutions": "All institutions",
-      "noInstitution": "No institution assigned"
+      "none": "No access yet",
+      "otherAccess": "Custom permissions"
+    },
+    "roles": {
+      "implementer": {
+        "label": "Implementer",
+        "description": "Sees every page except Institutions. Cannot grant access to other users."
+      },
+      "funder": {
+        "label": "Funder",
+        "description": "Sees every page except Jobseekers. Can grant access to other users."
+      },
+      "superAdmin": {
+        "label": "Super admin",
+        "description": "Sees every page and can grant access to other users."
+      }
     },
     "toggle": {
       "grant": "Grant access",
@@ -198,13 +212,15 @@
     },
     "confirm": {
       "grant": {
-        "title": "Grant dashboard access?",
-        "description": "Are you sure you want to grant <0>{{user}}</0> access to the dashboard for their institution?",
+        "title": "Grant access",
+        "description": "Choose a role for <0>{{user}}</0>. It determines which pages they can access.",
+        "roleLabel": "Role",
         "action": "Grant access"
       },
       "revoke": {
-        "title": "Remove dashboard access?",
-        "description": "Are you sure you want to remove <0>{{user}}</0>'s access to the dashboard?",
+        "title": "Remove access",
+        "description": "Are you sure you want to remove <0>{{user}}</0>'s dashboard access?",
+        "detail": "They will still be able to sign in, but they won't be able to access any pages until you assign them a role again.",
         "action": "Remove access"
       }
     }

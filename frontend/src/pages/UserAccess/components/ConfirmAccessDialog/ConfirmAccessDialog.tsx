@@ -9,6 +9,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ASSIGNABLE_ROLES, ROLE_DESCRIPTION_KEYS, ROLE_LABEL_KEYS, type Role } from "@/access/roles";
 import { displayName } from "@/pages/UserAccess/components/AccessRow/AccessRow";
 import type { UserAccessEntry } from "@/pages/UserAccess/hooks/useUserAccess";
 
@@ -18,17 +21,29 @@ export const DATA_TEST_ID = {
   CONTAINER: `confirm-access-dialog-container-${uniqueId}`,
   TITLE: `confirm-access-dialog-title-${uniqueId}`,
   DESCRIPTION: `confirm-access-dialog-description-${uniqueId}`,
+  ROLE_SELECT: `confirm-access-dialog-role-select-${uniqueId}`,
+  ROLE_HINT: `confirm-access-dialog-role-hint-${uniqueId}`,
   CONFIRM: `confirm-access-dialog-confirm-${uniqueId}`,
   CANCEL: `confirm-access-dialog-cancel-${uniqueId}`,
 };
 
+const ROLE_FIELD_ID = `confirm-access-dialog-role-${uniqueId}`;
+
 export interface ConfirmAccessDialogProps {
   entry: UserAccessEntry | null;
+  role: Role;
+  onRoleChange: (role: Role) => void;
   onConfirm: () => void;
   onOpenChange: (open: boolean) => void;
 }
 
-export function ConfirmAccessDialog({ entry, onConfirm, onOpenChange }: Readonly<ConfirmAccessDialogProps>) {
+export function ConfirmAccessDialog({
+  entry,
+  role,
+  onRoleChange,
+  onConfirm,
+  onOpenChange,
+}: Readonly<ConfirmAccessDialogProps>) {
   const { t } = useTranslation();
   const cancelRef = useRef<HTMLButtonElement>(null);
   // `entry` clears as the dialog starts closing, so keep the last one to render through the fade-out.
@@ -38,7 +53,7 @@ export function ConfirmAccessDialog({ entry, onConfirm, onOpenChange }: Readonly
 
   if (!shown) return null;
 
-  const removing = shown.dashboardGrant !== null;
+  const removing = shown.hasAccess;
 
   return (
     <Dialog open={entry !== null} onOpenChange={onOpenChange}>
@@ -55,14 +70,47 @@ export function ConfirmAccessDialog({ entry, onConfirm, onOpenChange }: Readonly
           <DialogTitle data-testid={DATA_TEST_ID.TITLE} className="text-xl">
             {t(removing ? "userAccess.confirm.revoke.title" : "userAccess.confirm.grant.title")}
           </DialogTitle>
-          <DialogDescription data-testid={DATA_TEST_ID.DESCRIPTION}>
-            <Trans
-              i18nKey={removing ? "userAccess.confirm.revoke.description" : "userAccess.confirm.grant.description"}
-              values={{ user: displayName(shown) }}
-              components={[<strong key="user" className="font-semibold text-foreground" />]}
-            />
+          {/* asChild: a removal adds a second paragraph, and Radix's own Description element is a <p>. */}
+          <DialogDescription data-testid={DATA_TEST_ID.DESCRIPTION} asChild>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p>
+                <Trans
+                  i18nKey={removing ? "userAccess.confirm.revoke.description" : "userAccess.confirm.grant.description"}
+                  values={{ user: displayName(shown) }}
+                  components={[<strong key="user" className="font-semibold text-foreground" />]}
+                />
+              </p>
+              {removing && <p>{t("userAccess.confirm.revoke.detail")}</p>}
+            </div>
           </DialogDescription>
         </DialogHeader>
+
+        {!removing && (
+          <div className="grid gap-2">
+            <Label htmlFor={ROLE_FIELD_ID} className="text-sm font-semibold">
+              {t("userAccess.confirm.grant.roleLabel")}
+            </Label>
+            <Select value={role} onValueChange={(value) => onRoleChange(value as Role)}>
+              <SelectTrigger
+                id={ROLE_FIELD_ID}
+                data-testid={DATA_TEST_ID.ROLE_SELECT}
+                className="h-11 w-full rounded-md text-sm"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ASSIGNABLE_ROLES.map((assignable) => (
+                  <SelectItem key={assignable} value={assignable}>
+                    {t(ROLE_LABEL_KEYS[assignable])}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p data-testid={DATA_TEST_ID.ROLE_HINT} className="text-sm text-muted-foreground">
+              {t(ROLE_DESCRIPTION_KEYS[role])}
+            </p>
+          </div>
+        )}
 
         <DialogFooter>
           <Button

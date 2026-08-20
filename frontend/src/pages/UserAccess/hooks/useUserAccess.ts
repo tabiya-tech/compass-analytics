@@ -1,15 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import * as Sentry from "@sentry/react";
 import { useAuth } from "@/auth/AuthContext";
-import { Action, Subject } from "@/access/AccessContext";
+import { roleFromPermissions, type Role } from "@/access/roles";
 import { UserService } from "@/user/User.service";
-import type { GrantView, ManagedUser } from "@/user/user.types";
+import { ALL_INSTITUTIONS, type ManagedUser } from "@/user/user.types";
 
 export interface UserAccessEntry {
   user: ManagedUser;
-  /** The institution a grant would be scoped to; null when nothing names one unambiguously. */
-  institutionId: string | null;
-  dashboardGrant: GrantView | null;
+  role: Role | null;
+  hasAccess: boolean;
 }
 
 export type UserAccessState =
@@ -27,18 +26,13 @@ export interface UserAccessController {
   state: UserAccessState;
   pendingUserIds: ReadonlySet<string>;
   failure: UserAccessFailure | null;
-  toggleAccess: (entry: UserAccessEntry) => Promise<void>;
+  grantRole: (entry: UserAccessEntry, role: Role) => Promise<void>;
+  revokeAccess: (entry: UserAccessEntry) => Promise<void>;
 }
 
 export function toEntry(user: ManagedUser): UserAccessEntry {
-  const dashboardGrant =
-    user.grants.find((grant) => grant.subject === Subject.Dashboard && grant.action === Action.View) ?? null;
-  // The dashboard grant's own scope wins; without one, a new grant can only be scoped where the
-  // rest of their grants agree.
-  const scopes = new Set(user.grants.map((grant) => grant.institution_id));
-  const institutionId = dashboardGrant?.institution_id ?? (scopes.size === 1 ? [...scopes][0] : null);
-
-  return { user, institutionId, dashboardGrant };
+  const held = user.grants.map((grant) => `${grant.subject}:${grant.action}`);
+  return { user, role: roleFromPermissions(held), hasAccess: user.grants.length > 0 };
 }
 
 export function useUserAccess(): UserAccessController {
@@ -50,22 +44,10 @@ export function useUserAccess(): UserAccessController {
 
   const retry = useCallback(() => setAttempt((previous) => previous + 1), []);
 
-  // The institution a grant would be scoped to is not part of the user record, so remember it across re-reads.
-  const knownInstitutions = useRef(new Map<string, string>());
-
   const fetchEntries = useCallback(async (): Promise<UserAccessEntry[]> => {
     const token = await getIdToken();
     const users = await UserService.getInstance().getManagedUsers(token);
-
-    return users.map(toEntry).map((entry) => {
-      const { user_id: userId } = entry.user;
-      if (entry.institutionId !== null) {
-        knownInstitutions.current.set(userId, entry.institutionId);
-        return entry;
-      }
-      const remembered = knownInstitutions.current.get(userId);
-      return remembered === undefined ? entry : { ...entry, institutionId: remembered };
-    });
+    return users.map(toEntry);
   }, [getIdToken]);
 
   useEffect(() => {
@@ -96,38 +78,30 @@ export function useUserAccess(): UserAccessController {
     });
   }, []);
 
-  const toggleAccess = useCallback(
-    async (entry: UserAccessEntry) => {
+  /** Writes a change, then re-reads the list so the row never shows stale state. */
+  const applyChange = useCallback(
+    async (entry: UserAccessEntry, kind: "grant" | "revoke", write: (token: string) => Promise<unknown>) => {
       const { user_id: userId } = entry.user;
-      const { dashboardGrant, institutionId } = entry;
-      // The row's control is disabled without an institution; this only guards a stray call.
-      if (!dashboardGrant && !institutionId) return;
-
       markPending(userId, true);
       setFailure(null);
 
       try {
-        const token = await getIdToken();
-        const service = UserService.getInstance();
-
-        if (dashboardGrant) {
-          await service.revokePermission(userId, dashboardGrant.grant_id, token);
-        } else {
-          await service.grantPermission(
-            userId,
-            { subject: Subject.Dashboard, action: Action.View, institution_id: institutionId! },
-            token
-          );
-        }
+        await write(await getIdToken());
       } catch (error) {
         Sentry.captureException(error);
-        setFailure({ kind: dashboardGrant ? "revoke" : "grant", entry });
+        setFailure({ kind, entry });
+        // A role is several grants, so a failed change can still have written some. Show what landed.
+        try {
+          setState({ status: "success", items: await fetchEntries() });
+        } catch (refreshError) {
+          // The failed change is the more useful message, so keep it on screen.
+          Sentry.captureException(refreshError);
+        }
         markPending(userId, false);
         return;
       }
 
       try {
-        // Re-read before the row leaves pending, so it never offers its stale pre-change state.
         const items = await fetchEntries();
         setState({ status: "success", items });
       } catch (error) {
@@ -141,5 +115,26 @@ export function useUserAccess(): UserAccessController {
     [fetchEntries, getIdToken, markPending]
   );
 
-  return { state, pendingUserIds, failure, toggleAccess };
+  const grantRole = useCallback(
+    (entry: UserAccessEntry, role: Role) =>
+      applyChange(entry, "grant", (token) =>
+        // No per-institution view yet, so a role covers every institution.
+        UserService.getInstance().assignRole(entry.user.user_id, { role, institution_id: ALL_INSTITUTIONS }, token)
+      ),
+    [applyChange]
+  );
+
+  const revokeAccess = useCallback(
+    (entry: UserAccessEntry) =>
+      applyChange(entry, "revoke", async (token) => {
+        const service = UserService.getInstance();
+        // Drop every grant (leaving any keeps a page open), in sequence so a refusal stops the rest.
+        for (const grant of entry.user.grants) {
+          await service.revokePermission(entry.user.user_id, grant.grant_id, token);
+        }
+      }),
+    [applyChange]
+  );
+
+  return { state, pendingUserIds, failure, grantRole, revokeAccess };
 }

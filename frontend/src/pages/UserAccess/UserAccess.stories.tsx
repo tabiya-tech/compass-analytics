@@ -4,7 +4,9 @@ import { http, HttpResponse, delay } from "msw";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { AuthContext } from "@/auth/AuthContext";
 import { AccessProvider, Action, Subject } from "@/access/AccessContext";
-import type { GrantRequest, GrantView, ManagedUser } from "@/user/user.types";
+import { Role } from "@/access/roles";
+import { grantsForRole } from "@/_test_utilities/role-grants";
+import { ALL_INSTITUTIONS, type ManagedUser, type RoleRequest } from "@/user/user.types";
 import { handlers } from "@/mocks/handlers";
 import { UserAccess } from "./UserAccess";
 
@@ -17,30 +19,29 @@ function UserAccessHarness({ children }: Readonly<{ children: ReactNode }>) {
   );
 }
 
-const dashboardGrant: GrantView = {
-  grant_id: "grant-dashboard-inst-2",
-  subject: Subject.Dashboard,
-  action: Action.View,
-  institution_id: "inst-2",
-};
-
 const storyUsers: ManagedUser[] = [
-  {
-    user_id: "user-1",
-    email: "isaac.chirwa@example.com",
-    name: "Isaac Chirwa",
-    grants: [{ grant_id: "grant-1", subject: Subject.Jobseekers, action: Action.View, institution_id: "inst-1" }],
-  },
+  { user_id: "user-1", email: "isaac.chirwa@example.com", name: "Isaac Chirwa", grants: [] },
   {
     user_id: "user-2",
     email: "naomi.banda@example.com",
     name: "Naomi Banda",
+    grants: grantsForRole(Role.Implementer),
+  },
+  {
+    user_id: "user-3",
+    email: "chanda.phiri@example.com",
+    name: "Chanda Phiri",
+    grants: grantsForRole(Role.Funder),
+  },
+  {
+    user_id: "user-4",
+    email: "mutale.banda@example.com",
+    name: "Mutale Banda",
+    // Provisioned by hand: grants that add up to no role this app knows.
     grants: [
-      { grant_id: "grant-2", subject: Subject.Jobseekers, action: Action.View, institution_id: "inst-2" },
-      dashboardGrant,
+      { grant_id: "grant-4", subject: Subject.Dashboard, action: Action.View, institution_id: ALL_INSTITUTIONS },
     ],
   },
-  { user_id: "user-9", email: "new.joiner@example.com", name: "New Joiner", grants: [] },
 ];
 
 const isAutomated = typeof navigator !== "undefined" && navigator.webdriver;
@@ -50,22 +51,24 @@ const STEP_PAUSE_MS = isAutomated ? 0 : 1200;
 /** A beat between steps, so the dialog opening and closing is watchable. */
 const pause = () => delay(STEP_PAUSE_MS);
 
-/** Mutated by the grant/revoke handlers so a change sticks across the refetch that follows it. */
+/** Mutated by the role/revoke handlers so a change sticks across the refetch that follows it. */
 let users: ManagedUser[] = structuredClone(storyUsers);
 
 const accessHandlers = [
   http.get("/api/users", () => HttpResponse.json(users)),
 
-  http.post("/api/users/:userId/grants", async ({ params, request }) => {
+  http.post("/api/users/:userId/roles", async ({ params, request }) => {
     await delay(MUTATION_DELAY_MS);
-    const body = (await request.json()) as GrantRequest;
-    const created: GrantView = { grant_id: `grant-${params.userId}-${body.subject}-${body.action}`, ...body };
-    users.find((user) => user.user_id === String(params.userId))?.grants.push(created);
+    const body = (await request.json()) as RoleRequest;
+    const created = grantsForRole(body.role, body.institution_id);
+    const user = users.find((candidate) => candidate.user_id === String(params.userId));
+    if (user) user.grants = created;
     return HttpResponse.json(created, { status: 201 });
   }),
 
+  // Grants are revoked one at a time, so a role's worth of them is a run of these calls.
   http.delete("/api/users/:userId/grants/:grantId", async ({ params }) => {
-    await delay(MUTATION_DELAY_MS);
+    await delay(MUTATION_DELAY_MS / 2);
     const user = users.find((candidate) => candidate.user_id === String(params.userId));
     if (user) user.grants = user.grants.filter((grant) => grant.grant_id !== String(params.grantId));
     return new HttpResponse(null, { status: 204 });
@@ -97,55 +100,28 @@ type Story = StoryObj<typeof meta>;
 async function confirm(canvasElement: HTMLElement): Promise<void> {
   const body = within(canvasElement.ownerDocument.body);
   await userEvent.click(await body.findByRole("button", { name: /^(Grant|Remove) access$/ }));
+  // An open dialog hides the screen from the a11y tree, so let it finish leaving before the story ends.
+  await waitFor(async () => expect(body.queryByRole("dialog")).not.toBeInTheDocument());
 }
 
 export const Default: Story = {
   play: async ({ canvas }) => {
     await waitFor(async () => expect(canvas.getByText("Isaac Chirwa")).toBeVisible());
 
-    // Each user's toggle reflects the dashboard grant they actually hold.
+    // Each row reports the access the user actually holds.
     await expect(canvas.getByRole("button", { name: /^Grant access to Isaac Chirwa/ })).toBeVisible();
     await expect(canvas.getByRole("button", { name: /^Access granted to Naomi Banda/ })).toHaveAttribute(
       "aria-pressed",
       "true"
     );
-    // A user with no grants has no institution to scope a new one to.
-    await expect(canvas.getByRole("button", { name: /^Grant access to New Joiner/ })).toBeDisabled();
+    await expect(canvas.getByText(/Implementer$/)).toBeVisible();
+    await expect(canvas.getByText(/Funder$/)).toBeVisible();
+    await expect(canvas.getByText(/No access yet$/)).toBeVisible();
+    await expect(canvas.getByText(/Custom permissions$/)).toBeVisible();
   },
 };
 
-export const AccessGranted: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        http.get("/api/users", () =>
-          HttpResponse.json([
-            {
-              user_id: "user-1",
-              email: "isaac.chirwa@example.com",
-              name: "Isaac Chirwa",
-              grants: [
-                { grant_id: "grant-1", subject: Subject.Jobseekers, action: Action.View, institution_id: "inst-1" },
-                { grant_id: "grant-2", subject: Subject.Dashboard, action: Action.View, institution_id: "inst-1" },
-              ],
-            } satisfies ManagedUser,
-          ])
-        ),
-        ...handlers,
-      ],
-    },
-  },
-  play: async ({ canvas }) => {
-    await waitFor(async () =>
-      expect(canvas.getByRole("button", { name: /^Access granted to Isaac Chirwa/ })).toHaveAttribute(
-        "aria-pressed",
-        "true"
-      )
-    );
-  },
-};
-
-export const GrantingAccess: Story = {
+export const GrantingTheDefaultFunderRole: Story = {
   play: async ({ canvas, canvasElement }) => {
     const grantButtonName = /^Grant access to Isaac Chirwa/;
     await waitFor(async () => expect(canvas.getByRole("button", { name: grantButtonName })).toBeVisible());
@@ -154,8 +130,10 @@ export const GrantingAccess: Story = {
     await userEvent.click(canvas.getByRole("button", { name: grantButtonName }));
 
     const body = within(canvasElement.ownerDocument.body);
-    const dialog = await body.findByRole("dialog", { name: "Grant dashboard access?" });
+    const dialog = await body.findByRole("dialog", { name: "Grant access" });
     await waitFor(async () => expect(dialog).toBeVisible());
+    // It opens on funder, so the common case is one confirmation.
+    await expect(within(dialog).getByRole("combobox", { name: "Role" })).toHaveTextContent("Funder");
     await pause();
 
     await confirm(canvasElement);
@@ -165,6 +143,29 @@ export const GrantingAccess: Story = {
       async () => expect(canvas.getByRole("button", { name: /^Access granted to Isaac Chirwa/ })).toBeVisible(),
       { timeout: 10_000 }
     );
+    await expect(canvas.getAllByText(/Funder$/)).toHaveLength(2);
+    await pause();
+  },
+};
+
+export const GrantingTheImplementerRole: Story = {
+  play: async ({ canvas, canvasElement }) => {
+    const grantButtonName = /^Grant access to Isaac Chirwa/;
+    await waitFor(async () => expect(canvas.getByRole("button", { name: grantButtonName })).toBeVisible());
+    await pause();
+
+    await userEvent.click(canvas.getByRole("button", { name: grantButtonName }));
+
+    const body = within(canvasElement.ownerDocument.body);
+    const dialog = await body.findByRole("dialog", { name: "Grant access" });
+    await userEvent.click(within(dialog).getByRole("combobox", { name: "Role" }));
+    await userEvent.click(await body.findByRole("option", { name: "Implementer" }));
+    await pause();
+
+    await confirm(canvasElement);
+
+    // The role that was picked is the one the row reports once the change lands.
+    await waitFor(async () => expect(canvas.getAllByText(/Implementer$/)).toHaveLength(2), { timeout: 10_000 });
     await pause();
   },
 };
@@ -178,7 +179,7 @@ export const RemovingAccess: Story = {
     await userEvent.click(canvas.getByRole("button", { name: removeButtonName }));
 
     const body = within(canvasElement.ownerDocument.body);
-    const dialog = await body.findByRole("dialog", { name: "Remove dashboard access?" });
+    const dialog = await body.findByRole("dialog", { name: "Remove access" });
     await waitFor(async () => expect(dialog).toBeVisible());
     await pause();
 
@@ -209,7 +210,7 @@ export const Loading: Story = {
 export const Empty: Story = {
   parameters: { msw: { handlers: [http.get("/api/users", () => HttpResponse.json([])), ...handlers] } },
   play: async ({ canvas }) => {
-    await waitFor(async () => expect(canvas.getByText("There are no users to grant access to yet.")).toBeVisible());
+    await waitFor(async () => expect(canvas.getByText("There are no users to give access to yet.")).toBeVisible());
   },
 };
 
@@ -218,7 +219,7 @@ export const Error: Story = {
     msw: { handlers: [http.get("/api/users", () => new HttpResponse(null, { status: 500 })), ...handlers] },
   },
   play: async ({ canvas }) => {
-    await waitFor(async () => expect(canvas.getByText("Failed to load dashboard access.")).toBeVisible());
+    await waitFor(async () => expect(canvas.getByText("Failed to load user access.")).toBeVisible());
     await expect(canvas.getByRole("button", { name: "Retry" })).toBeVisible();
   },
 };

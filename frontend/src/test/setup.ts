@@ -120,5 +120,8 @@ Element.prototype.setPointerCapture ??= () => {};
 Element.prototype.releasePointerCapture ??= () => {};
 Element.prototype.hasPointerCapture ??= () => false;
 
+// jsdom has no scrollIntoView; Radix's Select scrolls the checked item into view on open.
+Element.prototype.scrollIntoView ??= () => {};
+
 // Keep the named imports available for tests that import from setup.ts.
 export { MockTrans, mockI18nInstance, useTranslationMock };

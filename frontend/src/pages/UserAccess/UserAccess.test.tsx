@@ -4,38 +4,21 @@ import userEvent from "@testing-library/user-event";
 import { render, screen, waitFor, within } from "@/_test_utilities/test-utils";
 import { server } from "@/mocks/server";
 import { Action, Subject } from "@/access/AccessContext";
-import type { GrantRequest, GrantView, ManagedUser } from "@/user/user.types";
+import { Role } from "@/access/roles";
+import { grantsForRole } from "@/_test_utilities/role-grants";
+import { ALL_INSTITUTIONS, type ManagedUser, type RoleRequest } from "@/user/user.types";
 import { UserAccess, DATA_TEST_ID } from "./UserAccess";
 import { DATA_TEST_ID as ROW_TEST_ID } from "./components/AccessRow/AccessRow";
 import { DATA_TEST_ID as DIALOG_TEST_ID } from "./components/ConfirmAccessDialog/ConfirmAccessDialog";
 
-const jobseekersGrant = (institutionId: string): GrantView => ({
-  grant_id: `grant-jobseekers-${institutionId}`,
-  subject: Subject.Jobseekers,
-  action: Action.View,
-  institution_id: institutionId,
-});
-
-const dashboardGrant: GrantView = {
-  grant_id: "grant-dashboard-inst-2",
-  subject: Subject.Dashboard,
-  action: Action.View,
-  institution_id: "inst-2",
-};
-
-/** Isaac holds no dashboard access; Naomi does. Both are scoped to an institution. */
+/** Isaac holds no access at all; Naomi already holds the implementer role. */
 const givenUsers: ManagedUser[] = [
-  {
-    user_id: "user-1",
-    email: "isaac.chirwa@example.com",
-    name: "Isaac Chirwa",
-    grants: [jobseekersGrant("inst-1")],
-  },
+  { user_id: "user-1", email: "isaac.chirwa@example.com", name: "Isaac Chirwa", grants: [] },
   {
     user_id: "user-2",
     email: "naomi.banda@example.com",
     name: "Naomi Banda",
-    grants: [jobseekersGrant("inst-2"), dashboardGrant],
+    grants: grantsForRole(Role.Implementer),
   },
 ];
 
@@ -46,10 +29,47 @@ function givenUsersEndpoint(users: ManagedUser[] = givenUsers) {
   return state;
 }
 
+/** Assigns the role server-side, so the re-read reflects it. */
+function givenRoleEndpoint(state: ManagedUser[], onCall?: (url: URL, body: RoleRequest) => void) {
+  server.use(
+    http.post("/api/users/:userId/roles", async ({ params, request }) => {
+      const body = (await request.json()) as RoleRequest;
+      onCall?.(new URL(request.url), body);
+      const created = grantsForRole(body.role, body.institution_id);
+      const user = state.find((candidate) => candidate.user_id === String(params.userId));
+      if (user) user.grants = created;
+      return HttpResponse.json(created, { status: 201 });
+    })
+  );
+}
+
+/** Deletes grants one at a time, as the API does. Records the paths called; `refuseAfter` refuses one. */
+function givenGrantDeleteEndpoint(state: ManagedUser[], refuseAfter?: (deletedSoFar: number) => boolean) {
+  const called: string[] = [];
+  server.use(
+    http.delete("/api/users/:userId/grants/:grantId", ({ params, request }) => {
+      called.push(new URL(request.url).pathname);
+      if (refuseAfter?.(called.length)) return new HttpResponse(null, { status: 403 });
+      const user = state.find((candidate) => candidate.user_id === String(params.userId));
+      if (user) user.grants = user.grants.filter((grant) => grant.grant_id !== String(params.grantId));
+      return new HttpResponse(null, { status: 204 });
+    })
+  );
+  return called;
+}
+
 async function renderAndWaitForRows() {
   render(<UserAccess />);
   await waitFor(() => expect(screen.getByTestId(DATA_TEST_ID.LIST)).toBeInTheDocument());
   return screen.getAllByTestId(ROW_TEST_ID.CONTAINER);
+}
+
+/** Opens a row's confirmation and picks a role in it. */
+async function pickRole(row: HTMLElement, roleLabel: string) {
+  await userEvent.click(within(row).getByTestId(ROW_TEST_ID.TOGGLE));
+  await screen.findByTestId(DIALOG_TEST_ID.CONTAINER);
+  await userEvent.click(screen.getByTestId(DIALOG_TEST_ID.ROLE_SELECT));
+  await userEvent.click(await screen.findByRole("option", { name: roleLabel }));
 }
 
 describe("UserAccess", () => {
@@ -61,22 +81,24 @@ describe("UserAccess", () => {
     render(<UserAccess />);
 
     // THEN the heading is already there, so the screen does not appear blank
-    expect(screen.getByTestId(DATA_TEST_ID.CONTAINER)).toHaveTextContent("Dashboard access");
+    expect(screen.getByTestId(DATA_TEST_ID.CONTAINER)).toHaveTextContent("User access");
     expect(screen.queryByTestId(DATA_TEST_ID.LIST)).not.toBeInTheDocument();
   });
 
-  it("should list every managed user with their email and institution", async () => {
+  it("should list every managed user with their email and the role they hold", async () => {
     // GIVEN two provisioned users
     givenUsersEndpoint();
 
     // WHEN the screen has loaded
     const rows = await renderAndWaitForRows();
 
-    // THEN each user is listed, with the institution their access is scoped to
+    // THEN each user is listed, with the access they actually hold
     expect(rows).toHaveLength(2);
     expect(within(rows[0]).getByTestId(ROW_TEST_ID.USER)).toHaveTextContent("Isaac Chirwa");
-    expect(within(rows[0]).getByTestId(ROW_TEST_ID.DETAIL)).toHaveTextContent("isaac.chirwa@example.com · inst-1");
-    expect(within(rows[1]).getByTestId(ROW_TEST_ID.USER)).toHaveTextContent("Naomi Banda");
+    expect(within(rows[0]).getByTestId(ROW_TEST_ID.DETAIL)).toHaveTextContent(
+      "isaac.chirwa@example.com · No access yet"
+    );
+    expect(within(rows[1]).getByTestId(ROW_TEST_ID.DETAIL)).toHaveTextContent("naomi.banda@example.com · Implementer");
   });
 
   it("should scroll a list too long for the box inside it, rather than down the page", async () => {
@@ -86,7 +108,7 @@ describe("UserAccess", () => {
         user_id: `user-${i}`,
         email: `pm${i}@example.com`,
         name: `PM ${i}`,
-        grants: [jobseekersGrant(`inst-${i}`)],
+        grants: [],
       }))
     );
 
@@ -97,49 +119,44 @@ describe("UserAccess", () => {
     expect(screen.getByTestId(DATA_TEST_ID.LIST)).toHaveClass("overflow-y-auto");
   });
 
-  it("should reflect each user's existing dashboard grant in their toggle", async () => {
-    // GIVEN one user with dashboard access and one without
+  it("should reflect the access each user already holds in their toggle", async () => {
+    // GIVEN one user with a role and one with none
     givenUsersEndpoint();
 
     // WHEN the screen has loaded
     const rows = await renderAndWaitForRows();
 
-    // THEN the toggle reads from the grant each user actually holds
+    // THEN the toggle reads from the grants each user actually holds
     expect(within(rows[0]).getByTestId(ROW_TEST_ID.TOGGLE)).toHaveAttribute("aria-pressed", "false");
     expect(within(rows[1]).getByTestId(ROW_TEST_ID.TOGGLE)).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("should ask the funder to confirm before anything is granted", async () => {
-    // GIVEN a user without dashboard access
-    givenUsersEndpoint();
+  it("should ask the funder to pick a role before anything is granted", async () => {
+    // GIVEN a user with no access
+    const state = givenUsersEndpoint();
     let granted = false;
-    server.use(
-      http.post("/api/users/:userId/grants", () => {
-        granted = true;
-        return HttpResponse.json(dashboardGrant, { status: 201 });
-      })
-    );
+    givenRoleEndpoint(state, () => {
+      granted = true;
+    });
     const rows = await renderAndWaitForRows();
 
-    // WHEN the funder toggles their access on
+    // WHEN the funder starts granting their access
     await userEvent.click(within(rows[0]).getByTestId(ROW_TEST_ID.TOGGLE));
 
-    // THEN a confirmation is asked for first, and nothing is written yet
+    // THEN a role is asked for first, and nothing is written yet
     expect(await screen.findByTestId(DIALOG_TEST_ID.CONTAINER)).toBeInTheDocument();
     expect(screen.getByTestId(DIALOG_TEST_ID.DESCRIPTION)).toHaveTextContent("Isaac Chirwa");
+    expect(screen.getByTestId(DIALOG_TEST_ID.ROLE_SELECT)).toBeInTheDocument();
     expect(granted).toBe(false);
   });
 
   it("should grant nothing when the funder cancels the confirmation", async () => {
     // GIVEN a confirmation is open
-    givenUsersEndpoint();
+    const state = givenUsersEndpoint();
     let granted = false;
-    server.use(
-      http.post("/api/users/:userId/grants", () => {
-        granted = true;
-        return HttpResponse.json(dashboardGrant, { status: 201 });
-      })
-    );
+    givenRoleEndpoint(state, () => {
+      granted = true;
+    });
     const rows = await renderAndWaitForRows();
     await userEvent.click(within(rows[0]).getByTestId(ROW_TEST_ID.TOGGLE));
     await screen.findByTestId(DIALOG_TEST_ID.CONTAINER);
@@ -153,91 +170,139 @@ describe("UserAccess", () => {
     expect(within(rows[0]).getByTestId(ROW_TEST_ID.TOGGLE)).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("should post the subject, action and institution when a grant is confirmed", async () => {
-    // GIVEN a user provisioned against inst-1, without dashboard access
+  it("should post the default funder role across every institution when a grant is confirmed", async () => {
+    // GIVEN a user with no access
     const state = givenUsersEndpoint();
     let actualUrl: URL | undefined;
-    let actualBody: GrantRequest | undefined;
-    server.use(
-      http.post("/api/users/:userId/grants", async ({ request }) => {
-        actualUrl = new URL(request.url);
-        actualBody = (await request.json()) as GrantRequest;
-        const created: GrantView = {
-          grant_id: "grant-new",
-          subject: Subject.Dashboard,
-          action: Action.View,
-          institution_id: "inst-1",
-        };
-        state[0].grants.push(created);
-        return HttpResponse.json(created, { status: 201 });
-      })
-    );
+    let actualBody: RoleRequest | undefined;
+    givenRoleEndpoint(state, (url, body) => {
+      actualUrl = url;
+      actualBody = body;
+    });
     const rows = await renderAndWaitForRows();
 
-    // WHEN the funder grants access and confirms
+    // WHEN the funder grants access without touching the role dropdown
     await userEvent.click(within(rows[0]).getByTestId(ROW_TEST_ID.TOGGLE));
     await userEvent.click(await screen.findByTestId(DIALOG_TEST_ID.CONFIRM));
 
-    // THEN the grant is posted under that user, scoped to the institution they are provisioned for
+    // THEN the role the dialog opened on is posted, scoped to every institution
     await waitFor(() => expect(actualBody).toBeDefined());
-    expect(actualUrl?.pathname).toBe("/api/users/user-1/grants");
-    expect(actualBody).toEqual({ subject: "dashboard", action: "view", institution_id: "inst-1" });
+    expect(actualUrl?.pathname).toBe("/api/users/user-1/roles");
+    expect(actualBody).toEqual({ role: Role.Funder, institution_id: ALL_INSTITUTIONS });
   });
 
-  it("should show the new grant once it lands, without a reload", async () => {
-    // GIVEN a user without dashboard access
+  it("should post the implementer role when that is the one picked", async () => {
+    // GIVEN a user with no access
     const state = givenUsersEndpoint();
-    server.use(
-      http.post("/api/users/:userId/grants", () => {
-        const created: GrantView = {
-          grant_id: "grant-new",
-          subject: Subject.Dashboard,
-          action: Action.View,
-          institution_id: "inst-1",
-        };
-        state[0].grants.push(created);
-        return HttpResponse.json(created, { status: 201 });
-      })
-    );
+    let actualBody: RoleRequest | undefined;
+    givenRoleEndpoint(state, (_url, body) => {
+      actualBody = body;
+    });
     const rows = await renderAndWaitForRows();
 
-    // WHEN the funder grants access and confirms
-    await userEvent.click(within(rows[0]).getByTestId(ROW_TEST_ID.TOGGLE));
-    await userEvent.click(await screen.findByTestId(DIALOG_TEST_ID.CONFIRM));
+    // WHEN the funder picks the implementer role and confirms
+    await pickRole(rows[0], "Implementer");
+    await userEvent.click(screen.getByTestId(DIALOG_TEST_ID.CONFIRM));
 
-    // THEN the row re-reads from the server and shows the access as granted
-    await waitFor(() => expect(screen.getAllByTestId(ROW_TEST_ID.TOGGLE)[0]).toHaveAttribute("aria-pressed", "true"));
+    // THEN that is the role written, not the one the dialog opened on
+    await waitFor(() => expect(actualBody).toBeDefined());
+    expect(actualBody).toEqual({ role: Role.Implementer, institution_id: ALL_INSTITUTIONS });
   });
 
-  it("should delete the user's own dashboard grant when access is toggled off", async () => {
-    // GIVEN a user who already holds a dashboard grant
+  it("should offer to remove the whole role from a user who already holds one", async () => {
+    // GIVEN a user who already holds the funder role
+    givenUsersEndpoint([
+      { user_id: "user-3", email: "chanda@example.com", name: "Chanda Phiri", grants: grantsForRole(Role.Funder) },
+    ]);
+    const rows = await renderAndWaitForRows();
+
+    // WHEN the funder opens their row
+    await userEvent.click(within(rows[0]).getByTestId(ROW_TEST_ID.TOGGLE));
+
+    // THEN the removal is offered — their whole role goes, so there is no role to pick
+    expect(await screen.findByTestId(DIALOG_TEST_ID.TITLE)).toHaveTextContent("Remove access");
+    expect(screen.queryByTestId(DIALOG_TEST_ID.ROLE_SELECT)).not.toBeInTheDocument();
+  });
+
+  it("should show the granted role once it lands, without a reload", async () => {
+    // GIVEN a user with no access
     const state = givenUsersEndpoint();
-    let actualUrl: URL | undefined;
-    server.use(
-      http.delete("/api/users/:userId/grants/:grantId", ({ request }) => {
-        actualUrl = new URL(request.url);
-        state[1].grants = state[1].grants.filter((g) => g.grant_id !== dashboardGrant.grant_id);
-        return new HttpResponse(null, { status: 204 });
-      })
-    );
+    givenRoleEndpoint(state);
+    const rows = await renderAndWaitForRows();
+
+    // WHEN the funder grants them the implementer role
+    await pickRole(rows[0], "Implementer");
+    await userEvent.click(screen.getByTestId(DIALOG_TEST_ID.CONFIRM));
+
+    // THEN the row re-reads from the server and names the role they now hold
+    await waitFor(() => expect(screen.getAllByTestId(ROW_TEST_ID.TOGGLE)[0]).toHaveAttribute("aria-pressed", "true"));
+    expect(screen.getAllByTestId(ROW_TEST_ID.DETAIL)[0]).toHaveTextContent("Implementer");
+  });
+
+  it("should delete every grant a user holds when their access is toggled off", async () => {
+    // GIVEN a user who already holds a whole role
+    const state = givenUsersEndpoint();
+    const deleted = givenGrantDeleteEndpoint(state);
     const rows = await renderAndWaitForRows();
 
     // WHEN the funder removes their access and confirms
     await userEvent.click(within(rows[1]).getByTestId(ROW_TEST_ID.TOGGLE));
-    expect(await screen.findByTestId(DIALOG_TEST_ID.TITLE)).toHaveTextContent("Remove dashboard access?");
+    expect(await screen.findByTestId(DIALOG_TEST_ID.TITLE)).toHaveTextContent("Remove access");
     await userEvent.click(screen.getByTestId(DIALOG_TEST_ID.CONFIRM));
 
-    // THEN that user's own dashboard grant is the one deleted
-    await waitFor(() => expect(actualUrl).toBeDefined());
-    expect(actualUrl?.pathname).toBe(`/api/users/user-2/grants/${dashboardGrant.grant_id}`);
-    // AND the row now offers the grant again
+    // THEN every grant the role gave them is deleted, not just the dashboard one
+    await waitFor(() => expect(deleted).toHaveLength(grantsForRole(Role.Implementer).length));
+    expect(deleted).toEqual(
+      grantsForRole(Role.Implementer).map((grant) => `/api/users/user-2/grants/${grant.grant_id}`)
+    );
+    // AND the row now offers the grant again, with no role left to name
     await waitFor(() => expect(screen.getAllByTestId(ROW_TEST_ID.TOGGLE)[1]).toHaveAttribute("aria-pressed", "false"));
+    expect(screen.getAllByTestId(ROW_TEST_ID.DETAIL)[1]).toHaveTextContent("No access yet");
+  });
+
+  it("should show the access that is left when a removal fails part-way through", async () => {
+    // GIVEN a removal whose second delete is refused
+    const state = givenUsersEndpoint();
+    givenGrantDeleteEndpoint(state, (deletedSoFar) => deletedSoFar > 1);
+    const rows = await renderAndWaitForRows();
+
+    // WHEN the funder removes their access and confirms
+    await userEvent.click(within(rows[1]).getByTestId(ROW_TEST_ID.TOGGLE));
+    await userEvent.click(await screen.findByTestId(DIALOG_TEST_ID.CONFIRM));
+
+    // THEN the failure is reported, and the row reports what the user is actually left holding
+    const failure = await screen.findByTestId(DATA_TEST_ID.FAILURE);
+    expect(failure).toHaveTextContent("Could not remove Naomi Banda's access. Please try again.");
+    await waitFor(() => expect(screen.getAllByTestId(ROW_TEST_ID.DETAIL)[1]).toHaveTextContent("Custom permissions"));
+
+    // Snackbars outlive the render that raised them, so dismiss it rather than leaving it up.
+    await userEvent.click(within(failure).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByTestId(DATA_TEST_ID.FAILURE)).not.toBeInTheDocument());
+  });
+
+  it("should report access without a role for a user whose grants match none", async () => {
+    // GIVEN a user provisioned by hand, holding part of a role only
+    givenUsersEndpoint([
+      {
+        user_id: "user-4",
+        email: "mutale@example.com",
+        name: "Mutale Banda",
+        grants: [{ grant_id: "g1", subject: Subject.Dashboard, action: Action.View, institution_id: ALL_INSTITUTIONS }],
+      },
+    ]);
+
+    // WHEN the screen has loaded
+    const rows = await renderAndWaitForRows();
+
+    // THEN no role is claimed for them, but the access they hold is not hidden either
+    expect(within(rows[0]).getByTestId(ROW_TEST_ID.DETAIL)).toHaveTextContent("Custom permissions");
+    expect(within(rows[0]).getByTestId(ROW_TEST_ID.TOGGLE)).toHaveAttribute("aria-pressed", "true");
   });
 
   it("should tell the funder when the API refuses the change", async () => {
     // GIVEN the caller may not grant access
     givenUsersEndpoint();
-    server.use(http.post("/api/users/:userId/grants", () => new HttpResponse(null, { status: 403 })));
+    server.use(http.post("/api/users/:userId/roles", () => new HttpResponse(null, { status: 403 })));
     const rows = await renderAndWaitForRows();
 
     // WHEN the funder grants access and confirms
@@ -253,6 +318,26 @@ describe("UserAccess", () => {
     await waitFor(() => expect(screen.queryByTestId(DATA_TEST_ID.FAILURE)).not.toBeInTheDocument());
   });
 
+  it("should tell the funder when a removal is refused", async () => {
+    // GIVEN the removal is refused
+    givenUsersEndpoint();
+    server.use(http.delete("/api/users/:userId/grants/:grantId", () => new HttpResponse(null, { status: 403 })));
+    const rows = await renderAndWaitForRows();
+
+    // WHEN the funder removes access and confirms
+    await userEvent.click(within(rows[1]).getByTestId(ROW_TEST_ID.TOGGLE));
+    await userEvent.click(await screen.findByTestId(DIALOG_TEST_ID.CONFIRM));
+
+    // THEN the refusal names the user it concerns, and the row keeps the access they still hold
+    const failure = await screen.findByTestId(DATA_TEST_ID.FAILURE);
+    expect(failure).toHaveTextContent("Could not remove Naomi Banda's access. Please try again.");
+    expect(within(rows[1]).getByTestId(ROW_TEST_ID.TOGGLE)).toHaveAttribute("aria-pressed", "true");
+
+    // Snackbars outlive the render that raised them, so dismiss it.
+    await userEvent.click(within(failure).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByTestId(DATA_TEST_ID.FAILURE)).not.toBeInTheDocument());
+  });
+
   it("should keep the list when the reload after a saved change fails", async () => {
     // GIVEN a grant that lands, and a reload that then fails
     const state = structuredClone(givenUsers);
@@ -262,12 +347,7 @@ describe("UserAccess", () => {
         reads += 1;
         return reads > 1 ? new HttpResponse(null, { status: 500 }) : HttpResponse.json(state);
       }),
-      http.post("/api/users/:userId/grants", () =>
-        HttpResponse.json(
-          { grant_id: "grant-new", subject: Subject.Dashboard, action: Action.View, institution_id: "inst-1" },
-          { status: 201 }
-        )
-      )
+      http.post("/api/users/:userId/roles", () => HttpResponse.json(grantsForRole(Role.Funder), { status: 201 }))
     );
     const rows = await renderAndWaitForRows();
 
@@ -286,7 +366,7 @@ describe("UserAccess", () => {
   it("should leave a row as it was when the API refuses the change", async () => {
     // GIVEN the caller may not grant access
     givenUsersEndpoint();
-    server.use(http.post("/api/users/:userId/grants", () => new HttpResponse(null, { status: 403 })));
+    server.use(http.post("/api/users/:userId/roles", () => new HttpResponse(null, { status: 403 })));
     const rows = await renderAndWaitForRows();
 
     // WHEN the funder grants access and confirms
@@ -298,18 +378,6 @@ describe("UserAccess", () => {
     expect(within(rows[0]).getByTestId(ROW_TEST_ID.TOGGLE)).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("should refuse to grant access to a user with no institution to scope it to", async () => {
-    // GIVEN a registered user who holds no grants at all
-    givenUsersEndpoint([{ user_id: "user-9", email: "new.joiner@example.com", name: "New Joiner", grants: [] }]);
-
-    // WHEN the screen has loaded
-    const rows = await renderAndWaitForRows();
-
-    // THEN their row says so, and offers no way to grant
-    expect(within(rows[0]).getByTestId(ROW_TEST_ID.DETAIL)).toHaveTextContent("No institution assigned");
-    expect(within(rows[0]).getByTestId(ROW_TEST_ID.TOGGLE)).toBeDisabled();
-  });
-
   it("should offer a retry when the user list cannot be loaded", async () => {
     // GIVEN the users endpoint fails
     server.use(http.get("/api/users", () => new HttpResponse(null, { status: 500 })));
@@ -319,7 +387,7 @@ describe("UserAccess", () => {
 
     // THEN the failure is shown, with a way to try again
     const error = await screen.findByTestId(DATA_TEST_ID.ERROR);
-    expect(error).toHaveTextContent("Failed to load dashboard access.");
+    expect(error).toHaveTextContent("Failed to load user access.");
     expect(within(error).getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
 
@@ -343,7 +411,7 @@ describe("UserAccess", () => {
     expect(screen.getAllByTestId(ROW_TEST_ID.CONTAINER)).toHaveLength(2);
   });
 
-  it("should say so when there are no users to grant access to", async () => {
+  it("should say so when there are no users to give access to", async () => {
     // GIVEN no users are provisioned
     givenUsersEndpoint([]);
 
@@ -351,7 +419,7 @@ describe("UserAccess", () => {
     render(<UserAccess />);
 
     // THEN it says so, rather than showing an empty box
-    expect(await screen.findByText("There are no users to grant access to yet.")).toBeInTheDocument();
+    expect(await screen.findByText("There are no users to give access to yet.")).toBeInTheDocument();
     expect(screen.queryByTestId(DATA_TEST_ID.LIST)).not.toBeInTheDocument();
   });
 });

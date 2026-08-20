@@ -1,4 +1,5 @@
 import type { Action, Subject } from "@/access/ability";
+import type { Role } from "@/access/roles";
 
 export type ScopeType = "all" | "institutions";
 export type ModuleId = "build-your-profile" | "job-readiness" | "career-explorer" | "jobs";
@@ -36,9 +37,8 @@ export interface ManagedUser {
   grants: GrantView[];
 }
 
-/** Body of POST /api/users/{userId}/grants. */
-export interface GrantRequest {
-  subject: Subject;
-  action: Action;
+/** Body of POST /api/users/{userId}/roles. */
+export interface RoleRequest {
+  role: Role;
   institution_id: string;
 }

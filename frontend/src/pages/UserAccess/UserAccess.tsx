@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ScreenHead } from "@/components/shared/ScreenHead";
+import { DEFAULT_ASSIGNABLE_ROLE, type Role } from "@/access/roles";
 import { AccessRow } from "@/pages/UserAccess/components/AccessRow";
 import { displayName } from "@/pages/UserAccess/components/AccessRow/AccessRow";
 import { ConfirmAccessDialog } from "@/pages/UserAccess/components/ConfirmAccessDialog";
@@ -32,11 +33,18 @@ function failureMessage(t: Translate, reported: UserAccessFailure): string {
 
 export function UserAccess() {
   const { t } = useTranslation();
-  const { state, pendingUserIds, failure, toggleAccess } = useUserAccess();
+  const { state, pendingUserIds, failure, grantRole, revokeAccess } = useUserAccess();
   const [confirming, setConfirming] = useState<UserAccessEntry | null>(null);
+  const [role, setRole] = useState<Role>(DEFAULT_ASSIGNABLE_ROLE);
 
-  const confirmToggle = () => {
-    if (confirming) void toggleAccess(confirming);
+  const startConfirming = (entry: UserAccessEntry) => {
+    // Reset, so a role picked for one user is not carried to the next.
+    setRole(DEFAULT_ASSIGNABLE_ROLE);
+    setConfirming(entry);
+  };
+
+  const confirmChange = () => {
+    if (confirming) void (confirming.hasAccess ? revokeAccess(confirming) : grantRole(confirming, role));
     setConfirming(null);
   };
 
@@ -83,7 +91,7 @@ export function UserAccess() {
                 key={entry.user.user_id}
                 entry={entry}
                 pending={pendingUserIds.has(entry.user.user_id)}
-                onToggle={setConfirming}
+                onToggle={startConfirming}
               />
             ))}
           </ul>
@@ -91,7 +99,9 @@ export function UserAccess() {
 
       <ConfirmAccessDialog
         entry={confirming}
-        onConfirm={confirmToggle}
+        role={role}
+        onRoleChange={setRole}
+        onConfirm={confirmChange}
         onOpenChange={(open) => !open && setConfirming(null)}
       />
     </div>
