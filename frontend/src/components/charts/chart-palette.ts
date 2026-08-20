@@ -22,3 +22,31 @@ export const CHART_PROGRESS_ACTIVE_COLOR = "var(--chart-progress-active)";
 export function seriesColorAt(index: number): string {
   return CHART_SERIES_COLORS[index % CHART_SERIES_COLORS.length];
 }
+
+/**
+ * A funnel's stages are the same metric shedding people at each step, not
+ * separate series, so they share one ramp that darkens as the funnel narrows.
+ * Each stop carries the ink its own fill can legibly hold.
+ */
+const INK_ON_LIGHT = "var(--chart-funnel-ink-on-light)";
+const INK_ON_DARK = "var(--chart-funnel-ink-on-dark)";
+
+const CHART_FUNNEL_STOPS = [
+  { fill: "var(--chart-funnel-1)", ink: INK_ON_LIGHT },
+  { fill: "var(--chart-funnel-2)", ink: INK_ON_LIGHT },
+  { fill: "var(--chart-funnel-3)", ink: INK_ON_DARK },
+  { fill: "var(--chart-funnel-4)", ink: INK_ON_DARK },
+  { fill: "var(--chart-funnel-5)", ink: INK_ON_DARK },
+] as const;
+
+export interface FunnelStop {
+  fill: string;
+  ink: string;
+}
+
+/** Stage `index` of a `count`-stage funnel, sampled across the whole ramp so a short funnel still runs light to dark. */
+export function funnelStopAt(index: number, count: number): FunnelStop {
+  if (count <= 1) return CHART_FUNNEL_STOPS[0];
+  const position = Math.min(Math.max(index, 0), count - 1) / (count - 1);
+  return CHART_FUNNEL_STOPS[Math.round(position * (CHART_FUNNEL_STOPS.length - 1))];
+}

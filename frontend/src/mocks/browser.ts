@@ -1,9 +1,12 @@
 import { setupWorker } from "msw/browser";
+
 import {
   institutionDetailHandler,
   institutionsHandler,
   jobseekerDetailHandler,
   jobseekersHandler,
+  meHandler,
+  moduleMetricsHandler,
   overviewMetricsHandler,
 } from "./handlers";
 
@@ -17,5 +20,7 @@ export const worker = setupWorker(
   institutionsHandler,
   institutionDetailHandler,
   jobseekersHandler,
-  jobseekerDetailHandler
+  jobseekerDetailHandler,
+  moduleMetricsHandler,
+  meHandler
 );
