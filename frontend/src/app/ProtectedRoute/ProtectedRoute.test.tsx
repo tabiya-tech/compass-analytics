@@ -21,6 +21,14 @@ function renderAt(path: string, permissions: string[]) {
           </PermissionRoute>
         ),
       },
+      {
+        path: routerPaths.USER_ACCESS,
+        element: (
+          <PermissionRoute action={Action.Manage} subject={Subject.AccessManagement}>
+            <span data-testid="user-access-screen">User access</span>
+          </PermissionRoute>
+        ),
+      },
     ],
     { initialEntries: [path] }
   );
@@ -52,6 +60,25 @@ describe("ProtectedRoute", () => {
     // THEN they see a forbidden notice, not the protected content
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
     expect(screen.queryByTestId("institutions-screen")).not.toBeInTheDocument();
+  });
+
+  it("should render the user access screen when the grant includes access-management:manage", async () => {
+    // GIVEN a signed-in user whose grant covers access-management:manage
+    // WHEN they open the user access screen
+    renderAt(routerPaths.USER_ACCESS, ["dashboard:view", "access-management:manage"]);
+
+    // THEN the screen is shown
+    await waitFor(() => expect(screen.getByTestId("user-access-screen")).toBeInTheDocument());
+  });
+
+  it("should show a forbidden message to a user whose grant misses access-management:manage", async () => {
+    // GIVEN a signed-in user whose grant covers every screen except access management
+    // WHEN they deep-link straight into the user access screen
+    renderAt(routerPaths.USER_ACCESS, ["dashboard:view", "institutions:view", "jobseekers:view"]);
+
+    // THEN they never reach it, and see a forbidden message instead
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(screen.queryByTestId("user-access-screen")).not.toBeInTheDocument();
   });
 
   it("should render an ungated screen for any signed-in user", async () => {

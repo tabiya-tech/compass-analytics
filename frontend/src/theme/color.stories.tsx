@@ -70,6 +70,15 @@ function ColorPalette() {
         </TokenGrid>
       </TokenSection>
 
+      <TokenSection title="Status palette">
+        <TokenGrid>
+          <Swatch cssVar="--success" label="Success" />
+          <Swatch cssVar="--info" label="Info" />
+          <Swatch cssVar="--warning" label="Warning" />
+          <Swatch cssVar="--error" label="Error" />
+        </TokenGrid>
+      </TokenSection>
+
       <TokenSection title="Sidebar">
         <TokenGrid>
           <Swatch cssVar="--sidebar" label="Sidebar" />

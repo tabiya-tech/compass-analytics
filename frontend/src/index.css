@@ -153,6 +153,11 @@
   --destructive: #a8431f;
   --destructive-foreground: var(--white);
 
+  --success: var(--green-3);
+  --warning: #8f5c0d;
+  --info: #265ea7;
+  --error: #b71c1c;
+
   --border: var(--border-subtle);
   --input: var(--border-subtle);
   --ring: var(--tabiya-green);

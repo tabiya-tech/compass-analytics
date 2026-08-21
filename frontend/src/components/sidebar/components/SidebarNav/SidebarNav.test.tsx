@@ -42,6 +42,22 @@ describe("SidebarNav", () => {
     expect(screen.queryByRole("link", { name: /^Modules$/ })).not.toBeInTheDocument();
   });
 
+  it("should link to the user access screen when access-management:manage is granted", () => {
+    // GIVEN an ability that covers access management
+    renderNav({ ability: buildAbility(["dashboard:view", "access-management:manage"]) });
+
+    // THEN the screen is reachable from the sidebar
+    expect(screen.getByRole("link", { name: /User access/ })).toHaveAttribute("href", "#/access");
+  });
+
+  it("should hide the user access screen when access-management:manage is not granted", () => {
+    // GIVEN an ability that covers everything except access management
+    renderNav({ ability: buildAbility(["dashboard:view", "jobseekers:view", "institutions:view"]) });
+
+    // THEN there is no way into it from the sidebar
+    expect(screen.queryByRole("link", { name: /User access/ })).not.toBeInTheDocument();
+  });
+
   it("should mark the current route as the active page", () => {
     // GIVEN the current location is /jobseekers
     window.location.hash = "#/jobseekers";
@@ -109,6 +125,17 @@ describe("getVisibleNavItems", () => {
     const actual = getVisibleNavItems(NAV_ITEMS, ability, activeModules).map((item) => item.id);
 
     expect(actual).toEqual(["overview", "modules"]);
+  });
+
+  it("should include access when access-management:manage is granted", () => {
+    // GIVEN an ability that covers access management
+    const ability = buildAbility(["dashboard:view", "access-management:manage"]);
+
+    // WHEN computing the visible nav items
+    const actual = getVisibleNavItems(NAV_ITEMS, ability, []).map((item) => item.id);
+
+    // THEN access sits alongside overview
+    expect(actual).toEqual(["overview", "access"]);
   });
 
   it("should show only overview for a minimal grant with no active modules", () => {

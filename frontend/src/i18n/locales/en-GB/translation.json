@@ -2,7 +2,8 @@
   "common": {
     "loading": "Loading…",
     "retry": "Retry",
-    "close": "Close"
+    "close": "Close",
+    "cancel": "Cancel"
   },
   "i18n": {
     "languageSwitcher": {
@@ -79,7 +80,6 @@
     "overview": "Overview",
     "institutions": "Institutions",
     "jobseekers": "Jobseekers",
-    "institutions": "Institutions",
     "access": "User access",
     "modules": "Modules",
     "modulesSection": {
@@ -171,6 +171,57 @@
         "careerExplorer": "Career Explorer % started",
         "jobs": "Jobs matched % users",
         "skillsReports": "Skills reports available"
+      }
+    }
+  },
+  "userAccess": {
+    "eyebrow": "Access management",
+    "title": "User access",
+    "description": "Choose the role each person is given. A role decides which pages they can see, and whether they can grant access to other users.",
+    "listLabel": "Users and the access they hold",
+    "error": "Failed to load user access.",
+    "empty": "There are no users to give access to yet.",
+    "failure": {
+      "grant": "Could not grant access to {{user}}. Please try again.",
+      "revoke": "Could not remove {{user}}'s access. Please try again.",
+      "refresh": "The change was saved, but the list could not be refreshed."
+    },
+    "row": {
+      "none": "No access yet",
+      "otherAccess": "Custom permissions"
+    },
+    "roles": {
+      "implementer": {
+        "label": "Implementer",
+        "description": "Sees every page except Institutions. Cannot grant access to other users."
+      },
+      "funder": {
+        "label": "Funder",
+        "description": "Sees every page except Jobseekers. Can grant access to other users."
+      },
+      "superAdmin": {
+        "label": "Super admin",
+        "description": "Sees every page and can grant access to other users."
+      }
+    },
+    "toggle": {
+      "grant": "Grant access",
+      "granted": "Access granted",
+      "grantLabel": "Grant access to {{user}}",
+      "grantedLabel": "Access granted to {{user}} — select to remove it"
+    },
+    "confirm": {
+      "grant": {
+        "title": "Grant access",
+        "description": "Choose a role for <0>{{user}}</0>. It determines which pages they can access.",
+        "roleLabel": "Role",
+        "action": "Grant access"
+      },
+      "revoke": {
+        "title": "Remove access",
+        "description": "Are you sure you want to remove <0>{{user}}</0>'s dashboard access?",
+        "detail": "They will still be able to sign in, but they won't be able to access any pages until you assign them a role again.",
+        "action": "Remove access"
       }
     }
   },

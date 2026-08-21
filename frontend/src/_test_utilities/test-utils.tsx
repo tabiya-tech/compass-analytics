@@ -3,13 +3,17 @@ import { render as rtlRender, type RenderOptions } from "@testing-library/react"
 import { HashRouter } from "react-router-dom";
 import { AccessProvider } from "@/access/AccessContext";
 import { AuthProvider } from "@/auth/AuthContext";
+import { Toaster } from "@/components/ui/sonner";
 
 // Session-wide providers only. Filter tests mount their own FiltersProvider, with a fixed date.
 export const AllTheProviders = ({ children }: Readonly<{ children: ReactNode }>) => {
   return (
     <AuthProvider>
       <AccessProvider>
-        <HashRouter>{children}</HashRouter>
+        <HashRouter>
+          {children}
+          <Toaster />
+        </HashRouter>
       </AccessProvider>
     </AuthProvider>
   );
