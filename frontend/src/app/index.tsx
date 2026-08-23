@@ -9,6 +9,7 @@ import { Register } from "@/pages/Register/Register";
 import { Overview } from "@/pages/Overview/Overview";
 import { Institutions } from "@/pages/Institutions";
 import { UserAccess } from "@/pages/UserAccess";
+import { Jobseekers } from "@/pages/JobSeekers";
 
 const router = createHashRouter([
   {
@@ -32,14 +33,6 @@ const router = createHashRouter([
         ),
       },
       {
-        path: routerPaths.JOBSEEKERS,
-        element: (
-          <PermissionRoute action={Action.View} subject={Subject.Jobseekers}>
-            Jobseekers
-          </PermissionRoute>
-        ),
-      },
-      {
         path: routerPaths.INSTITUTIONS,
         element: (
           <PermissionRoute action={Action.View} subject={Subject.Institutions}>
@@ -52,6 +45,14 @@ const router = createHashRouter([
         element: (
           <PermissionRoute action={Action.Manage} subject={Subject.AccessManagement}>
             <UserAccess />
+          </PermissionRoute>
+        ),
+      },
+      {
+        path: routerPaths.JOBSEEKERS,
+        element: (
+          <PermissionRoute action={Action.View} subject={Subject.Jobseekers}>
+            <Jobseekers />
           </PermissionRoute>
         ),
       },

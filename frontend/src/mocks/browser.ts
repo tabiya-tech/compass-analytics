@@ -1,6 +1,21 @@
 import { setupWorker } from "msw/browser";
-import { institutionDetailHandler, institutionsHandler, overviewMetricsHandler } from "./handlers";
+import {
+  institutionDetailHandler,
+  institutionsHandler,
+  jobseekerDetailHandler,
+  jobseekersHandler,
+  overviewMetricsHandler,
+} from "./handlers";
 
-// Mocks only what the backend can't serve yet — overview metrics and the institutions endpoints.
-// Everything else goes through the Vite proxy to the real backend on localhost:8080.
-export const worker = setupWorker(overviewMetricsHandler, institutionsHandler, institutionDetailHandler);
+// Mocks only what the backend can't serve locally yet — overview metrics, the institutions
+// endpoints, and the jobseeker roster/profile (the backend route exists but reads from a Compass
+// deployment that isn't wired up in local dev).
+// Everything else — /api/me and the grants behind it included — goes through the Vite proxy to the
+// real backend on localhost:8080, so dev still exercises real auth and real permissions.
+export const worker = setupWorker(
+  overviewMetricsHandler,
+  institutionsHandler,
+  institutionDetailHandler,
+  jobseekersHandler,
+  jobseekerDetailHandler
+);

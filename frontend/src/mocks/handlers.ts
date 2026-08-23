@@ -5,6 +5,9 @@ import { buildOverviewMetrics, parseOverviewMetricsQuery } from "@/mocks/overvie
 import { OVERVIEW_API_BASE } from "@/pages/Overview/services/OverviewMetrics.service";
 import type { InstitutionSortKey, SortDirection } from "@/institutions/institutions.types";
 import { findInstitutionDetail, queryInstitutions } from "@/mocks/data/institutions";
+import type { ModuleId } from "@/access/AccessContext";
+import type { JobseekerSortKey, ModuleStatus, ModuleStatusFilters } from "@/jobseekers/jobseekers.types";
+import { findJobseekerDetail, queryJobseekers } from "@/mocks/data/jobseekers";
 
 const stubReach: ReachResponse = {
   summary: {
@@ -56,6 +59,46 @@ export const institutionDetailHandler = http.get("/api/institutions/:institution
   return detail ? HttpResponse.json(detail) : new HttpResponse(null, { status: 404 });
 });
 
+/** `module_status=build-your-profile:completed` repeated — regrouped into one entry per module. */
+function parseModuleStatusFilters(values: string[]): ModuleStatusFilters {
+  const filters: ModuleStatusFilters = {};
+  for (const value of values) {
+    const [moduleId, status] = value.split(":") as [ModuleId, ModuleStatus];
+    if (!moduleId || !status) continue;
+    filters[moduleId] = [...(filters[moduleId] ?? []), status];
+  }
+  return filters;
+}
+
+/**
+ * The roster, scoped to the institutions the caller's grant covers. The real endpoint reads that
+ * grant off the bearer token; here the request carries it, which is enough to exercise the screen
+ * but is deliberately NOT the shape of the real guarantee — see Jobseekers.service.ts.
+ */
+export const jobseekersHandler = http.get("/api/jobseekers", ({ request }) => {
+  const params = new URL(request.url).searchParams;
+  const institutionIds = params.getAll("institution_id");
+  return HttpResponse.json(
+    queryJobseekers({
+      scope: params.get("scope") === "all" ? { type: "all" } : { type: "institutions", institutionIds },
+      search: params.get("search") ?? undefined,
+      module_status: parseModuleStatusFilters(params.getAll("module_status")),
+      sort: {
+        by: (params.get("sort_by") as JobseekerSortKey | null) ?? "name",
+        direction: (params.get("sort_dir") as SortDirection | null) ?? "asc",
+      },
+      page: Number(params.get("page") ?? 1),
+      page_size: Number(params.get("page_size") ?? 50),
+    })
+  );
+});
+
+/** The profile drill-down behind a roster row. */
+export const jobseekerDetailHandler = http.get("/api/jobseekers/:jobseekerId", ({ params }) => {
+  const detail = findJobseekerDetail(String(params.jobseekerId));
+  return detail ? HttpResponse.json(detail) : new HttpResponse(null, { status: 404 });
+});
+
 /** Stands in for the not-yet-built metrics endpoint — exported individually so the browser dev worker can include it too. */
 export const overviewMetricsHandler = http.get(`${OVERVIEW_API_BASE}/metrics`, ({ request }) => {
   const query = new URL(request.url).searchParams;
@@ -70,4 +113,6 @@ export const handlers: HttpHandler[] = [
   http.post("/api/users/register", () => new HttpResponse(null, { status: 201 })),
   http.get("/api/me", () => HttpResponse.json(stubMe)),
   http.get("/api/reach", () => HttpResponse.json(stubReach)),
+  jobseekersHandler,
+  jobseekerDetailHandler,
 ];
