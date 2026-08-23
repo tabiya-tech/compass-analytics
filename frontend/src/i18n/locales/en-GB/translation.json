@@ -3,7 +3,9 @@
     "loading": "Loading…",
     "retry": "Retry",
     "close": "Close",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "yes": "Yes",
+    "no": "No"
   },
   "i18n": {
     "languageSwitcher": {
@@ -32,12 +34,30 @@
       "footer": "Open-source digital public infrastructure for jobs."
     },
     "fields": {
-      "fullName": { "label": "Full name", "placeholder": "Full name" },
-      "organization": { "label": "Organization", "placeholder": "Organization" },
-      "email": { "label": "Email", "placeholder": "Email" },
-      "password": { "label": "Password", "placeholder": "Password" },
-      "newPassword": { "label": "Password", "placeholder": "Password" },
-      "confirmPassword": { "label": "Confirm password", "placeholder": "Confirm password" }
+      "fullName": {
+        "label": "Full name",
+        "placeholder": "Full name"
+      },
+      "organization": {
+        "label": "Organization",
+        "placeholder": "Organization"
+      },
+      "email": {
+        "label": "Email",
+        "placeholder": "Email"
+      },
+      "password": {
+        "label": "Password",
+        "placeholder": "Password"
+      },
+      "newPassword": {
+        "label": "Password",
+        "placeholder": "Password"
+      },
+      "confirmPassword": {
+        "label": "Confirm password",
+        "placeholder": "Confirm password"
+      }
     },
     "login": {
       "title": "Sign in",
@@ -223,6 +243,91 @@
         "detail": "They will still be able to sign in, but they won't be able to access any pages until you assign them a role again.",
         "action": "Remove access"
       }
+    }
+  },
+  "jobseekers": {
+    "eyebrow": "Individual view",
+    "title": "Jobseekers",
+    "description": "Every jobseeker in scope, one per row. Sort any column by its header; open a profile for the full activity trail.",
+    "error": "Failed to load jobseekers.",
+    "count": "{{value}} jobseekers",
+    "countOne": "1 jobseeker",
+    "export": "Download data",
+    "search": {
+      "label": "Search jobseekers by name or ID",
+      "placeholder": "Search name or ID…"
+    },
+    "status": {
+      "notStarted": "Not started",
+      "inProgress": "In progress",
+      "completed": "Completed"
+    },
+    "table": {
+      "caption": "Jobseekers in scope, with their progress through each deployed module",
+      "sortBy": "Sort by {{label}}",
+      "empty": "No jobseekers match your search or filters.",
+      "clearFilters": "Clear search and filters",
+      "skillsCount": "{{value}} skills",
+      "reportNotReady": "Report not ready",
+      "columns": {
+        "name": "Jobseeker",
+        "profileScore": "Profile score",
+        "registered": "Registered",
+        "lastLogin": "Last login",
+        "skills": "Skills"
+      },
+      "viewSkills": "View skills"
+    },
+    "profileModal": {
+      "title": "Jobseeker profile",
+      "error": "Failed to load this jobseeker's profile.",
+      "subtitle": "{{id}} · {{institution}}",
+      "profileScore": "Profile score",
+      "identity": {
+        "title": "Identity & profile",
+        "gender": "Gender",
+        "age": "Age",
+        "location": "Location",
+        "education": "Education"
+      },
+      "login": {
+        "title": "Login activity",
+        "registered": "Registered",
+        "lastLogin": "Last login",
+        "totalLogins": "Total logins",
+        "method": "Login method"
+      },
+      "progress": {
+        "title": "Progress across the suite",
+        "description": "Which modules they have started, and where they are",
+        "phase": "Phase: {{value}}",
+        "stepsCompleted": "{{completed}}/{{total}} modules completed"
+      },
+      "outputs": {
+        "title": "Outputs",
+        "generated": "CV / Skills Report generated",
+        "downloaded": "Downloaded",
+        "shared": "Shared"
+      },
+      "skills": {
+        "title": "Skills elicited",
+        "captured": "{{value}} skills captured in the completed Skills Report.",
+        "viewAll": "View all skills",
+        "notReady": "No skills yet — the Skills Report is ready once they complete Build Your Profile."
+      }
+    },
+    "skillsModal": {
+      "subtitle": "Skills Report · {{value}} skills elicited",
+      "notReady": "No skills to show — the Skills Report has not been generated for this jobseeker yet."
+    },
+    "csv": {
+      "id": "Jobseeker ID",
+      "institution": "Institution",
+      "profileScore": "Profile score (%)",
+      "skillsReport": "Skills report",
+      "skillsCount": "Skills count",
+      "ready": "Ready",
+      "notReady": "Not ready"
     }
   },
   "filters": {
