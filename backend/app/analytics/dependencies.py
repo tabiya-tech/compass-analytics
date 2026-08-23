@@ -1,6 +1,8 @@
 import asyncio
 import logging
 
+from app.analytics.institutions.repository import CompassInstitutionsRepository
+from app.analytics.institutions.service import IInstitutionsService, InstitutionsService
 from app.analytics.modules.repository import CompassModulesRepository
 from app.analytics.modules.service import IModulesService, ModulesService
 from app.analytics.reach.repository import CompassReachRepository
@@ -15,8 +17,6 @@ logger = logging.getLogger(__name__)
 
 def _build_compass_http_client() -> AsyncHttpClient:
     config = get_application_config()
-    # Route the outbound Compass key through ApiKeyAuth's registry rather than reaching into
-    # the raw config dict.
     api_keys = ApiKeyAuth(config.service_api_keys)
     return AsyncHttpClient(
         base_url=config.compass_base_url,
@@ -25,31 +25,58 @@ def _build_compass_http_client() -> AsyncHttpClient:
 
 
 _lock = asyncio.Lock()
-_service_singleton: IReachService | None = None
-_http_client: AsyncHttpClient | None = None
+
+_reach_service_singleton: IReachService | None = None
+_reach_http_client: AsyncHttpClient | None = None
+
+_institutions_service_singleton: IInstitutionsService | None = None
+_institutions_http_client: AsyncHttpClient | None = None
 
 
 async def get_reach_service() -> IReachService:
-    global _service_singleton, _http_client
-    if _service_singleton is None:
+    global _reach_service_singleton, _reach_http_client
+    if _reach_service_singleton is None:
         async with _lock:
-            if _service_singleton is None:
-                _http_client = _build_compass_http_client()
+            if _reach_service_singleton is None:
+                _reach_http_client = _build_compass_http_client()
                 user_service = await get_user_service()
-                _service_singleton = ReachService(
-                    repository=CompassReachRepository(_http_client),
+                _reach_service_singleton = ReachService(
+                    repository=CompassReachRepository(_reach_http_client),
                     user_service=user_service,
                 )
-    return _service_singleton
+    return _reach_service_singleton
 
 
 async def close_reach_service() -> None:
     """Close the outbound HTTP client and reset the singleton (called on shutdown)."""
-    global _service_singleton, _http_client
-    if _http_client is not None:
-        await _http_client.close()
-        _http_client = None
-    _service_singleton = None
+    global _reach_service_singleton, _reach_http_client
+    if _reach_http_client is not None:
+        await _reach_http_client.close()
+        _reach_http_client = None
+    _reach_service_singleton = None
+
+
+async def get_institutions_service() -> IInstitutionsService:
+    global _institutions_service_singleton, _institutions_http_client
+    if _institutions_service_singleton is None:
+        async with _lock:
+            if _institutions_service_singleton is None:
+                _institutions_http_client = _build_compass_http_client()
+                user_service = await get_user_service()
+                _institutions_service_singleton = InstitutionsService(
+                    repository=CompassInstitutionsRepository(_institutions_http_client),
+                    user_service=user_service,
+                )
+    return _institutions_service_singleton
+
+
+async def close_institutions_service() -> None:
+    """Close the outbound HTTP client and reset the singleton (called on shutdown)."""
+    global _institutions_service_singleton, _institutions_http_client
+    if _institutions_http_client is not None:
+        await _institutions_http_client.close()
+        _institutions_http_client = None
+    _institutions_service_singleton = None
 
 
 _modules_lock = asyncio.Lock()
@@ -78,5 +105,3 @@ async def close_modules_service() -> None:
         await _modules_http_client.close()
         _modules_http_client = None
     _modules_service_singleton = None
-
-
