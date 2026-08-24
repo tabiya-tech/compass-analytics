@@ -10,6 +10,7 @@ import { SocialAuth } from "@/auth/components/SocialAuth";
 import { routerPaths } from "@/app/routerPaths";
 import { AuthApiError } from "@/auth/services/Authentication.service";
 import { AuthenticationServiceFactory } from "@/auth/services/Authentication.service.factory";
+import { UserService } from "@/user/User.service";
 
 const uniqueId = "9f2a7b3c-4d5e-6a7b-8c9d-0e1f2a3b4c5d";
 
@@ -60,7 +61,9 @@ export function Login() {
     setFormError(null);
     setSubmitting(true);
     try {
-      await authService.loginWithGoogle();
+      const credential = await authService.loginWithGoogle();
+      const token = await credential.user.getIdToken();
+      await UserService.getInstance().register(token);
       navigate(routerPaths.ROOT);
     } catch {
       setFormError(t("auth.errors.generic"));
