@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.analytics.dependencies import close_reach_service
+from app.analytics.dependencies import close_modules_service, close_reach_service
 from app.analytics.routes import add_analytics_routes
 from app.app_config import ApplicationConfig, set_application_config
 from app.auth.api_key import ExternalService
@@ -96,6 +96,7 @@ async def lifespan(_app: FastAPI):
     logger.info("Startup complete.")
     yield
     await close_reach_service()
+    await close_modules_service()
     AnalyticsDBProvider.clear_cache()
     logger.info("Shutdown complete.")
 
