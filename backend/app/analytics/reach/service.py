@@ -2,8 +2,9 @@ import logging
 from abc import ABC, abstractmethod
 
 from app.analytics.reach.repository import IReachRepository
-from app.analytics.reach.types import AnalyticsFilters, ReachResponse
+from app.analytics.reach.types import ReachResponse
 from app.auth.firebase import UserInfo
+from app.shared.filters import AnalyticsFilters
 from app.users.service import IUserService
 
 logger = logging.getLogger(__name__)
