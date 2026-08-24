@@ -127,6 +127,11 @@ def _prepare_environment_deployment(*,
 
     write_config_to_pulumi_yaml_file(
         stack_name=environment.stack_name,
+        module=IaCModules.AUTH,
+        content=stack_configs.auth)
+
+    write_config_to_pulumi_yaml_file(
+        stack_name=environment.stack_name,
         module=IaCModules.BACKEND,
         content=stack_configs.backend)
 

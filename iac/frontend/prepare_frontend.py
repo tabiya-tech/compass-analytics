@@ -12,7 +12,8 @@ repo_dir = os.path.abspath(os.path.join(iac_folder, '..'))
 # so that we can import the iac/lib module when we run pulumi from within the iac/frontend directory.
 sys.path.insert(0, iac_folder)
 
-from lib import getenv
+from lib import getenv, get_pulumi_stack_outputs
+from scripts._types import IaCModules
 
 # Where the Vite build outputs
 _frontend_src_dir = os.path.join(repo_dir, "frontend")
@@ -41,6 +42,12 @@ def _build_frontend(*, stack_name: str, dot_env_path: str) -> None:
                     continue
                 key, _, value = line.partition("=")
                 build_env[key.strip()] = value.strip()
+
+    auth_outputs = get_pulumi_stack_outputs(stack_name, IaCModules.AUTH.value)
+    env_outputs = get_pulumi_stack_outputs(stack_name, IaCModules.ENVIRONMENT.value)
+    build_env["VITE_FIREBASE_API_KEY"] = auth_outputs["identity_platform_client_api_key"].value
+    build_env["VITE_FIREBASE_AUTH_DOMAIN"] = auth_outputs["firebase_auth_domain"].value
+    build_env["VITE_FIREBASE_PROJECT_ID"] = env_outputs["project_id"].value
 
     subprocess.run(
         ["yarn", "build"],

@@ -16,6 +16,7 @@ class IaCModules(Enum):
     ENVIRONMENT = "environment"
 
     DNS = "dns"
+    AUTH = "auth"
     BACKEND = "backend"
     FRONTEND = "frontend"
     COMMON = "common"
@@ -76,6 +77,7 @@ class StackConfigs:
     environment_pulumi_config: Mapping[str, Any]
     """Raw 'environment' section from the stack-config secret, written as-is to Pulumi.<stack>.yaml."""
     dns: Mapping[str, Any]
+    auth: Mapping[str, Any]
     backend: Mapping[str, Any]
     frontend: Mapping[str, Any]
     common: Mapping[str, Any]
@@ -97,6 +99,7 @@ class StackConfigs:
             environment=environment,
             environment_pulumi_config=_dict[IaCModules.ENVIRONMENT.value],
             dns=_dict[IaCModules.DNS.value],
+            auth=_dict[IaCModules.AUTH.value],
             backend=_dict[IaCModules.BACKEND.value],
             frontend=_dict[IaCModules.FRONTEND.value],
             common=_dict[IaCModules.COMMON.value],

@@ -18,6 +18,10 @@ dns:
   config:
     gcp:region: europe-west1
 
+auth:
+  config:
+    gcp:region: europe-west1
+
 frontend:
   config:
     gcp:region: europe-west1
