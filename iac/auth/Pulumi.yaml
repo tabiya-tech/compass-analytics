@@ -1,0 +1,4 @@
+name: analytics-auth
+runtime:
+  name: python
+description: Tabiya Compass Analytics Firebase/Identity Platform auth

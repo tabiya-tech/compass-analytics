@@ -9,6 +9,7 @@ import pulumiverse_time as time
 from lib.std_pulumi import enable_services, get_resource_name, int_to_base36
 
 from dns import REQUIRED_SERVICES as DNS_SERVICES
+from auth import REQUIRED_SERVICES as AUTH_SERVICES
 from backend import REQUIRED_SERVICES as BACKEND_SERVICES
 from common import REQUIRED_SERVICES as COMMON_SERVICES
 from frontend import REQUIRED_SERVICES as FRONTEND_SERVICES
@@ -29,7 +30,7 @@ BASE_SERVICES = [
 ]
 
 # merge the required services of all the modules with the base services by retaining only the unique services
-SERVICES_TO_ENABLE = list(set(BASE_SERVICES + DNS_SERVICES + BACKEND_SERVICES + COMMON_SERVICES + FRONTEND_SERVICES))
+SERVICES_TO_ENABLE = list(set(BASE_SERVICES + DNS_SERVICES + AUTH_SERVICES + BACKEND_SERVICES + COMMON_SERVICES + FRONTEND_SERVICES))
 
 # The initial APIs that must be enabled first in order to enable other GCP APIs
 _INITIAL_APIS = ["serviceusage.googleapis.com",

@@ -233,16 +233,19 @@ def _deploy_environment(stack_name: str):
         # 1.1 Deploy the dns
         run_pulumi_up(stack_name, IaCModules.DNS)
 
-        # 1.2 Deploy the frontend.
+        # 1.2 Deploy auth (Identity Platform / Firebase)
+        run_pulumi_up(stack_name, IaCModules.AUTH)
+
+        # 1.4 Deploy the frontend.
         _deploy_frontend(stack_name)
 
-        # 1.3 Deploy the backend.
+        # 1.5 Deploy the backend.
         _deploy_backend(stack_name)
 
-        # 1.4 Deploy the common
+        # 1.6 Deploy the common
         _deploy_common(stack_name)
 
-        # 1.5 set the necessary tags to the pulumi environment, necessary for the deployment report.
+        # 1.7 set the necessary tags to the pulumi environment, necessary for the deployment report.
         _tag_the_environment_with_deployment_info(stack_name)
 
     except Exception as e:

@@ -13,20 +13,20 @@ main.yml ──▶ frontend-ci + backend-ci (test; on main/[pulumi up]: build + 
                                       ▼ (on main or [pulumi up])
                                   deploy.yml (WIF → prepare.py → up.py)
                                       │
-  ┌──────────┬─────────────┬──────────────┬──────────────┬──────────────┐
-  ▼          ▼             ▼              ▼              ▼              ▼
-realm    environment      dns          backend        frontend       common
-(GCP     (GCP project   (analytics   Cloud Run      GCS bucket    Global LB +
-folder,  per deploy +    .tabiya.tech  + API          + CDN (SPA)  managed SSL +
-AR)      API enable)     zone + sub-   Gateway                     DNS A record
-                         domain)       (JWT auth)
+  ┌──────────┬─────────────┬──────────────┬──────────────┬──────────────┬──────────────┐
+  ▼          ▼             ▼              ▼              ▼              ▼              ▼
+realm    environment      dns           auth          backend        frontend       common
+(GCP     (GCP project   (analytics   (Identity      Cloud Run      GCS bucket    Global LB +
+folder,  per deploy +    .tabiya.tech  Platform /     + API          + CDN (SPA)  managed SSL +
+AR)      API enable)     zone + sub-   Firebase)      Gateway                     DNS A record
+                         domain)                      (JWT auth)
   └──────────────── <deployment>.analytics.tabiya.tech ────────────────────┘
                   /api/* → API Gateway → Cloud Run
                   /*     → frontend bucket
 ```
 
 **Stack naming:** `analytics.<deployment>` in Pulumi org `tabiya-tech`  
-**Pulumi project names:** `analytics-realm`, `analytics-environment`, `analytics-dns`, `analytics-backend`, `analytics-frontend`, `analytics-common`  
+**Pulumi project names:** `analytics-realm`, `analytics-environment`, `analytics-dns`, `analytics-auth`, `analytics-backend`, `analytics-frontend`, `analytics-common`  
 **Artifact Registry:** docker repo (`analytics-backend:<branch>-<sha>`) and generic repo (`frontend-build.tar.gz`) live in the realm's root project.
 
 ---
@@ -209,7 +209,7 @@ Record the WIF provider resource name and SA emails — you will need them in th
 Create stacks for each deployment (repeat for each new deployment, e.g. `zambia`, `mozambique`):
 
 ```bash
-for MODULE in environment dns backend frontend common; do
+for MODULE in environment dns auth backend frontend common; do
   cd iac/$MODULE
   pulumi stack init analytics.zambia
   cd -
@@ -292,7 +292,7 @@ For each targeted deployment:
 
 ### What `up.py` does
 
-Runs `pulumi up` in order: `environment → dns → frontend → backend → common`, then smoke-tests:
+Runs `pulumi up` in order: `environment → dns → auth → frontend → backend → common`, then smoke-tests:
 - `GET https://<deployment>.analytics.tabiya.tech/api/version` — checks SHA matches the deployed commit
 - `GET https://<deployment>.analytics.tabiya.tech/data/version.json` — checks frontend version
 
