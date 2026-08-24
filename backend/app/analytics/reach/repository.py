@@ -3,7 +3,8 @@ from abc import ABC, abstractmethod
 
 import sentry_sdk
 
-from app.analytics.reach.types import AnalyticsFilters, ReachResponse, ReachSummary
+from app.analytics.reach.types import ReachResponse, ReachSummary
+from app.shared.filters import AnalyticsFilters
 from common_libs.http_client.base import AsyncHttpClient, HttpClientError
 
 logger = logging.getLogger(__name__)
@@ -44,17 +45,8 @@ class CompassReachRepository(IReachRepository):
         self._client = http_client
 
     async def get_reach(self, institution_ids: list[str] | None, filters: AnalyticsFilters) -> ReachResponse:
-        params: dict = {
-            "start_date": filters.start_date.isoformat(),
-            "end_date": filters.end_date.isoformat(),
-            "granularity": filters.granularity,
-        }
-        if institution_ids:
-            params["institution_ids"] = ",".join(institution_ids)
-        if filters.audience_segment:
-            params["audience_segment"] = filters.audience_segment
-        if filters.login_method:
-            params["login_method"] = filters.login_method
+        # The shared contract owns the wire format — see AnalyticsFilters.to_upstream_params.
+        params = filters.to_upstream_params(institution_ids)
 
         try:
             data = await self._client.get("/analytics/reach", params=params)

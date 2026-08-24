@@ -14,10 +14,16 @@ control what the repository's http client receives. Tests that expect empty
 data simply let the transport raise a connection error (API unavailable).
 """
 import json
+from typing import get_args
 
 import httpx
 import jwt as pyjwt
 import pytest
+
+from app.shared.filters import AudienceSegment
+
+# Taken from the shared contract rather than restated, so this test follows the vocabulary.
+_A_VALID_AUDIENCE_SEGMENT = get_args(AudienceSegment)[0]
 
 _TEST_SECRET = "test-secret-key-long-enough-for-hs256"  # nosec B105 — HS256 signing key for forged test JWTs, not a credential
 
@@ -76,6 +82,33 @@ async def client_with_data(make_reach_client):
 @pytest.fixture()
 async def client_no_api(make_reach_client):
     return await make_reach_client(_make_mock_transport(None))
+
+
+class _RecordingTransport(httpx.MockTransport):
+    """Answers with the stub payload and keeps the upstream request, so a test can assert
+    on the query string the filters were forwarded as."""
+
+    def __init__(self):
+        self.request: httpx.Request | None = None
+        body = json.dumps(_STUB_REACH_PAYLOAD).encode()
+
+        def handler(request):
+            self.request = request
+            return httpx.Response(200, content=body, headers={"content-type": "application/json"})
+
+        super().__init__(handler)
+
+    @property
+    def upstream_params(self) -> dict[str, str]:
+        assert self.request is not None, "upstream was never called"
+        return dict(self.request.url.params)
+
+
+@pytest.fixture()
+async def recording_upstream(make_reach_client):
+    """Yields (client, transport) so a test can call the endpoint and read what upstream saw."""
+    transport = _RecordingTransport()
+    return await make_reach_client(transport), transport
 
 
 class TestReachAuth:
@@ -216,3 +249,90 @@ class TestReachValidation:
 
         # THEN expect a validation error
         assert actual_response.status_code == 422
+
+    async def test_should_return_422_when_start_date_is_after_end_date(self, client_with_data):
+        # GIVEN a range whose start date falls after its end date
+        given_url = _reach_url("2026-06-30", "2026-01-01")
+
+        # WHEN the reach endpoint is called with that range
+        actual_response = await client_with_data.get(given_url, headers=_AUTH_HEADER)
+
+        # THEN expect a validation error
+        assert actual_response.status_code == 422
+        # AND the message to say which rule was broken, not just that something was invalid
+        assert "start_date must be on or before end_date" in actual_response.text
+
+    async def test_should_return_422_for_an_invalid_audience_segment(self, client_with_data):
+        # GIVEN an audience segment outside the shared vocabulary
+        given_url = _reach_url("2026-01-01", "2026-06-30", audience_segment="not-a-real-segment")
+
+        # WHEN the reach endpoint is called with it
+        actual_response = await client_with_data.get(given_url, headers=_AUTH_HEADER)
+
+        # THEN expect a validation error
+        assert actual_response.status_code == 422
+
+    async def test_should_return_422_for_an_invalid_login_method(self, client_with_data):
+        # GIVEN a login method outside the shared vocabulary
+        given_url = _reach_url("2026-01-01", "2026-06-30", login_method="facebook")
+
+        # WHEN the reach endpoint is called with it
+        actual_response = await client_with_data.get(given_url, headers=_AUTH_HEADER)
+
+        # THEN expect a validation error
+        assert actual_response.status_code == 422
+
+
+class TestFilterForwarding:
+    """The shared contract parses the filters once and forwards them unchanged."""
+
+    async def test_should_forward_every_given_filter_to_upstream_unchanged(self, recording_upstream):
+        # GIVEN a request that uses every filter the contract accepts
+        client, transport = recording_upstream
+        given_url = _reach_url(
+            "2026-01-01",
+            "2026-06-30",
+            granularity="week",
+            audience_segment=_A_VALID_AUDIENCE_SEGMENT,
+            login_method="google",
+            institution_id="inst-1",
+        )
+
+        # WHEN the reach endpoint is called
+        await client.get(given_url, headers=_AUTH_HEADER)
+
+        # THEN upstream receives each filter with the value that was sent in
+        actual_params = transport.upstream_params
+        assert actual_params["start_date"] == "2026-01-01"
+        assert actual_params["end_date"] == "2026-06-30"
+        assert actual_params["granularity"] == "week"
+        assert actual_params["audience_segment"] == _A_VALID_AUDIENCE_SEGMENT
+        assert actual_params["login_method"] == "google"
+
+    async def test_should_send_no_value_upstream_for_an_omitted_optional_filter(self, recording_upstream):
+        # GIVEN a request that omits every optional filter
+        client, transport = recording_upstream
+
+        # WHEN the reach endpoint is called
+        await client.get(_reach_url("2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)
+
+        # THEN upstream is sent only the required filters — an omitted one is absent, not empty
+        assert transport.upstream_params == {
+            "start_date": "2026-01-01",
+            "end_date": "2026-06-30",
+            "granularity": "month",
+        }
+
+    async def test_should_forward_the_resolved_scope_rather_than_the_requested_institution(self, recording_upstream):
+        # GIVEN a request drilling down to one institution
+        client, transport = recording_upstream
+        given_url = _reach_url("2026-01-01", "2026-06-30", institution_id="inst-1")
+
+        # WHEN the reach endpoint is called
+        await client.get(given_url, headers=_AUTH_HEADER)
+
+        # THEN upstream is told the scope the service resolved from the caller's grant
+        actual_params = transport.upstream_params
+        assert actual_params["institution_ids"] == "inst-1"
+        # AND never the unchecked ask itself
+        assert "institution_id" not in actual_params
