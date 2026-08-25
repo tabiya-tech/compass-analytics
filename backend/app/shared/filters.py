@@ -17,7 +17,7 @@ from collections.abc import Mapping
 from datetime import date
 from typing import Annotated, Any, ClassVar, Literal, TypeVar
 
-from fastapi import Query
+from fastapi import Depends, Query
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
@@ -157,8 +157,32 @@ def verify_basic_filters(
         raise InvalidFiltersError(exc.errors()) from exc
 
 
+def _analytics_filters_dep(
+    start_date: date = Query(..., description="Inclusive start of the reporting window (yyyy-MM-dd)"),
+    end_date: date = Query(..., description="Inclusive end of the reporting window (yyyy-MM-dd)"),
+    granularity: Granularity = Query(..., description="Size of each time bucket in the returned series"),
+    audience_segment: AudienceSegment | None = Query(default=None, description="Narrow to one audience segment"),
+    login_method: LoginMethod | None = Query(default=None, description="Narrow to one sign-in method"),
+    institution_id: str | None = Query(
+        default=None,
+        description="Drill down to a single institution. Omitted means every institution the caller may see.",
+    ),
+) -> AnalyticsFilters:
+    try:
+        return AnalyticsFilters(
+            start_date=start_date,
+            end_date=end_date,
+            granularity=granularity,
+            audience_segment=audience_segment,
+            login_method=login_method,
+            institution_id=institution_id,
+        )
+    except ValidationError as exc:
+        raise InvalidFiltersError(exc.errors()) from exc
+
+
 #: What a route annotates its filters argument with, e.g.
-#: ``async def get_reach(filters: AnalyticsFiltersDep, ...)``. FastAPI reads the model's
-#: fields as query parameters and turns any validation failure into a 422 itself, so no
-#: route needs a hand-written parsing dependency.
-AnalyticsFiltersDep = Annotated[AnalyticsFilters, Query()]
+#: ``async def get_reach(filters: AnalyticsFiltersDep, ...)``. FastAPI resolves this via
+#: a Depends() function that declares each field as an individual Query param — so OpenAPI 3
+#: emits typed non-body parameters that the Swagger 2.0 converter in the IAC stack can handle.
+AnalyticsFiltersDep = Annotated[AnalyticsFilters, Depends(_analytics_filters_dep)]
