@@ -10,10 +10,12 @@ import {
   CHART_PROGRESS_DONE_COLOR,
   seriesColorAt,
 } from "@/components/charts/chart-palette";
-import { formatNumber } from "@/components/charts/chart-scale";
+import { formatMinutesDuration, formatNumber } from "@/components/charts/chart-scale";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Panel } from "@/components/shared/Panel";
 import { StatTile } from "@/components/shared/StatTile";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import type {
   BuildYourProfileMetrics,
   CareerExplorerMetrics,
@@ -28,6 +30,8 @@ export const DATA_TEST_ID = {
   CONTAINER: `module-body-container-${uniqueId}`,
   PANEL: `module-body-panel-${uniqueId}`,
   SUB_MODULE: `module-body-sub-module-${uniqueId}`,
+  DEGRADED: `module-body-degraded-${uniqueId}`,
+  LOADING: `module-body-loading-${uniqueId}`,
 };
 
 export interface ModuleBodyProps {
@@ -35,11 +39,36 @@ export interface ModuleBodyProps {
   isLoading?: boolean;
 }
 
+/** Shown while the very first fetch is still pending, before there's anything real to display. */
+function BuildYourProfileSkeleton() {
+  return (
+    <div data-testid={DATA_TEST_ID.LOADING} className="grid gap-6">
+      <div className="grid gap-6 sm:grid-cols-2">
+        <Skeleton className="h-36 rounded-card" />
+        <Skeleton className="h-36 rounded-card" />
+      </div>
+      <Skeleton className="h-96 rounded-card" />
+    </div>
+  );
+}
+
 function BuildYourProfileBody({
   metrics,
   isLoading,
 }: Readonly<{ metrics: BuildYourProfileMetrics; isLoading: boolean }>) {
   const { t } = useTranslation();
+
+  // A zeroed fallback shown as real would read as "nobody uses this" — show the gap instead.
+  // `degraded` covers both still-loading and a settled failure; isLoading picks which to render.
+  if (metrics.degraded) {
+    if (isLoading) return <BuildYourProfileSkeleton />;
+    // EmptyState already renders role="status" — no need for a second, conflicting live-region role here.
+    return (
+      <div data-testid={DATA_TEST_ID.DEGRADED}>
+        <EmptyState message={t("modules.buildYourProfile.degraded")} />
+      </div>
+    );
+  }
 
   const stages = metrics.phases.map((phase) => ({
     id: phase.id,
@@ -49,7 +78,14 @@ function BuildYourProfileBody({
 
   return (
     <div className="grid gap-6">
-      <div className="grid gap-6 sm:grid-cols-2">
+      {/* Dims during a refetch, like Panel below, rather than swapping to a skeleton. */}
+      <div
+        aria-busy={isLoading || undefined}
+        className={cn(
+          "grid gap-6 sm:grid-cols-2 transition-opacity duration-(--duration-base)",
+          isLoading && "opacity-60"
+        )}
+      >
         <StatTile
           label={t("modules.buildYourProfile.tiles.cvsGenerated.label")}
           value={formatNumber(metrics.cvsGenerated)}
@@ -60,9 +96,7 @@ function BuildYourProfileBody({
         />
         <StatTile
           label={t("modules.buildYourProfile.tiles.avgTime.label")}
-          value={t("modules.buildYourProfile.tiles.avgTime.value", {
-            minutes: metrics.averageMinutesToComplete.toFixed(1),
-          })}
+          value={formatMinutesDuration(metrics.averageMinutesToComplete)}
           icon={<Clock />}
           caption={t("modules.buildYourProfile.tiles.avgTime.caption", { target: metrics.targetMinutes })}
         />
@@ -78,6 +112,7 @@ function BuildYourProfileBody({
           label={t("modules.buildYourProfile.funnel.title")}
           stages={stages}
           valueCaption={t("modules.buildYourProfile.funnel.valueCaption")}
+          dropOffCaption={t("charts.funnel.dropOff")}
         />
       </Panel>
     </div>

@@ -16,14 +16,14 @@ const BUILD_YOUR_PROFILE: BuildYourProfileMetrics = {
   cvsGenerated: 502,
   cvsGeneratedSharePercentage: 28,
   averageMinutesToComplete: 12,
-  targetMinutes: 15,
+  targetMinutes: 30,
   phases: [
     { id: "intro", reached: 1798 },
     { id: "experiences", reached: 1546 },
     { id: "skills", reached: 1150 },
-    { id: "review", reached: 718 },
     { id: "completed", reached: 502 },
   ],
+  degraded: false,
 };
 
 const JOB_READINESS: JobReadinessMetrics = {
@@ -100,10 +100,31 @@ export const BuildYourProfileSlowAndLeaky: Story = {
         { id: "intro", reached: 1798 },
         { id: "experiences", reached: 604 },
         { id: "skills", reached: 380 },
-        { id: "review", reached: 180 },
         { id: "completed", reached: 96 },
       ],
     },
+  },
+};
+
+export const BuildYourProfileDegraded: Story = {
+  args: { metrics: { ...BUILD_YOUR_PROFILE, cvsGenerated: 0, phases: [], degraded: true } },
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.getByText(
+        "Build Your Profile figures aren't available right now — the upstream data source didn't respond."
+      )
+    ).toBeVisible();
+    // No zeroed stat tile in its place — that would misread as real, bad news rather than a fetch failure.
+    await expect(canvas.queryByText("CVs generated")).not.toBeInTheDocument();
+  },
+};
+
+export const BuildYourProfileFirstLoad: Story = {
+  args: { metrics: { ...BUILD_YOUR_PROFILE, cvsGenerated: 0, phases: [], degraded: true }, isLoading: true },
+  play: async ({ canvas }) => {
+    // A skeleton, not the "unavailable" message — that's reserved for a settled failure, not a pending one.
+    await expect(canvas.queryByText("Build Your Profile figures aren't available right now")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("CVs generated")).not.toBeInTheDocument();
   },
 };
 

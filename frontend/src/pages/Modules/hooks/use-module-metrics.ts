@@ -1,8 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useAccess, type AccessScope, type ModuleId } from "@/access/AccessContext";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MODULE_IDS, useAccess, type AccessScope, type ModuleId } from "@/access/AccessContext";
 import { useFilters } from "@/filters/FiltersContext";
-import type { FiltersState } from "@/filters/filters";
-import type { ModuleMetricsRequest, ModuleMetricsResponse } from "@/pages/Modules/types";
+import { createFixedModulesDateRange, type FiltersState } from "@/filters/filters";
+import {
+  toBuildYourProfileMetrics,
+  unavailableBuildYourProfileMetrics,
+  useBuildYourProfile,
+} from "@/pages/Modules/hooks/use-build-your-profile";
+import type { BuildYourProfileMetrics, ModuleMetricsRequest, ModuleMetricsResponse } from "@/pages/Modules/types";
 import { ModuleMetricsService } from "@/pages/Modules/services/ModuleMetrics.service";
 
 export interface ModuleMetricsState {
@@ -13,6 +18,8 @@ export interface ModuleMetricsState {
 
 export interface ModuleMetricsResult extends ModuleMetricsState {
   reload: () => void; // refetches the current selection — what the error state's retry calls
+  /** Build Your Profile has its own separate fetch, so its own loading can outlast the rest's. */
+  buildYourProfileIsLoading: boolean;
 }
 
 export interface UseModuleMetricsOptions {
@@ -35,7 +42,8 @@ export function toModuleMetricsRequest(
   return {
     institutions,
     modules: activeModules,
-    dateRange: filters.dateRange,
+    // No filter on the Modules screen yet — a fixed trailing year stands in until one ships.
+    dateRange: createFixedModulesDateRange(),
     audienceSegment: filters.audienceSegment,
     loginMethod: filters.loginMethod,
   };
@@ -77,5 +85,41 @@ export function useModuleMetrics({ enabled = true }: UseModuleMetricsOptions = {
     return () => controller.abort();
   }, [request, service, attempt, enabled]);
 
-  return { ...state, reload };
+  // reloadToken lets reload() retry this fetch too, not just the one above.
+  const buildYourProfileEnabled = enabled && activeModules.includes(MODULE_IDS.BUILD_YOUR_PROFILE);
+  const buildYourProfile = useBuildYourProfile({ enabled: buildYourProfileEnabled, reloadToken: attempt });
+
+  const lastRealBuildYourProfile = useRef<BuildYourProfileMetrics | null>(null);
+  if (buildYourProfile.status === "success") {
+    lastRealBuildYourProfile.current = toBuildYourProfileMetrics(buildYourProfile.data);
+  }
+
+  const metrics = useMemo<ModuleMetricsResponse | null>(() => {
+    if (!state.metrics) return null;
+    if (!buildYourProfileEnabled) return state.metrics;
+
+    // Loading reuses the last real figures if any, else unavailable — never another source's numbers.
+    const buildYourProfileMetrics =
+      buildYourProfile.status === "success"
+        ? toBuildYourProfileMetrics(buildYourProfile.data)
+        : buildYourProfile.status === "error"
+          ? unavailableBuildYourProfileMetrics()
+          : (lastRealBuildYourProfile.current ?? unavailableBuildYourProfileMetrics());
+
+    return {
+      ...state.metrics,
+      modules: state.metrics.modules.map((module) =>
+        module.moduleId === MODULE_IDS.BUILD_YOUR_PROFILE ? buildYourProfileMetrics : module
+      ),
+    };
+  }, [state.metrics, buildYourProfile, buildYourProfileEnabled]);
+
+  // `isLoading` only tracks the shared /metrics fetch; this covers Build Your Profile's own, separate one too.
+  const buildYourProfileIsLoading =
+    state.isLoading || (buildYourProfileEnabled && buildYourProfile.status === "loading");
+  // Build Your Profile shows its own failure inline (the unavailable case above); it doesn't
+  // trigger the page-level error banner other modules failing would.
+  const error = state.error;
+
+  return { metrics, isLoading: state.isLoading, buildYourProfileIsLoading, error, reload };
 }

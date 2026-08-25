@@ -178,7 +178,7 @@ export function Overview() {
       {inlineModule && (
         <section data-testid={DATA_TEST_ID.INLINE_MODULE} data-module={inlineModule.moduleId} className="grid gap-6">
           <ModuleHeader moduleId={inlineModule.moduleId} />
-          <ModuleBody metrics={inlineModule} isLoading={moduleMetrics.isLoading} />
+          <ModuleBody metrics={inlineModule} isLoading={moduleMetrics.buildYourProfileIsLoading} />
         </section>
       )}
     </div>

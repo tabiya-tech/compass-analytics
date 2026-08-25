@@ -479,7 +479,7 @@
   "modules": {
     "eyebrow": "Modules",
     "title": "Module-based analytics",
-    "description": "Jump to any module from the bar below.",
+    "description": "{{range}}",
     "error": "We couldn't load the module metrics.",
     "timeline": {
       "label": "Modules",
@@ -505,6 +505,7 @@
       }
     },
     "buildYourProfile": {
+      "degraded": "Build Your Profile figures aren't available right now — the upstream data source didn't respond.",
       "tiles": {
         "cvsGenerated": {
           "label": "CVs generated",
@@ -512,7 +513,6 @@
         },
         "avgTime": {
           "label": "Avg time to complete",
-          "value": "{{minutes}}m",
           "caption": "target {{target}}m"
         }
       },
@@ -524,7 +524,6 @@
           "intro": "Intro",
           "experiences": "Experiences",
           "skills": "Skills",
-          "review": "Review",
           "completed": "Completed"
         }
       }

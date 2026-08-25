@@ -21,14 +21,14 @@ const BUILD_YOUR_PROFILE: BuildYourProfileMetrics = {
   cvsGenerated: 502,
   cvsGeneratedSharePercentage: 28,
   averageMinutesToComplete: 12,
-  targetMinutes: 15,
+  targetMinutes: 30,
   phases: [
     { id: "intro", reached: 1798 },
     { id: "experiences", reached: 1546 },
     { id: "skills", reached: 1150 },
-    { id: "review", reached: 718 },
     { id: "completed", reached: 502 },
   ],
+  degraded: false,
 };
 
 const JOB_READINESS: JobReadinessMetrics = {
@@ -91,14 +91,14 @@ describe("ModuleBody for Build Your Profile", () => {
   });
 
   it("should report how long the conversation takes, against the target it is held to", () => {
-    // GIVEN a 12-minute average against a 15-minute target
+    // GIVEN a 12-minute average against a 30-minute target
     // WHEN the body is rendered
     render(<ModuleBody metrics={BUILD_YOUR_PROFILE} />);
 
     // THEN the tile carries both figures
     const actualTile = within(tileNamed("Avg time to complete"));
     expect(actualTile.getByTestId(STAT_TILE_TEST_ID.VALUE)).toHaveTextContent("12.0m");
-    expect(actualTile.getByTestId(STAT_TILE_TEST_ID.CAPTION)).toHaveTextContent("target 15m");
+    expect(actualTile.getByTestId(STAT_TILE_TEST_ID.CAPTION)).toHaveTextContent("target 30m");
   });
 
   it("should plot how far people get through the conversation, phase by phase", () => {
@@ -108,13 +108,7 @@ describe("ModuleBody for Build Your Profile", () => {
 
     // THEN every phase is plotted, in the order they are reached and named in the reader's language
     const actualStages = screen.getAllByTestId(FUNNEL_TEST_ID.STAGE);
-    expect(actualStages.map((stage) => stage.dataset.stage)).toEqual([
-      "intro",
-      "experiences",
-      "skills",
-      "review",
-      "completed",
-    ]);
+    expect(actualStages.map((stage) => stage.dataset.stage)).toEqual(["intro", "experiences", "skills", "completed"]);
     expect(actualStages[1]).toHaveTextContent("Experiences");
     // AND the panel says what the funnel measures, and against what
     expect(screen.getByRole("heading", { level: 2, name: "Conversation funnel" })).toBeInTheDocument();
@@ -129,6 +123,31 @@ describe("ModuleBody for Build Your Profile", () => {
     // THEN the funnel says so, and the tiles still report their zeroes
     expect(screen.getByTestId(FUNNEL_TEST_ID.EMPTY)).toHaveTextContent("No data to show for this selection.");
     expect(within(tileNamed("CVs generated")).getByTestId(STAT_TILE_TEST_ID.VALUE)).toHaveTextContent("0");
+  });
+
+  it("should say the figures are unavailable rather than show zeroes when the upstream call failed", () => {
+    // GIVEN a degraded response — the upstream call failed, so these zeroes aren't real counts
+    // WHEN the body is rendered
+    render(<ModuleBody metrics={{ ...BUILD_YOUR_PROFILE, cvsGenerated: 0, phases: [], degraded: true }} />);
+
+    // THEN the screen says the data is unavailable, not that nobody used the module
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Build Your Profile figures aren't available right now — the upstream data source didn't respond."
+    );
+    // AND no zeroed tile or funnel is shown in its place — that would misread as real, bad news
+    expect(screen.queryByText("CVs generated")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Conversation funnel" })).not.toBeInTheDocument();
+  });
+
+  it("should show a loading skeleton, not the unavailable message or fabricated zeroes, while the very first fetch is still pending", () => {
+    // GIVEN a degraded (no-real-data-yet) response that's still loading — this is what the very
+    // first fetch looks like before it settles, not yet a confirmed failure
+    render(<ModuleBody metrics={{ ...BUILD_YOUR_PROFILE, cvsGenerated: 0, phases: [], degraded: true }} isLoading />);
+
+    // THEN a skeleton shows, not the "unavailable" message (that's only for a settled failure)
+    expect(screen.getByTestId(DATA_TEST_ID.LOADING)).toBeInTheDocument();
+    expect(screen.queryByTestId(DATA_TEST_ID.DEGRADED)).not.toBeInTheDocument();
+    expect(screen.queryByText("CVs generated")).not.toBeInTheDocument();
   });
 });
 

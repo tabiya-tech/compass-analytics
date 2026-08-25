@@ -1,16 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { Route, Routes } from "react-router-dom";
 import { render, screen, userEvent, waitFor, within } from "@/_test_utilities/test-utils";
+import type { BuildYourProfileResponse } from "@/analytics/analytics.types";
 import { server } from "@/mocks/server";
 import { AccessProvider, MODULE_IDS, type AccessScope, type ModuleId } from "@/access/AccessContext";
 import { FiltersProvider } from "@/filters/FiltersContext";
-import { createInitialFilters, type FiltersState } from "@/filters/filters";
+import { createFixedModulesDateRange, createInitialFilters, type FiltersState } from "@/filters/filters";
 import { routerPaths } from "@/app/routerPaths";
 import { DATA_TEST_ID as SCREEN_HEAD_TEST_ID } from "@/components/shared/ScreenHead";
 import { DATA_TEST_ID as EMPTY_STATE_TEST_ID } from "@/components/shared/EmptyState";
 import { DATA_TEST_ID as TIMELINE_TEST_ID } from "@/pages/Modules/components/ModuleTimeline";
+import { DATA_TEST_ID as MODULE_BODY_TEST_ID } from "@/pages/Modules/components/ModuleBody";
 import { MODULES_API_BASE } from "@/pages/Modules/services/ModuleMetrics.service";
+import { formatDateRangeLabel } from "@/pages/Overview/utils";
 import { Modules, DATA_TEST_ID } from "./Modules";
 
 /** A fixed year-long window, so the mocked figures are stable. */
@@ -18,6 +21,24 @@ const GIVEN_FILTERS: FiltersState = {
   ...createInitialFilters(new Date(2026, 6, 7)),
   dateRange: { start: "2025-07-08", end: "2026-07-07" },
   granularity: "month",
+};
+
+/** A value distinct from anything the mock generator itself produces, to tell "the real endpoint answered" apart from "stale mock data is still showing". */
+const BUILD_YOUR_PROFILE_RECOVERED: BuildYourProfileResponse = {
+  summary: {
+    started_users: 900,
+    started_percentage: 50,
+    completed_users: 777,
+    avg_completion_minutes: 9,
+  },
+  series: [],
+  phases: [
+    { id: "intro", reached: 900 },
+    { id: "experiences", reached: 850 },
+    { id: "skills", reached: 820 },
+    { id: "completed", reached: 790 },
+  ],
+  degraded: false,
 };
 
 const ONE_INSTITUTION: AccessScope = { type: "institutions", institutionIds: ["inst-1"] };
@@ -66,12 +87,11 @@ describe("Modules screen", () => {
     // WHEN the screen loads
     renderModules();
 
-    // THEN it is headed as the modules screen
+    // THEN it is headed as the modules screen, naming the rolling trailing year the figures cover
     expect(await screen.findByTestId(SCREEN_HEAD_TEST_ID.TITLE)).toHaveTextContent("Module-based analytics");
     expect(screen.getByTestId(SCREEN_HEAD_TEST_ID.EYEBROW)).toHaveTextContent("Modules");
-    expect(screen.getByTestId(SCREEN_HEAD_TEST_ID.DESCRIPTION)).toHaveTextContent(
-      "Jump to any module from the bar below."
-    );
+    const expectedRange = formatDateRangeLabel(createFixedModulesDateRange());
+    expect(screen.getByTestId(SCREEN_HEAD_TEST_ID.DESCRIPTION)).toHaveTextContent(expectedRange);
   });
 
   it("should show a body per deployed module, in the deployment's own order", async () => {
@@ -184,5 +204,57 @@ describe("Modules screen", () => {
 
     // THEN the figures arrive
     await waitFor(() => expect(screen.getAllByTestId(DATA_TEST_ID.SECTION)).toHaveLength(4));
+  });
+
+  it("should show a skeleton for Build Your Profile while its own endpoint is still loading, not the mock's fabricated numbers", async () => {
+    // GIVEN Build Your Profile's real endpoint hasn't answered yet, while the rest load fine
+    server.use(http.get(`${MODULES_API_BASE}/build-your-profile`, async () => await delay("infinite")));
+
+    // WHEN the screen loads
+    renderModules();
+
+    // THEN the other three modules' figures are already up...
+    await waitFor(() => expect(screen.getAllByTestId(DATA_TEST_ID.SECTION)).toHaveLength(4));
+    // ...but Build Your Profile shows a loading skeleton, not the mock's own (fabricated) numbers
+    expect(screen.getByTestId(MODULE_BODY_TEST_ID.LOADING)).toBeInTheDocument();
+    expect(screen.queryByText("CVs generated")).not.toBeInTheDocument();
+  });
+
+  it("should say Build Your Profile's figures are unavailable, not show fabricated numbers, when its own endpoint fails", async () => {
+    // GIVEN the rest of the deployment's figures load fine, but Build Your Profile's real endpoint fails
+    server.use(http.get(`${MODULES_API_BASE}/build-your-profile`, () => new HttpResponse(null, { status: 500 })));
+
+    // WHEN the screen loads
+    renderModules();
+    await waitFor(() => expect(screen.getAllByTestId(DATA_TEST_ID.SECTION)).toHaveLength(4));
+
+    // THEN Build Your Profile says its figures are unavailable — not the mock's fabricated numbers.
+    // findBy* waits for its own fetch to settle rather than assuming it already has by this point.
+    expect(await screen.findByTestId(MODULE_BODY_TEST_ID.DEGRADED)).toHaveTextContent(
+      "Build Your Profile figures aren't available right now"
+    );
+    // AND the rest of the page isn't told there's an error — only this one module's data failed
+    expect(screen.queryByTestId(DATA_TEST_ID.ERROR)).not.toBeInTheDocument();
+  });
+
+  it("should retry Build Your Profile's figures too, not just the other modules', when the page-level retry is taken", async () => {
+    // GIVEN both the mock endpoint and Build Your Profile's real endpoint are failing
+    server.use(
+      http.get(`${MODULES_API_BASE}/metrics`, () => new HttpResponse(null, { status: 500 })),
+      http.get(`${MODULES_API_BASE}/build-your-profile`, () => new HttpResponse(null, { status: 500 }))
+    );
+    renderModules();
+    const actualRetry = await screen.findByRole("button", { name: "Retry" });
+
+    // WHEN both endpoints recover and the retry is taken
+    server.resetHandlers();
+    server.use(
+      http.get(`${MODULES_API_BASE}/build-your-profile`, () => HttpResponse.json(BUILD_YOUR_PROFILE_RECOVERED))
+    );
+    await userEvent.click(actualRetry);
+
+    // THEN Build Your Profile's real figures load too — the retry isn't limited to the mocked modules
+    await waitFor(() => expect(screen.getAllByTestId(DATA_TEST_ID.SECTION)).toHaveLength(4));
+    expect(within(screen.getAllByTestId(DATA_TEST_ID.SECTION)[0]).getByText("777")).toBeInTheDocument();
   });
 });

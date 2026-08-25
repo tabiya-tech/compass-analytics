@@ -13,11 +13,12 @@ import {
   type MockInstitution,
 } from "@/mocks/overview-metrics";
 
-import type {
-  ConversationPhaseId,
-  ModuleMetrics,
-  ModuleMetricsRequest,
-  ModuleMetricsResponse,
+import {
+  BUILD_YOUR_PROFILE_TARGET_MINUTES,
+  type ConversationPhaseId,
+  type ModuleMetrics,
+  type ModuleMetricsRequest,
+  type ModuleMetricsResponse,
 } from "@/pages/Modules/types";
 
 /** The institution the designs are drawn from: its shares are used unmodified, so the screen matches the mockups. */
@@ -36,11 +37,9 @@ const CONVERSATION_PHASE_SHARES: readonly { id: ConversationPhaseId; share: numb
   { id: "intro", share: 1 },
   { id: "experiences", share: 0.8598 },
   { id: "skills", share: 0.6396 },
-  { id: "review", share: 0.3993 },
   { id: "completed", share: 0.2792 },
 ];
 
-const BUILD_YOUR_PROFILE_TARGET_MINUTES = 15;
 /** How long a completed conversation takes, against that target. */
 const BUILD_YOUR_PROFILE_MINUTES = 12;
 
@@ -190,6 +189,7 @@ function metricsFor(moduleId: ModuleId, counts: ModuleCounts): ModuleMetrics {
         averageMinutesToComplete: counts.started > 0 ? oneDecimal(counts.minutesToComplete / counts.started) : 0,
         targetMinutes: BUILD_YOUR_PROFILE_TARGET_MINUTES,
         phases,
+        degraded: false,
       };
     }
     case MODULE_IDS.JOB_READINESS:
