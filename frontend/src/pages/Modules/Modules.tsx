@@ -1,6 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useAccess } from "@/access/AccessContext";
+import { MODULE_IDS, useAccess } from "@/access/AccessContext";
 import { routerPaths } from "@/app/routerPaths";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ScreenHead } from "@/components/shared/ScreenHead";
@@ -10,6 +10,7 @@ import { ModuleHeader } from "@/pages/Modules/components/ModuleHeader";
 import { ModuleTimeline } from "@/pages/Modules/components/ModuleTimeline";
 import { useModuleMetrics } from "@/pages/Modules/hooks/use-module-metrics";
 import { moduleSectionElementId, rendersModulesInline } from "@/pages/Modules/utils";
+import { formatDateRangeLabel } from "@/pages/Overview/utils";
 
 const uniqueId = "2e94b7f0-6a58-4c31-bd27-90e4a1c8536d";
 
@@ -46,7 +47,9 @@ export function Modules() {
   const { t } = useTranslation();
   const { activeModules } = useAccess();
   // Skip fetch on single-module deployments that redirect to Overview.
-  const { metrics, isLoading, error, reload } = useModuleMetrics({ enabled: !rendersModulesInline(activeModules) });
+  const { metrics, isLoading, buildYourProfileIsLoading, error, reload } = useModuleMetrics({
+    enabled: !rendersModulesInline(activeModules),
+  });
 
   if (rendersModulesInline(activeModules)) return <Navigate to={routerPaths.ROOT} replace />;
 
@@ -54,7 +57,13 @@ export function Modules() {
     // The shell's SidebarInset is the page's <main>, so this is a section of it.
     <div data-testid={DATA_TEST_ID.CONTAINER} className="grid content-start gap-8 pb-10">
       <div className={`pt-8 md:pt-10 ${PADDING}`}>
-        <ScreenHead eyebrow={t("modules.eyebrow")} title={t("modules.title")} description={t("modules.description")} />
+        <ScreenHead
+          eyebrow={t("modules.eyebrow")}
+          title={t("modules.title")}
+          description={
+            metrics ? t("modules.description", { range: formatDateRangeLabel(metrics.dateRange) }) : undefined
+          }
+        />
       </div>
 
       {metrics && metrics.modules.length > 0 && (
@@ -92,7 +101,10 @@ export function Modules() {
           className={`grid scroll-mt-36 content-start gap-6 pt-6 ${PADDING}`}
         >
           <ModuleHeader moduleId={module.moduleId} />
-          <ModuleBody metrics={module} isLoading={isLoading} />
+          <ModuleBody
+            metrics={module}
+            isLoading={module.moduleId === MODULE_IDS.BUILD_YOUR_PROFILE ? buildYourProfileIsLoading : isLoading}
+          />
         </section>
       ))}
     </div>

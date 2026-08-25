@@ -32,3 +32,31 @@ export interface ReachResponse {
   summary: ReachSummary;
   series: TimeSeriesPoint[];
 }
+
+export interface BuildYourProfileSummary {
+  started_users: number;
+  started_percentage: number;
+  completed_users: number;
+  avg_completion_minutes: number;
+}
+
+export interface BuildYourProfileSeriesPoint {
+  label: string;
+  started: number;
+  completed: number;
+  skills_reports_generated: number;
+  skills_reports_downloaded: number;
+}
+
+/** One funnel stage: how many distinct users reached at least this far in the conversation. */
+export interface ConversationPhaseReach {
+  id: string;
+  reached: number;
+}
+
+export interface BuildYourProfileResponse {
+  summary: BuildYourProfileSummary;
+  series: BuildYourProfileSeriesPoint[];
+  phases: ConversationPhaseReach[];
+  degraded: boolean;
+}

@@ -12,7 +12,7 @@ export interface ModuleMetricsRequest {
 }
 
 /** The phases of the Build Your Profile conversation, in the order they are reached. */
-export type ConversationPhaseId = "intro" | "experiences" | "skills" | "review" | "completed";
+export type ConversationPhaseId = "intro" | "experiences" | "skills" | "completed";
 
 export interface ConversationPhaseMetric {
   id: ConversationPhaseId;
@@ -24,6 +24,9 @@ interface ModuleMetricsBase {
   startedPercentage: number;
 }
 
+/** A fixed product benchmark, not upstream data — shared by the real fetch and its mock, so a change to one can't silently drift from the other. */
+export const BUILD_YOUR_PROFILE_TARGET_MINUTES = 30;
+
 export interface BuildYourProfileMetrics extends ModuleMetricsBase {
   moduleId: typeof MODULE_IDS.BUILD_YOUR_PROFILE;
   cvsGenerated: number;
@@ -31,6 +34,7 @@ export interface BuildYourProfileMetrics extends ModuleMetricsBase {
   averageMinutesToComplete: number;
   targetMinutes: number;
   phases: readonly ConversationPhaseMetric[];
+  degraded: boolean; // true when the fetch failed, or the backend itself reported a degraded upstream
 }
 
 /** A step within Job Readiness. Which steps a deployment runs is its own configuration, so the name travels with it. */

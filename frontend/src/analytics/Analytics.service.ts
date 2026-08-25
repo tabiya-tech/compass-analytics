@@ -1,4 +1,4 @@
-import type { AnalyticsParams, ReachResponse } from "@/analytics/analytics.types";
+import type { AnalyticsParams, BuildYourProfileResponse, ReachResponse } from "@/analytics/analytics.types";
 
 export const ANALYTICS_API_BASE = "/api";
 
@@ -39,6 +39,17 @@ export class AnalyticsService {
 
   async getReach(params: AnalyticsParams, token: string): Promise<ReachResponse> {
     return this._fetch<ReachResponse>("/reach", token, {
+      start_date: params.start_date,
+      end_date: params.end_date,
+      granularity: params.granularity,
+      audience_segment: params.audience_segment,
+      login_method: params.login_method,
+      institution_id: params.institution_id,
+    });
+  }
+
+  async getBuildYourProfile(params: AnalyticsParams, token: string): Promise<BuildYourProfileResponse> {
+    return this._fetch<BuildYourProfileResponse>("/modules/build-your-profile", token, {
       start_date: params.start_date,
       end_date: params.end_date,
       granularity: params.granularity,

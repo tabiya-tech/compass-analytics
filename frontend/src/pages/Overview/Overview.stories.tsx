@@ -62,6 +62,7 @@ export const SingleModuleDeployment: Story = {
   decorators: [withAccess({ type: "institutions", institutionIds: ["inst-1"] }, [MODULE_IDS.BUILD_YOUR_PROFILE])],
   play: async ({ canvas }) => {
     await waitFor(() => canvas.getByRole("heading", { name: "Are people building their profiles?" }));
-    await expect(canvas.getByRole("heading", { name: "Conversation funnel" })).toBeVisible();
+    // Build Your Profile shows a loading skeleton (no heading yet) until its fetch settles.
+    await waitFor(() => expect(canvas.getByRole("heading", { name: "Conversation funnel" })).toBeVisible());
   },
 };

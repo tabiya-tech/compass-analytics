@@ -39,6 +39,7 @@ export type FiltersPatch = Partial<Pick<FiltersState, "dateRange" | ChipFilterKe
 const DAY_MAX_SPAN_DAYS = 45;
 const WEEK_MAX_SPAN_DAYS = 200;
 const DEFAULT_RANGE_SPAN_DAYS = 30;
+const MODULES_FIXED_RANGE_SPAN_DAYS = 365;
 
 function toUtcDayIndex(isoDate: string): number {
   const [year, month, day] = isoDate.split("-").map(Number);
@@ -77,6 +78,13 @@ export function createInitialFilters(today: Date = new Date()): FiltersState {
     loginMethod: null,
     institutionDrillDownId: null,
   };
+}
+
+/** The Modules screen has no filter of its own yet — a trailing year stands in until one ships. */
+export function createFixedModulesDateRange(today: Date = new Date()): DateRange {
+  const startDate = new Date(today);
+  startDate.setDate(startDate.getDate() - MODULES_FIXED_RANGE_SPAN_DAYS);
+  return { start: toIsoDate(startDate), end: toIsoDate(today) };
 }
 
 /** The chip filters that currently have a value, in the order they should render. */
