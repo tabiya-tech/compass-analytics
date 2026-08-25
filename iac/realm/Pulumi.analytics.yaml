@@ -2,7 +2,7 @@ config:
   gcp:region: europe-west1
   analytics-realm:gcp_billing_account_id: 011D08-E864BF-310CD2
   analytics-realm:gcp_organization_id: "589690021422"
-  analytics-realm:gcp_root_folder_id: "702015652709"
+  analytics-realm:gcp_root_folder_id: "743991337686"
   analytics-realm:gcp_root_project_id: analytics-realm-root
   analytics-realm:gcp_upper_env_google_oauth_projects_folder_id: "130734469018"
   analytics-realm:gcp_lower_env_google_oauth_projects_folder_id: "49556914373"
