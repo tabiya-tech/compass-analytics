@@ -1,7 +1,17 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 # module_key values this backend has an analytics slice for.
-SUPPORTED_MODULE_KEYS: frozenset[str] = frozenset({"build-your-profile"})
+SUPPORTED_MODULE_KEYS: frozenset[str] = frozenset({"build-your-profile", "job-readiness"})
+
+MODULE_KEY_JOB_READINESS: Literal["job-readiness"] = "job-readiness"
+
+# Upstream path for each module_key — add entries here as new keys are supported.
+UPSTREAM_PATH: dict[str, str] = {
+    "build-your-profile": "/analytics/modules/build-your-profile",
+    MODULE_KEY_JOB_READINESS: "/analytics/modules/job-readiness",
+}
 
 
 class BuildYourProfileSummary(BaseModel):
@@ -51,3 +61,20 @@ class BuildYourProfileResponse(BaseModel):
     series: list[BuildYourProfileSeriesPoint]
     phases: list[ConversationPhaseReach]
     degraded: bool
+
+
+class SubModuleProgress(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str
+    name: str
+    started: int = Field(ge=0)
+    completed: int = Field(ge=0)
+
+
+class JobReadinessResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    started_percentage: float = Field(ge=0)
+    sub_modules: list[SubModuleProgress]
+    degraded: bool = False

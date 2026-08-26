@@ -88,3 +88,16 @@ export interface DemographicsResponse {
   charts: DemographicChart[];
   degraded: boolean;
 }
+
+export interface SubModuleProgress {
+  id: string;
+  name: string;
+  started: number;
+  completed: number;
+}
+
+export interface JobReadinessResponse {
+  started_percentage: number;
+  sub_modules: SubModuleProgress[];
+  degraded: boolean;
+}

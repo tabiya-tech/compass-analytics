@@ -1,5 +1,10 @@
 import { http, HttpResponse, type HttpHandler } from "msw";
-import type { BuildYourProfileResponse, DemographicsResponse, ReachResponse } from "@/analytics/analytics.types";
+import type {
+  BuildYourProfileResponse,
+  DemographicsResponse,
+  JobReadinessResponse,
+  ReachResponse,
+} from "@/analytics/analytics.types";
 import type { MeResponse } from "@/user/user.types";
 import { buildOverviewMetrics, parseOverviewMetricsQuery } from "@/mocks/overview-metrics";
 import { buildModuleMetrics, parseModuleMetricsQuery } from "@/mocks/module-metrics";
@@ -156,6 +161,20 @@ export const moduleMetricsHandler = http.get(`${MODULES_API_BASE}/metrics`, ({ r
   return HttpResponse.json(buildModuleMetrics(parseModuleMetricsQuery(query)));
 });
 
+const stubJobReadiness: JobReadinessResponse = {
+  started_percentage: 34.0,
+  sub_modules: [
+    { id: "cv-builder", name: "CV Builder", started: 1_200, completed: 663 },
+    { id: "interview-prep", name: "Interview Prep", started: 1_500, completed: 981 },
+    { id: "workplace-skills", name: "Workplace Skills", started: 1_080, completed: 729 },
+    { id: "digital-basics", name: "Digital Basics", started: 897, completed: 441 },
+  ],
+  degraded: false,
+};
+
+/** Job Readiness module analytics — exported individually so the browser dev worker can include it too. */
+export const jobReadinessHandler = http.get("/api/modules/job-readiness", () => HttpResponse.json(stubJobReadiness));
+
 /** Stands in for the real /api/me — exported individually so the browser dev worker can include it too. */
 export const meHandler = http.get("/api/me", () => HttpResponse.json(stubMe));
 
@@ -171,6 +190,7 @@ export const demographicsHandler = http.get("/api/demographics", () => HttpRespo
 export const handlers: HttpHandler[] = [
   overviewMetricsHandler,
   moduleMetricsHandler,
+  jobReadinessHandler,
   institutionsHandler,
   institutionDetailHandler,
   meHandler,

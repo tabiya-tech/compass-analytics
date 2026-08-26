@@ -3,6 +3,7 @@ import type {
   BuildYourProfileResponse,
   DemographicsParams,
   DemographicsResponse,
+  JobReadinessResponse,
   ReachResponse,
 } from "@/analytics/analytics.types";
 
@@ -70,6 +71,17 @@ export class AnalyticsService {
       start_date: params.start_date,
       end_date: params.end_date,
       granularity: params.granularity,
+      institution_id: params.institution_id,
+    });
+  }
+
+  async getJobReadiness(params: AnalyticsParams, token: string): Promise<JobReadinessResponse> {
+    return this._fetch<JobReadinessResponse>("/modules/job-readiness", token, {
+      start_date: params.start_date,
+      end_date: params.end_date,
+      granularity: params.granularity,
+      audience_segment: params.audience_segment,
+      login_method: params.login_method,
       institution_id: params.institution_id,
     });
   }

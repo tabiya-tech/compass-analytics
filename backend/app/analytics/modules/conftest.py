@@ -58,6 +58,13 @@ def _make_reach_service_stub() -> ReachService:
     )
 
 
+def _make_modules_service(transport) -> ModulesService:
+    return ModulesService(
+        repository=CompassModulesRepository(AsyncHttpClient(base_url="http://compass-mock", transport=transport)),
+        user_service=_FakeUserService(),
+    )
+
+
 def _make_app(monkeypatch, modules_service: ModulesService) -> FastAPI:
     monkeypatch.setenv("TARGET_ENVIRONMENT_TYPE", "local")
     app = FastAPI()
@@ -67,13 +74,6 @@ def _make_app(monkeypatch, modules_service: ModulesService) -> FastAPI:
     app.dependency_overrides[get_reach_service] = _make_reach_service_stub
     app.dependency_overrides[get_grant_repository] = lambda: FakeGrantRepository()
     return app
-
-
-def _make_modules_service(transport) -> ModulesService:
-    return ModulesService(
-        repository=CompassModulesRepository(AsyncHttpClient(base_url="http://compass-mock", transport=transport)),
-        user_service=_FakeUserService(),
-    )
 
 
 @pytest.fixture()

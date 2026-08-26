@@ -8,8 +8,11 @@ from app.analytics.modules.types import (
     BuildYourProfileSummary,
     CompassBuildYourProfilePayload,
     ConversationPhaseReach,
+    JobReadinessResponse,
+    MODULE_KEY_JOB_READINESS,
+    UPSTREAM_PATH,
 )
-from app.analytics.types import AnalyticsFilters
+from app.shared.filters import AnalyticsFilters
 from common_libs.http_client.base import AsyncHttpClient, HttpClientError
 
 logger = logging.getLogger(__name__)
@@ -38,16 +41,26 @@ def _empty_build_your_profile(degraded: bool) -> BuildYourProfileResponse:
     )
 
 
+def _empty_job_readiness() -> JobReadinessResponse:
+    """Graceful zero-response used when the upstream is unavailable."""
+    return JobReadinessResponse(started_percentage=0.0, sub_modules=[], degraded=True)
+
+
 class IModulesRepository(ABC):
     @abstractmethod
     async def get_build_your_profile(
         self, institution_ids: list[str] | None, filters: AnalyticsFilters
     ) -> BuildYourProfileResponse: ...
 
+    @abstractmethod
+    async def get_job_readiness(
+        self, institution_ids: list[str] | None, filters: AnalyticsFilters
+    ) -> JobReadinessResponse: ...
+
 
 class CompassModulesRepository(IModulesRepository):
     """
-    Fetches Build Your Profile module analytics from the Compass upstream.
+    Fetches module analytics from the Compass upstream.
 
     A genuine failure degrades to zeros with `degraded=True`; a legitimately empty response
     degrades to the same zeros but `degraded=False`.
@@ -93,3 +106,30 @@ class CompassModulesRepository(IModulesRepository):
             return _empty_build_your_profile(degraded=True)
 
         return BuildYourProfileResponse(summary=parsed.summary, series=parsed.series, phases=parsed.phases, degraded=False)
+
+    async def get_job_readiness(
+        self, institution_ids: list[str] | None, filters: AnalyticsFilters
+    ) -> JobReadinessResponse:
+        params = filters.to_upstream_params(institution_ids)
+        upstream_path = UPSTREAM_PATH[MODULE_KEY_JOB_READINESS]
+
+        try:
+            data = await self._client.get(upstream_path, params=params)
+        except HttpClientError as exc:
+            logger.warning("Compass modules/%s request failed (%s): %s", MODULE_KEY_JOB_READINESS, exc.status_code, exc)
+            sentry_sdk.capture_exception(exc)
+            return _empty_job_readiness()
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Compass modules/%s request error: %s", MODULE_KEY_JOB_READINESS, exc)
+            sentry_sdk.capture_exception(exc)
+            return _empty_job_readiness()
+
+        if not data:
+            return _empty_job_readiness()
+
+        try:
+            return JobReadinessResponse.model_validate(data)
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Compass modules/%s response failed validation: %s", MODULE_KEY_JOB_READINESS, exc)
+            sentry_sdk.capture_exception(exc)
+            return _empty_job_readiness()
