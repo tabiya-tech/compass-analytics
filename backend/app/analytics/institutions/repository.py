@@ -1,5 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
+from typing import Final
 
 import sentry_sdk
 
@@ -8,10 +9,7 @@ from common_libs.http_client.base import AsyncHttpClient, HttpClientError
 
 logger = logging.getLogger(__name__)
 
-
-def _empty_institutions() -> InstitutionsResponse:
-    """Graceful zero-response used when the upstream is unavailable."""
-    return InstitutionsResponse(institutions=[])
+EMPTY_INSTITUTIONS_RESPONSE: Final[InstitutionsResponse] = InstitutionsResponse(institutions=[])
 
 
 class IInstitutionsRepository(ABC):
@@ -20,17 +18,15 @@ class IInstitutionsRepository(ABC):
 
 
 class CompassInstitutionsRepository(IInstitutionsRepository):
-    """
-    Fetches per-institution comparison data from the Compass upstream summary endpoint.
-
-    The upstream computes totals from its full dataset (registered_users) and a fixed
-    7-day activity window (active_users_7d) — it does not accept a date range. Only
-    institution_ids scoping is forwarded. Same degradation contract as the reach
-    repository: upstream failures return an empty payload and are reported to Sentry.
-    """
+    """Fetches per-institution comparison data from the Compass summary endpoint (scoped by institution IDs)."""
 
     def __init__(self, http_client: AsyncHttpClient):
         self._client = http_client
+
+    def _handle_failure(self, message: str, exc: Exception) -> InstitutionsResponse:
+        logger.warning(message, exc)
+        sentry_sdk.capture_exception(exc)
+        return EMPTY_INSTITUTIONS_RESPONSE
 
     async def get_institutions(self, institution_ids: list[str] | None) -> InstitutionsResponse:
         params: dict = {}
@@ -40,20 +36,14 @@ class CompassInstitutionsRepository(IInstitutionsRepository):
         try:
             data = await self._client.get("/analytics/institutions/summary", params=params)
         except HttpClientError as exc:
-            logger.warning("Compass institutions request failed (%s): %s", exc.status_code, exc)
-            sentry_sdk.capture_exception(exc)
-            return _empty_institutions()
+            return self._handle_failure(f"Compass institutions request failed ({exc.status_code}): %s", exc)
         except Exception as exc:  # pylint: disable=broad-except
-            logger.warning("Compass institutions request error: %s", exc)
-            sentry_sdk.capture_exception(exc)
-            return _empty_institutions()
+            return self._handle_failure("Compass institutions request error: %s", exc)
 
         if not data:
-            return _empty_institutions()
+            return EMPTY_INSTITUTIONS_RESPONSE
 
         try:
             return InstitutionsResponse.model_validate(data)
         except Exception as exc:  # pylint: disable=broad-except
-            logger.warning("Compass institutions response failed validation: %s", exc)
-            sentry_sdk.capture_exception(exc)
-            return _empty_institutions()
+            return self._handle_failure("Compass institutions response failed validation: %s", exc)

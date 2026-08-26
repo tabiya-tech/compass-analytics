@@ -1,37 +1,18 @@
 import logging
-from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.analytics.dependencies import get_institutions_service
 from app.analytics.institutions.service import IInstitutionsService
 from app.analytics.institutions.types import InstitutionsResponse
-from app.analytics.reach.types import AnalyticsFilters, AudienceSegment, Granularity, LoginMethod
 from app.auth.firebase import Authentication, UserInfo
 from app.casbin.requires import CasbinAPIRouter, make_requires
+from app.shared.filters import AnalyticsFiltersDep, verify_basic_filters
 from app.users.dependencies import get_grant_repository
 from app.users.service import ForbiddenInstitutionError, UserNotProvisionedError
 from app.users.types import Action, Subject
 
 logger = logging.getLogger(__name__)
-
-
-def _filters(
-    start_date: date = Query(..., description="Inclusive start date (yyyy-MM-dd)"),
-    end_date: date = Query(..., description="Inclusive end date (yyyy-MM-dd)"),
-    granularity: Granularity = Query(..., description="Time bucket size"),
-    audience_segment: AudienceSegment | None = Query(None),
-    login_method: LoginMethod | None = Query(None),
-    institution_id: str | None = Query(None, description="Drill down to a single institution"),
-) -> AnalyticsFilters:
-    return AnalyticsFilters(
-        start_date=start_date,
-        end_date=end_date,
-        granularity=granularity,
-        audience_segment=audience_segment,
-        login_method=login_method,
-        institution_id=institution_id,
-    )
 
 
 def add_institutions_routes(router: APIRouter, auth: Authentication) -> None:
@@ -43,10 +24,12 @@ def add_institutions_routes(router: APIRouter, auth: Authentication) -> None:
     @institutions_router.get("/analytics/institutions", response_model=InstitutionsResponse)
     @requires(Subject.DASHBOARD, Action.VIEW)
     async def get_institutions(
+        filters: AnalyticsFiltersDep,
         user_info: UserInfo = Depends(get_user_info),
-        filters: AnalyticsFilters = Depends(_filters),
         service: IInstitutionsService = Depends(get_institutions_service),
     ) -> InstitutionsResponse:
+        filters = verify_basic_filters(filters)
+
         try:
             return await service.get_institutions(filters, user_info)
         except UserNotProvisionedError as exc:
