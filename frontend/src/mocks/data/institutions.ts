@@ -166,7 +166,6 @@ export function findInstitutionDetail(institutionId: string): InstitutionDetail 
   return institution && buildInstitutionDetail(institution);
 }
 
-/** The value a sort key points at — a module id reads that module's "% started". */
 function sortValueOf(institution: InstitutionSummary, key: InstitutionsQuery["sort"]["by"]): string | number {
   switch (key) {
     case "name":
