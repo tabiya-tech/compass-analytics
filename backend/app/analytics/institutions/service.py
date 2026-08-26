@@ -3,8 +3,8 @@ from abc import ABC, abstractmethod
 
 from app.analytics.institutions.repository import IInstitutionsRepository
 from app.analytics.institutions.types import InstitutionsResponse
-from app.analytics.reach.types import AnalyticsFilters
 from app.auth.firebase import UserInfo
+from app.shared.filters import AnalyticsFilters
 from app.users.service import IUserService
 
 logger = logging.getLogger(__name__)
