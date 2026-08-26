@@ -1,38 +1,35 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect } from "storybook/test";
-import type { Demographics } from "@/pages/Overview/overview.types";
+import type { DemographicChart } from "@/analytics/analytics.types";
 import { DemographicsPanel } from "./DemographicsPanel";
 
-const DEMOGRAPHICS: Demographics = {
-  gender: [
-    { id: "women", users: 2141 },
-    { id: "men", users: 1689 },
-    { id: "undisclosed", users: 288 },
-  ],
-  ageBands: [
-    { id: "18-24", users: 993 },
-    { id: "25-34", users: 780 },
-    { id: "35-44", users: 378 },
-    { id: "45-plus", users: 213 },
-  ],
-  educationLevels: [
-    { id: "primary", users: 331 },
-    { id: "secondary", users: 1135 },
-    { id: "tertiary", users: 898 },
-  ],
-  regions: [
-    { id: "lusaka", label: "Lusaka", users: 419 },
-    { id: "copperbelt", label: "Copperbelt", users: 304 },
-    { id: "southern", label: "Southern", users: 435 },
-    { id: "eastern", label: "Eastern", users: 643 },
-    { id: "central", label: "Central", users: 563 },
-  ],
-};
+const EXAMPLE_DEMOGRAPHIC_CHARTS: DemographicChart[] = [
+  {
+    type: "pie-chart",
+    name: "gender",
+    items: [
+      { name: "female", value: 6_190 },
+      { name: "male", value: 5_820 },
+      { name: "other", value: 440 },
+    ],
+  },
+  {
+    type: "horizontal-bar-chart",
+    name: "region",
+    items: [
+      { name: "Lusaka", value: 4_190 },
+      { name: "Copperbelt", value: 3_040 },
+      { name: "Southern", value: 2_350 },
+      { name: "Eastern", value: 1_640 },
+      { name: "Central", value: 1_230 },
+    ],
+  },
+];
 
 const meta = {
   component: DemographicsPanel,
   tags: ["autodocs"],
-  args: { demographics: DEMOGRAPHICS },
+  args: { charts: EXAMPLE_DEMOGRAPHIC_CHARTS },
   decorators: [
     (Story) => (
       <div className="w-260 max-w-full">
@@ -48,23 +45,36 @@ type Story = StoryObj<typeof meta>;
 export const FullProfile: Story = {
   play: async ({ canvas, canvasElement }) => {
     await expect(canvasElement.querySelectorAll(".recharts-sector")).toHaveLength(3);
-    await expect(canvas.getByRole("list", { name: "Age band" })).toBeVisible();
-    await expect(canvas.getByRole("list", { name: "Education" })).toBeVisible();
     await expect(canvas.getByRole("list", { name: "Region" })).toBeVisible();
   },
 };
 
-export const WithoutRegions: Story = {
-  args: { demographics: { ...DEMOGRAPHICS, regions: [] } },
+export const WithoutRegion: Story = {
+  args: { charts: [EXAMPLE_DEMOGRAPHIC_CHARTS[0]] },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText("Region")).toBeVisible();
-    await expect(canvas.getByText("No data to show for this selection.")).toBeVisible();
+    await expect(canvas.queryByRole("list", { name: "Region" })).not.toBeInTheDocument();
   },
 };
 
 export const Empty: Story = {
-  args: { demographics: { gender: [], ageBands: [], educationLevels: [], regions: [] } },
+  args: { charts: [] },
   play: async ({ canvas }) => {
-    await expect(canvas.getAllByText("No data to show for this selection.")).toHaveLength(4);
+    await expect(canvas.getByText("No data to show for this selection.")).toBeVisible();
+  },
+};
+
+export const Degraded: Story = {
+  args: { charts: [], degraded: true },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("We couldn't load demographic data right now.")).toBeVisible();
+  },
+};
+
+/** One chart came through fine; another (e.g. region) failed validation upstream and was dropped. */
+export const PartiallyDegraded: Story = {
+  args: { charts: [EXAMPLE_DEMOGRAPHIC_CHARTS[0]], degraded: true },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Some demographic data couldn't be loaded right now.")).toBeVisible();
+    await expect(canvas.getByRole("img", { name: "Jobseekers by gender" })).toBeVisible();
   },
 };

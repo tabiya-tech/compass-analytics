@@ -11,6 +11,15 @@ export interface AnalyticsParams {
   institution_id?: string;
 }
 
+/** Demographics is a snapshot, not a time series, and nothing upstream filters it by
+ * audience or login method — so unlike AnalyticsParams, it doesn't accept either. */
+export interface DemographicsParams {
+  start_date: string;
+  end_date: string;
+  granularity: Granularity;
+  institution_id?: string;
+}
+
 export interface ReachSummary {
   total_users: number;
   active_users_30d: number;
@@ -58,5 +67,24 @@ export interface BuildYourProfileResponse {
   summary: BuildYourProfileSummary;
   series: BuildYourProfileSeriesPoint[];
   phases: ConversationPhaseReach[];
+  degraded: boolean;
+}
+
+export interface DemographicItem {
+  name: string;
+  value: number;
+}
+
+export type DemographicChartType = "pie-chart" | "horizontal-bar-chart";
+
+/** One demographic dimension the backend can currently break down (e.g. gender, region). More are added as more demographic data becomes available upstream. */
+export interface DemographicChart {
+  type: DemographicChartType;
+  name: string;
+  items: DemographicItem[];
+}
+
+export interface DemographicsResponse {
+  charts: DemographicChart[];
   degraded: boolean;
 }

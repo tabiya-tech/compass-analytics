@@ -158,11 +158,6 @@ describe("OverviewMetricsService.getOverviewMetrics", () => {
     // AND the login split and its centre figure are there
     expect(actualMetrics.loginMethods.map((slice) => slice.method)).toEqual(["google", "email"]);
     expect(actualMetrics.averageLoginsPerUser).toBeGreaterThan(0);
-    // AND every demographic breakdown is populated
-    expect(actualMetrics.demographics.gender).toHaveLength(3);
-    expect(actualMetrics.demographics.ageBands).toHaveLength(4);
-    expect(actualMetrics.demographics.educationLevels).toHaveLength(3);
-    expect(actualMetrics.demographics.regions.length).toBeGreaterThan(0);
   });
 
   it("should narrow the login split to the filtered method", async () => {

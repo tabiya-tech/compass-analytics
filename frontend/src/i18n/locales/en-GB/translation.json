@@ -407,6 +407,20 @@
       "share": "{{value}}% of those who started"
     }
   },
+  "graphs": {
+    "gender": {
+      "label": "Gender",
+      "chartLabel": "Jobseekers by gender",
+      "value": {
+        "female": "Women",
+        "male": "Men",
+        "other": "Other / undisclosed"
+      }
+    },
+    "region": {
+      "label": "Region"
+    }
+  },
   "overview": {
     "title": "Overview",
     "eyebrow": {
@@ -415,7 +429,8 @@
     },
     "description": {
       "institution": "{{institution}} · {{range}}",
-      "portfolio": "{{count}} institutions · {{range}}"
+      "portfolio": "{{count}} institutions · {{range}}",
+      "portfolioAll": "All institutions · {{range}}"
     },
     "error": "We couldn't load the dashboard metrics.",
     "tiles": {
@@ -451,29 +466,8 @@
     "demographics": {
       "title": "Who you are reaching",
       "description": "The demographic profile of jobseekers on the platform.",
-      "genderChartLabel": "Jobseekers by gender",
-      "sections": {
-        "gender": "Gender",
-        "ageBand": "Age band",
-        "education": "Education",
-        "region": "Region"
-      },
-      "genders": {
-        "women": "Women",
-        "men": "Men",
-        "undisclosed": "Other / undisclosed"
-      },
-      "ageBands": {
-        "18-24": "18–24",
-        "25-34": "25–34",
-        "35-44": "35–44",
-        "45-plus": "45+"
-      },
-      "educationLevels": {
-        "primary": "Primary",
-        "secondary": "Secondary",
-        "tertiary": "Tertiary"
-      }
+      "degraded": "We couldn't load demographic data right now.",
+      "degradedPartial": "Some demographic data couldn't be loaded right now."
     }
   },
   "modules": {

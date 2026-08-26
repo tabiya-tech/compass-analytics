@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Activity, Clock, Users } from "lucide-react";
-import { useAccess } from "@/access/AccessContext";
+import { useAccess, type AccessScope } from "@/access/AccessContext";
 import { Sparkline } from "@/components/charts/Sparkline";
 import { formatNumber } from "@/components/charts/chart-scale";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -12,6 +12,7 @@ import { LoginMethodPanel } from "@/pages/Overview/components/LoginMethodPanel";
 import { ReachOverTimePanel } from "@/pages/Overview/components/ReachOverTimePanel";
 import type { OverviewMetricsResponse, MetricsScope } from "@/pages/Overview/overview.types";
 import { useOverviewMetrics } from "@/pages/Overview/hooks/use-overview-metrics";
+import { useDemographics } from "@/pages/Overview/useDemographics";
 import { ModuleBody } from "@/pages/Modules/components/ModuleBody";
 import { ModuleHeader } from "@/pages/Modules/components/ModuleHeader";
 import { useModuleMetrics } from "@/pages/Modules/hooks/use-module-metrics";
@@ -38,11 +39,14 @@ const SPARKLINE_HEIGHT = 36;
 
 type Translate = ReturnType<typeof useTranslation>["t"];
 
-/** Who the figures cover, over which window. */
-function describeScope(t: Translate, metrics: OverviewMetricsResponse): string {
+/** Who the figures cover, over which window. A grant scoped to "all" names no count — every institution in the deployment is covered, not some fixed number of them. */
+function describeScope(t: Translate, metrics: OverviewMetricsResponse, accessScope: AccessScope): string {
   const range = formatDateRangeLabel(metrics.dateRange);
-  return metrics.scope.type === "institution"
-    ? t("overview.description.institution", { institution: metrics.scope.institutionName, range })
+  if (metrics.scope.type === "institution") {
+    return t("overview.description.institution", { institution: metrics.scope.institutionName, range });
+  }
+  return accessScope.type === "all"
+    ? t("overview.description.portfolioAll", { range })
     : t("overview.description.portfolio", { count: metrics.scope.institutionCount, range });
 }
 
@@ -71,8 +75,9 @@ function OverviewSkeleton() {
 /** The default landing screen for anyone with dashboard access — one institution reports on itself, several are aggregated into a portfolio. */
 export function Overview() {
   const { t } = useTranslation();
-  const { activeModules, isMultiInstitution } = useAccess();
+  const { scope, activeModules, isMultiInstitution } = useAccess();
   const { metrics, isLoading, error, reload } = useOverviewMetrics();
+  const demographics = useDemographics();
   // A deployment running a single module has no Modules screen — see @/pages/Modules/module-routing.
   const inlineModuleId = soleActiveModule(activeModules);
   const moduleMetrics = useModuleMetrics({ enabled: inlineModuleId !== null });
@@ -87,7 +92,7 @@ export function Overview() {
       <ScreenHead
         eyebrow={t(isPortfolio ? "overview.eyebrow.portfolio" : "overview.eyebrow.institution")}
         title={t("overview.title")}
-        description={metrics ? describeScope(t, metrics) : undefined}
+        description={metrics ? describeScope(t, metrics, scope) : undefined}
       />
 
       {/* A failed refetch keeps the last good figures on screen, and says so alongside them. */}
@@ -170,10 +175,14 @@ export function Overview() {
               isLoading={isLoading}
             />
           </div>
-
-          <DemographicsPanel demographics={metrics.demographics} isLoading={isLoading} />
         </>
       )}
+
+      <DemographicsPanel
+        charts={demographics.status === "success" ? demographics.data.charts : []}
+        degraded={demographics.status === "error" || (demographics.status === "success" && demographics.data.degraded)}
+        isLoading={demographics.status === "loading"}
+      />
 
       {inlineModule && (
         <section data-testid={DATA_TEST_ID.INLINE_MODULE} data-module={inlineModule.moduleId} className="grid gap-6">

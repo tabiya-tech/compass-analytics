@@ -1,16 +1,11 @@
 /** Deterministic stand-in for the overview metrics endpoint, until the backend serves it — every figure is a pure function of the request, so a re-render, a story and a test all see the same numbers. */
 
 import type {
-  AgeBandId,
   DailyPoint,
-  Demographics,
-  EducationLevelId,
-  GenderId,
   LoginMethodSlice,
   OverviewMetricsRequest,
   OverviewMetricsResponse,
   ReachPoint,
-  RegionBucket,
   RequestedInstitutions,
 } from "@/pages/Overview/overview.types";
 import { listPeriods } from "@/pages/Overview/utils";
@@ -20,54 +15,15 @@ export interface MockInstitution {
   id: string;
   name: string;
   users: number; // cumulative, over the institution's whole lifetime, before any filtering
-  regionShares: readonly number[];
 }
-
-const REGIONS: readonly { id: string; label: string }[] = [
-  { id: "lusaka", label: "Lusaka" },
-  { id: "copperbelt", label: "Copperbelt" },
-  { id: "southern", label: "Southern" },
-  { id: "eastern", label: "Eastern" },
-  { id: "central", label: "Central" },
-];
 
 /** The deployment's institutions. `inst-1` is the one the designs are drawn from. */
 export const MOCK_INSTITUTIONS: readonly MockInstitution[] = [
-  {
-    id: "inst-1",
-    name: "Ndola Livelihoods Trust",
-    users: 4118,
-    regionShares: [0.1017, 0.0738, 0.1056, 0.1561, 0.1367],
-  },
-  { id: "inst-2", name: "Lusaka Youth Futures", users: 2740, regionShares: [0.2412, 0.0611, 0.0704, 0.0819, 0.0955] },
-  { id: "inst-3", name: "Copperbelt Skills Hub", users: 1985, regionShares: [0.0642, 0.2788, 0.0511, 0.0733, 0.0821] },
-  {
-    id: "inst-4",
-    name: "Southern Province Works",
-    users: 1460,
-    regionShares: [0.0588, 0.0497, 0.2611, 0.0702, 0.0644],
-  },
-  { id: "inst-5", name: "Eastern Jobs Collective", users: 980, regionShares: [0.0511, 0.0463, 0.0598, 0.2455, 0.0721] },
-];
-
-/** Shares of the cumulative total, held fixed across institutions — mock data, not a finding. */
-const GENDER_SHARES: readonly { id: GenderId; share: number }[] = [
-  { id: "women", share: 0.5199 },
-  { id: "men", share: 0.4101 },
-  { id: "undisclosed", share: 0.07 },
-];
-
-const AGE_BAND_SHARES: readonly { id: AgeBandId; share: number }[] = [
-  { id: "18-24", share: 0.2412 },
-  { id: "25-34", share: 0.1894 },
-  { id: "35-44", share: 0.0918 },
-  { id: "45-plus", share: 0.0517 },
-];
-
-const EDUCATION_SHARES: readonly { id: EducationLevelId; share: number }[] = [
-  { id: "primary", share: 0.0804 },
-  { id: "secondary", share: 0.2756 },
-  { id: "tertiary", share: 0.2181 },
+  { id: "inst-1", name: "Ndola Livelihoods Trust", users: 4118 },
+  { id: "inst-2", name: "Lusaka Youth Futures", users: 2740 },
+  { id: "inst-3", name: "Copperbelt Skills Hub", users: 1985 },
+  { id: "inst-4", name: "Southern Province Works", users: 1460 },
+  { id: "inst-5", name: "Eastern Jobs Collective", users: 980 },
 ];
 
 const GOOGLE_LOGIN_SHARE = 0.6;
@@ -183,20 +139,6 @@ function loginMethodsFor(total: number, requested: LoginMethodId | null | undefi
   return requested ? split.filter((slice) => slice.method === requested) : split;
 }
 
-function demographicsFor(institution: MockInstitution, total: number): Demographics {
-  const regions: RegionBucket[] = REGIONS.map((region, index) => ({
-    ...region,
-    users: Math.round(total * (institution.regionShares[index] ?? 0)),
-  }));
-
-  return {
-    gender: GENDER_SHARES.map(({ id, share }) => ({ id, users: Math.round(total * share) })),
-    ageBands: AGE_BAND_SHARES.map(({ id, share }) => ({ id, users: Math.round(total * share) })),
-    educationLevels: EDUCATION_SHARES.map(({ id, share }) => ({ id, users: Math.round(total * share) })),
-    regions,
-  };
-}
-
 /** Everything the Overview screen needs for one institution. */
 export function metricsFor(institution: MockInstitution, request: OverviewMetricsRequest): OverviewMetricsResponse {
   const total = Math.round(institution.users * filterFactor(request));
@@ -223,7 +165,6 @@ export function metricsFor(institution: MockInstitution, request: OverviewMetric
     dailySeries: dailySeriesFor(total, request.dateRange.end),
     loginMethods: loginMethodsFor(total, request.loginMethod),
     averageLoginsPerUser: Math.round(jitter(1.6, 2.4, institution.id, "logins") * 10) / 10,
-    demographics: demographicsFor(institution, total),
   };
 }
 
@@ -245,19 +186,6 @@ function aggregateReachSeries(parts: readonly OverviewMetricsResponse[]): ReachP
     period,
     newUsers: sumBy(parts, (part) => part.reachSeries[index]?.newUsers ?? 0),
     returningUsers: sumBy(parts, (part) => part.reachSeries[index]?.returningUsers ?? 0),
-  }));
-}
-
-const EMPTY_DEMOGRAPHICS: Demographics = { gender: [], ageBands: [], educationLevels: [], regions: [] };
-
-function aggregateBuckets<TId extends string>(
-  parts: readonly OverviewMetricsResponse[],
-  pick: (demographics: Demographics) => readonly { id: TId; users: number }[]
-): { id: TId; users: number }[] {
-  const ids = pick(parts[0]?.demographics ?? EMPTY_DEMOGRAPHICS).map((bucket) => bucket.id);
-  return ids.map((id) => ({
-    id,
-    users: sumBy(parts, (part) => pick(part.demographics).find((bucket) => bucket.id === id)?.users ?? 0),
   }));
 }
 
@@ -290,15 +218,6 @@ export function aggregatePortfolio(
     dailySeries: dailySeriesFor(total, request.dateRange.end),
     loginMethods: loginMethodsFor(total, request.loginMethod),
     averageLoginsPerUser: Math.round(weightedAverage(parts, (part) => part.averageLoginsPerUser) * 10) / 10,
-    demographics: {
-      gender: aggregateBuckets(parts, (demographics) => demographics.gender),
-      ageBands: aggregateBuckets(parts, (demographics) => demographics.ageBands),
-      educationLevels: aggregateBuckets(parts, (demographics) => demographics.educationLevels),
-      regions: REGIONS.map((region) => ({
-        ...region,
-        users: sumBy(parts, (part) => part.demographics.regions.find((bucket) => bucket.id === region.id)?.users ?? 0),
-      })),
-    },
   };
 }
 

@@ -1,5 +1,5 @@
 import { http, HttpResponse, type HttpHandler } from "msw";
-import type { BuildYourProfileResponse, ReachResponse } from "@/analytics/analytics.types";
+import type { BuildYourProfileResponse, DemographicsResponse, ReachResponse } from "@/analytics/analytics.types";
 import type { MeResponse } from "@/user/user.types";
 import { buildOverviewMetrics, parseOverviewMetricsQuery } from "@/mocks/overview-metrics";
 import { buildModuleMetrics, parseModuleMetricsQuery } from "@/mocks/module-metrics";
@@ -42,6 +42,32 @@ const stubBuildYourProfile: BuildYourProfileResponse = {
     { id: "experiences", reached: 1_546 },
     { id: "skills", reached: 1_150 },
     { id: "completed", reached: 502 },
+  ],
+  degraded: false,
+};
+
+const stubDemographics: DemographicsResponse = {
+  charts: [
+    {
+      type: "pie-chart",
+      name: "gender",
+      items: [
+        { name: "female", value: 6_190 },
+        { name: "male", value: 5_820 },
+        { name: "other", value: 440 },
+      ],
+    },
+    {
+      type: "horizontal-bar-chart",
+      name: "region",
+      items: [
+        { name: "Lusaka", value: 4_190 },
+        { name: "Copperbelt", value: 3_040 },
+        { name: "Southern", value: 2_350 },
+        { name: "Eastern", value: 1_640 },
+        { name: "Central", value: 1_230 },
+      ],
+    },
   ],
   degraded: false,
 };
@@ -138,6 +164,9 @@ export const buildYourProfileHandler = http.get(`${MODULES_API_BASE}/build-your-
   HttpResponse.json(stubBuildYourProfile)
 );
 
+/** Not in the dev worker, like /api/reach — exported individually so overriding stories can still include it. */
+export const demographicsHandler = http.get("/api/demographics", () => HttpResponse.json(stubDemographics));
+
 /** Full handler list for tests and Storybook, so components render with realistic data without the backend running. */
 export const handlers: HttpHandler[] = [
   overviewMetricsHandler,
@@ -148,6 +177,7 @@ export const handlers: HttpHandler[] = [
   http.post("/api/users/register", () => new HttpResponse(null, { status: 201 })),
   http.get("/api/reach", () => HttpResponse.json(stubReach)),
   buildYourProfileHandler,
+  demographicsHandler,
   jobseekersHandler,
   jobseekerDetailHandler,
 ];
