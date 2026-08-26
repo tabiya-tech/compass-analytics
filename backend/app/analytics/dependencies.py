@@ -1,6 +1,8 @@
 import asyncio
 import logging
 
+from app.analytics.demographics.repository import CompassDemographicsRepository
+from app.analytics.demographics.service import DemographicsService, IDemographicsService
 from app.analytics.institutions.repository import CompassInstitutionsRepository
 from app.analytics.institutions.service import IInstitutionsService, InstitutionsService
 from app.analytics.modules.repository import CompassModulesRepository
@@ -105,3 +107,32 @@ async def close_modules_service() -> None:
         await _modules_http_client.close()
         _modules_http_client = None
     _modules_service_singleton = None
+
+
+_demographics_lock = asyncio.Lock()
+_demographics_service_singleton: IDemographicsService | None = None
+_demographics_http_client: AsyncHttpClient | None = None
+
+
+async def get_demographics_service() -> IDemographicsService:
+    global _demographics_service_singleton, _demographics_http_client
+    if _demographics_service_singleton is None:
+        async with _demographics_lock:
+            if _demographics_service_singleton is None:
+                _demographics_http_client = _build_compass_http_client()
+                user_service = await get_user_service()
+                _demographics_service_singleton = DemographicsService(
+                    repository=CompassDemographicsRepository(_demographics_http_client),
+                    user_service=user_service,
+                )
+    return _demographics_service_singleton
+
+
+async def close_demographics_service() -> None:
+    """Close the outbound HTTP client and reset the singleton (called on shutdown)."""
+    global _demographics_service_singleton, _demographics_http_client
+    if _demographics_http_client is not None:
+        await _demographics_http_client.close()
+        _demographics_http_client = None
+    _demographics_service_singleton = None
+
