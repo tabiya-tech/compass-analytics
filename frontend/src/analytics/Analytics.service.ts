@@ -1,4 +1,10 @@
-import type { AnalyticsParams, BuildYourProfileResponse, ReachResponse } from "@/analytics/analytics.types";
+import type {
+  AnalyticsParams,
+  BuildYourProfileResponse,
+  DemographicsParams,
+  DemographicsResponse,
+  ReachResponse,
+} from "@/analytics/analytics.types";
 
 export const ANALYTICS_API_BASE = "/api";
 
@@ -55,6 +61,15 @@ export class AnalyticsService {
       granularity: params.granularity,
       audience_segment: params.audience_segment,
       login_method: params.login_method,
+      institution_id: params.institution_id,
+    });
+  }
+
+  async getDemographics(params: DemographicsParams, token: string): Promise<DemographicsResponse> {
+    return this._fetch<DemographicsResponse>("/demographics", token, {
+      start_date: params.start_date,
+      end_date: params.end_date,
+      granularity: params.granularity,
       institution_id: params.institution_id,
     });
   }

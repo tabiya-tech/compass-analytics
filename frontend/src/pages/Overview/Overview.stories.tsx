@@ -4,6 +4,8 @@ import { delay, http, HttpResponse } from "msw";
 import { AccessProvider, MODULE_IDS, type AccessScope, type ModuleId } from "@/access/AccessContext";
 import { FiltersProvider } from "@/filters/FiltersContext";
 import { createInitialFilters } from "@/filters/filters";
+import { DATA_TEST_ID as DEMOGRAPHICS_PANEL_TEST_ID } from "@/pages/Overview/components/DemographicsPanel";
+import { demographicsHandler } from "@/mocks/handlers";
 import { OVERVIEW_API_BASE } from "@/pages/Overview/services/OverviewMetrics.service";
 import { Overview } from "./Overview";
 
@@ -39,21 +41,30 @@ export const Default: Story = {
 export const Loading: Story = {
   decorators: [withAccess({ type: "institutions", institutionIds: ["inst-1"] })],
   parameters: {
-    msw: { handlers: [http.get(`${OVERVIEW_API_BASE}/metrics`, async () => await delay("infinite"))] },
+    msw: {
+      handlers: [http.get(`${OVERVIEW_API_BASE}/metrics`, async () => await delay("infinite")), demographicsHandler],
+    },
   },
-  play: async ({ canvasElement }) => {
+  play: async ({ canvas, canvasElement }) => {
     await expect(canvasElement.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
+    await waitFor(() => expect(canvas.queryByTestId(DEMOGRAPHICS_PANEL_TEST_ID.LOADING)).not.toBeInTheDocument());
   },
 };
 
 export const FailedToLoad: Story = {
   decorators: [withAccess({ type: "institutions", institutionIds: ["inst-1"] })],
   parameters: {
-    msw: { handlers: [http.get(`${OVERVIEW_API_BASE}/metrics`, () => new HttpResponse(null, { status: 500 }))] },
+    msw: {
+      handlers: [
+        http.get(`${OVERVIEW_API_BASE}/metrics`, () => new HttpResponse(null, { status: 500 })),
+        demographicsHandler,
+      ],
+    },
   },
   play: async ({ canvas }) => {
     await waitFor(() => canvas.getByText("We couldn't load the dashboard metrics."));
     await expect(canvas.getByRole("button", { name: "Retry" })).toBeVisible();
+    await waitFor(() => expect(canvas.queryByTestId(DEMOGRAPHICS_PANEL_TEST_ID.LOADING)).not.toBeInTheDocument());
   },
 };
 
@@ -64,5 +75,6 @@ export const SingleModuleDeployment: Story = {
     await waitFor(() => canvas.getByRole("heading", { name: "Are people building their profiles?" }));
     // Build Your Profile shows a loading skeleton (no heading yet) until its fetch settles.
     await waitFor(() => expect(canvas.getByRole("heading", { name: "Conversation funnel" })).toBeVisible());
+    await waitFor(() => expect(canvas.queryByTestId(DEMOGRAPHICS_PANEL_TEST_ID.LOADING)).not.toBeInTheDocument());
   },
 };

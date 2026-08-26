@@ -68,14 +68,28 @@ describe("Overview screen header", () => {
     );
   });
 
-  it("should count the institutions when the grant covers the whole deployment", async () => {
+  it("should say 'All institutions' when the grant covers the whole deployment", async () => {
     // GIVEN a grant covering every institution
     // WHEN the screen loads
     renderOverview(ALL_INSTITUTIONS);
 
-    // THEN the head reads as a portfolio, counting them rather than naming one
+    // THEN the head reads as a portfolio, naming every institution rather than counting them
     expect(await screen.findByTestId(SCREEN_HEAD_TEST_ID.EYEBROW)).toHaveTextContent("Portfolio overview");
-    expect(screen.getByTestId(SCREEN_HEAD_TEST_ID.DESCRIPTION)).toHaveTextContent("5 institutions · Jul '25 – Jul '26");
+    expect(screen.getByTestId(SCREEN_HEAD_TEST_ID.DESCRIPTION)).toHaveTextContent(
+      "All institutions · Jul '25 – Jul '26"
+    );
+  });
+
+  it("should count the institutions when the grant covers a named subset of the deployment", async () => {
+    // GIVEN a grant covering two specific institutions, not the whole deployment
+    const someInstitutions: AccessScope = { type: "institutions", institutionIds: ["inst-1", "inst-2"] };
+
+    // WHEN the screen loads
+    renderOverview(someInstitutions);
+
+    // THEN the head counts them, since "all" would overstate the grant
+    expect(await screen.findByTestId(SCREEN_HEAD_TEST_ID.EYEBROW)).toHaveTextContent("Portfolio overview");
+    expect(screen.getByTestId(SCREEN_HEAD_TEST_ID.DESCRIPTION)).toHaveTextContent("2 institutions · Jul '25 – Jul '26");
   });
 
   it("should name the institution being drilled into, out of a portfolio grant", async () => {
