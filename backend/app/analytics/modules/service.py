@@ -2,8 +2,8 @@ import logging
 from abc import ABC, abstractmethod
 
 from app.analytics.modules.repository import IModulesRepository
-from app.analytics.modules.types import SUPPORTED_MODULE_KEYS, BuildYourProfileResponse
-from app.analytics.types import AnalyticsFilters
+from app.analytics.modules.types import SUPPORTED_MODULE_KEYS, BuildYourProfileResponse, JobReadinessResponse
+from app.shared.filters import AnalyticsFilters
 from app.auth.firebase import UserInfo
 from app.users.service import IUserService
 
@@ -16,7 +16,7 @@ class UnsupportedModuleError(Exception):
 
 class IModulesService(ABC):
     @abstractmethod
-    async def get_module(self, module_key: str, filters: AnalyticsFilters, user_info: UserInfo) -> BuildYourProfileResponse: ...
+    async def get_module(self, module_key: str, filters: AnalyticsFilters, user_info: UserInfo) -> BuildYourProfileResponse | JobReadinessResponse: ...
 
 
 class ModulesService(IModulesService):
@@ -24,7 +24,7 @@ class ModulesService(IModulesService):
         self._repo = repository
         self._users = user_service
 
-    async def get_module(self, module_key: str, filters: AnalyticsFilters, user_info: UserInfo) -> BuildYourProfileResponse:
+    async def get_module(self, module_key: str, filters: AnalyticsFilters, user_info: UserInfo) -> BuildYourProfileResponse | JobReadinessResponse:
         # Allow-list check happens before any DB or network call.
         if module_key not in SUPPORTED_MODULE_KEYS:
             raise UnsupportedModuleError(module_key)
@@ -34,4 +34,7 @@ class ModulesService(IModulesService):
         if module_key == "build-your-profile":
             return await self._repo.get_build_your_profile(scope.institution_ids, filters)
 
-        raise UnsupportedModuleError(module_key)  # unreachable until a second module_key is added
+        if module_key == "job-readiness":
+            return await self._repo.get_job_readiness(scope.institution_ids, filters)
+
+        raise UnsupportedModuleError(module_key)  # unreachable — SUPPORTED_MODULE_KEYS guard above

@@ -7,6 +7,11 @@ import httpx
 import jwt as pyjwt
 import pytest
 
+from app.shared.filters import AudienceSegment
+from typing import get_args
+
+_A_VALID_AUDIENCE_SEGMENT = get_args(AudienceSegment)[0]
+
 _TEST_SECRET = "test-secret-key-long-enough-for-hs256"  # nosec B105 — HS256 signing key for forged test JWTs, not a credential
 
 
@@ -41,6 +46,15 @@ _STUB_BYP_PAYLOAD = {
     ],
 }
 
+_STUB_JOB_READINESS_PAYLOAD = {
+    "started_percentage": 34.0,
+    "sub_modules": [
+        {"id": "cv-builder", "name": "CV Builder", "started": 1200, "completed": 900},
+        {"id": "interview-prep", "name": "Interview Prep", "started": 1500, "completed": 980},
+    ],
+    "degraded": False,
+}
+
 
 def _make_mock_transport(payload: dict | None = None, status_code: int = 200, unreachable: bool = False):
     if unreachable:
@@ -54,6 +68,17 @@ def _make_mock_transport(payload: dict | None = None, status_code: int = 200, un
         return httpx.Response(status_code, content=body, headers={"content-type": "application/json"})
 
     return httpx.MockTransport(success_handler)
+
+
+def _routing_transport():
+    """Returns the correct stub payload based on the upstream path."""
+    def handler(request):
+        if "job-readiness" in request.url.path:
+            body = json.dumps(_STUB_JOB_READINESS_PAYLOAD).encode()
+        else:
+            body = json.dumps(_STUB_BYP_PAYLOAD).encode()
+        return httpx.Response(200, content=body, headers={"content-type": "application/json"})
+    return httpx.MockTransport(handler)
 
 
 def _never_called_transport():
@@ -70,6 +95,28 @@ def _capturing_transport(captured: list):
     return httpx.MockTransport(handler)
 
 
+class _RecordingTransport(httpx.MockTransport):
+    def __init__(self, payload: dict):
+        self.request: httpx.Request | None = None
+        body = json.dumps(payload).encode()
+
+        def handler(request):
+            self.request = request
+            return httpx.Response(200, content=body, headers={"content-type": "application/json"})
+
+        super().__init__(handler)
+
+    @property
+    def upstream_params(self) -> dict[str, str]:
+        assert self.request is not None, "upstream was never called"
+        return dict(self.request.url.params)
+
+    @property
+    def upstream_path(self) -> str:
+        assert self.request is not None, "upstream was never called"
+        return self.request.url.path
+
+
 def _module_url(module_key: str, start: str, end: str, granularity: str = "month", **kwargs) -> str:
     params = f"start_date={start}&end_date={end}&granularity={granularity}"
     for k, v in kwargs.items():
@@ -79,7 +126,7 @@ def _module_url(module_key: str, start: str, end: str, granularity: str = "month
 
 @pytest.fixture()
 async def client_with_data(make_modules_client):
-    return await make_modules_client(_make_mock_transport(_STUB_BYP_PAYLOAD))
+    return await make_modules_client(_routing_transport())
 
 
 @pytest.fixture()
@@ -100,6 +147,18 @@ async def client_malformed(make_modules_client):
 @pytest.fixture()
 async def client_never_calls_upstream(make_modules_client):
     return await make_modules_client(_never_called_transport())
+
+
+@pytest.fixture()
+async def byp_recording_upstream(make_modules_client):
+    transport = _RecordingTransport(_STUB_BYP_PAYLOAD)
+    return await make_modules_client(transport), transport
+
+
+@pytest.fixture()
+async def jr_recording_upstream(make_modules_client):
+    transport = _RecordingTransport(_STUB_JOB_READINESS_PAYLOAD)
+    return await make_modules_client(transport), transport
 
 
 class TestModulesAuth:
@@ -139,11 +198,22 @@ class TestModulesAllowList:
         assert actual_response.status_code == 404
 
     async def test_should_return_200_for_build_your_profile(self, client_with_data):
-        # GIVEN module_key=build-your-profile, the one supported key
+        # GIVEN module_key=build-your-profile
 
         # WHEN the modules endpoint is called
         actual_response = await client_with_data.get(
             _module_url("build-your-profile", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER
+        )
+
+        # THEN expect a successful response
+        assert actual_response.status_code == 200
+
+    async def test_should_return_200_for_job_readiness(self, client_with_data):
+        # GIVEN module_key=job-readiness
+
+        # WHEN the modules endpoint is called
+        actual_response = await client_with_data.get(
+            _module_url("job-readiness", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER
         )
 
         # THEN expect a successful response
@@ -209,6 +279,48 @@ class TestBuildYourProfileResponse:
             )
 
 
+class TestJobReadinessResponse:
+    async def test_should_include_required_fields_in_response(self, client_with_data):
+        # GIVEN a valid request
+
+        # WHEN the endpoint is called
+        actual_body = (
+            await client_with_data.get(
+                _module_url("job-readiness", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER
+            )
+        ).json()
+
+        # THEN the response contains the expected top-level fields
+        assert "started_percentage" in actual_body
+        assert "sub_modules" in actual_body
+        assert "degraded" in actual_body
+
+    async def test_should_return_data_from_compass_api(self, client_with_data):
+        # GIVEN the Compass API returns stub data
+
+        # WHEN the endpoint is called
+        actual_body = (
+            await client_with_data.get(
+                _module_url("job-readiness", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER
+            )
+        ).json()
+
+        # THEN the response values match what Compass returned
+        assert actual_body["started_percentage"] == 34.0
+        assert len(actual_body["sub_modules"]) == 2
+        assert actual_body["degraded"] is False
+
+    async def test_should_resolve_job_readiness_to_the_correct_upstream_path(self, jr_recording_upstream):
+        # GIVEN a request for job-readiness
+        client, transport = jr_recording_upstream
+
+        # WHEN the endpoint is called
+        await client.get(_module_url("job-readiness", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)
+
+        # THEN upstream is called at the job-readiness analytics path
+        assert transport.upstream_path == "/analytics/modules/job-readiness"
+
+
 class TestBuildYourProfileWhenApiUnavailable:
     async def test_should_return_200_with_zeroed_and_degraded_payload(self, client_no_api):
         # GIVEN the Compass API is unreachable
@@ -223,6 +335,35 @@ class TestBuildYourProfileWhenApiUnavailable:
         assert actual_body["series"] == []
         assert all(stage["reached"] == 0 for stage in actual_body["phases"])
         assert actual_body["degraded"] is True
+
+
+class TestJobReadinessWhenApiUnavailable:
+    async def test_should_return_200_with_empty_data_when_compass_api_is_unreachable(self, client_no_api):
+        # GIVEN the Compass API is unreachable
+
+        # WHEN the endpoint is called
+        actual_response = await client_no_api.get(
+            _module_url("job-readiness", "2026-01-01", "2026-06-30"),
+            headers=_AUTH_HEADER,
+        )
+
+        # THEN expect a successful response (not a 5xx)
+        assert actual_response.status_code == 200
+
+    async def test_should_return_degraded_flag_when_compass_api_is_unreachable(self, client_no_api):
+        # GIVEN the Compass API is unreachable
+
+        # WHEN the endpoint is called
+        actual_body = (
+            await client_no_api.get(
+                _module_url("job-readiness", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER
+            )
+        ).json()
+
+        # THEN the degraded flag is set and data is zeroed
+        assert actual_body["degraded"] is True
+        assert actual_body["started_percentage"] == 0.0
+        assert actual_body["sub_modules"] == []
 
 
 class TestBuildYourProfileWhenApiReturnsEmptyBody:
@@ -265,6 +406,17 @@ class TestModulesValidation:
         # THEN expect a validation error
         assert actual_response.status_code == 422
 
+    async def test_should_return_422_when_start_date_is_after_end_date(self, client_with_data):
+        # GIVEN a date range whose start falls after its end
+        given_url = _module_url("job-readiness", "2026-06-30", "2026-01-01")
+
+        # WHEN the endpoint is called
+        actual_response = await client_with_data.get(given_url, headers=_AUTH_HEADER)
+
+        # THEN expect a validation error with an explanatory message
+        assert actual_response.status_code == 422
+        assert "start_date must be on or before end_date" in actual_response.text
+
     async def test_should_return_422_for_invalid_granularity_value(self, client_with_data):
         # GIVEN an unsupported granularity value
         given_url = _module_url("build-your-profile", "2026-01-01", "2026-06-30", granularity="quarter")
@@ -283,7 +435,7 @@ class TestModulesFilterForwarding:
         client = await make_modules_client(_capturing_transport(captured))
         url = _module_url(
             "build-your-profile", "2026-01-01", "2026-06-30", granularity="week",
-            audience_segment="youth", login_method="google", institution_id="aW5zdGl0dXRpb24",
+            audience_segment=_A_VALID_AUDIENCE_SEGMENT, login_method="google", institution_id="aW5zdGl0dXRpb24",
         )
 
         # WHEN the modules endpoint is called
@@ -294,10 +446,37 @@ class TestModulesFilterForwarding:
             "start_date": "2026-01-01",
             "end_date": "2026-06-30",
             "granularity": "week",
-            "audience_segment": "youth",
+            "audience_segment": _A_VALID_AUDIENCE_SEGMENT,
             "login_method": "google",
             "institution_ids": "aW5zdGl0dXRpb24",
         }]
+
+    async def test_should_forward_resolved_scope_not_raw_institution_id_for_job_readiness(self, jr_recording_upstream):
+        # GIVEN a request drilling down to one institution for job-readiness
+        client, transport = jr_recording_upstream
+        given_url = _module_url("job-readiness", "2026-01-01", "2026-06-30", institution_id="inst-1")
+
+        # WHEN the endpoint is called
+        await client.get(given_url, headers=_AUTH_HEADER)
+
+        # THEN upstream sees the resolved institution_ids, not the raw institution_id
+        actual_params = transport.upstream_params
+        assert actual_params["institution_ids"] == "inst-1"
+        assert "institution_id" not in actual_params
+
+    async def test_should_omit_optional_filters_when_not_given_for_job_readiness(self, jr_recording_upstream):
+        # GIVEN a request with only required filters
+        client, transport = jr_recording_upstream
+
+        # WHEN the endpoint is called
+        await client.get(_module_url("job-readiness", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)
+
+        # THEN upstream receives only the required filters
+        assert transport.upstream_params == {
+            "start_date": "2026-01-01",
+            "end_date": "2026-06-30",
+            "granularity": "month",
+        }
 
 
 class TestModulesDoesNotAffectReach:
