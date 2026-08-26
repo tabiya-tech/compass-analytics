@@ -36,8 +36,9 @@ class AsyncHttpClient:
             transport=transport,
         )
 
-    async def get(self, path: str, params: dict[str, Any] | None = None) -> Any:
-        response = await self._client.get(path, params=params)
+    async def get(self, path: str, params: dict[str, Any] | None = None, headers: dict[str, str] | None = None) -> Any:
+        """`headers` are merged over the client's own — use it for per-request credentials."""
+        response = await self._client.get(path, params=params, headers=headers)
         return self._handle_response(response)
 
     async def post(self, path: str, body: dict[str, Any] | None = None) -> Any:

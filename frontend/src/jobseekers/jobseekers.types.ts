@@ -6,10 +6,6 @@ export type ModuleStatus = "not_started" | "in_progress" | "completed";
 
 export const MODULE_STATUSES: readonly ModuleStatus[] = ["not_started", "in_progress", "completed"];
 
-/**
- * One row of the roster. Carries everything the table renders and everything the CSV export
- * writes, so exporting never costs a second round trip — the file always matches what was on screen.
- */
 export interface JobseekerSummary {
   id: string;
   name: string;

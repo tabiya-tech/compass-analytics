@@ -17,9 +17,14 @@ async function enableMocking() {
     const { worker } = await import("./mocks/browser");
     return worker.start({ onUnhandledRequest: "bypass" });
   }
-  // Unregister any previously cached service worker so it stops intercepting requests.
-  const registrations = await navigator.serviceWorker.getRegistrations();
-  await Promise.all(registrations.map((r) => r.unregister()));
+
+  if (!("serviceWorker" in navigator)) return;
+  try {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((r) => r.unregister()));
+  } catch (error) {
+    console.warn("Could not unregister a previously cached service worker:", error);
+  }
 }
 
 async function boot() {

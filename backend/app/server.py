@@ -14,6 +14,7 @@ from app.analytics.routes import add_analytics_routes
 from app.app_config import ApplicationConfig, set_application_config
 from app.auth.api_key import ExternalService
 from app.auth.firebase import Authentication
+from app.jobseekers.routes import add_jobseekers_routes
 from app.sentry_init import init_sentry, set_sentry_contexts
 from app.server_dependencies.db_dependencies import AnalyticsDBProvider
 from app.users.routes import add_users_routes
@@ -135,6 +136,7 @@ firebase_auth = Authentication(
 add_version_routes(app)
 add_users_routes(app, firebase_auth)
 add_analytics_routes(app, firebase_auth)
+add_jobseekers_routes(app, firebase_auth)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080)  # nosec B104 # this will be run in a container
