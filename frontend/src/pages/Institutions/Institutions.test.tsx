@@ -35,7 +35,7 @@ function institutionNames(): string[] {
 describe("Institutions", () => {
   it("should show the screen heading while the institutions are still being fetched", () => {
     // GIVEN an endpoint that has not yet responded
-    server.use(http.get("/api/institutions", () => new Promise(() => {})));
+    server.use(http.get("/api/analytics/institutions", () => new Promise(() => {})));
 
     // WHEN the screen is rendered
     renderInstitutions();
@@ -99,7 +99,7 @@ describe("Institutions", () => {
     await renderAndWaitForInstitutions();
     let calls = 0;
     const countCall = ({ request }: { request: Request }) => {
-      if (new URL(request.url).pathname === "/api/institutions") calls += 1;
+      if (new URL(request.url).pathname === "/api/analytics/institutions") calls += 1;
     };
     server.events.on("request:start", countCall);
 
@@ -179,7 +179,7 @@ describe("Institutions", () => {
     // GIVEN an endpoint that fails the first time it is called
     let calls = 0;
     server.use(
-      http.get("/api/institutions", () => {
+      http.get("/api/analytics/institutions", () => {
         calls += 1;
         return calls === 1 ? HttpResponse.error() : undefined;
       })
@@ -199,7 +199,7 @@ describe("Institutions", () => {
 
   it("should show an error message when the institutions cannot be fetched, and log why", async () => {
     // GIVEN an endpoint that fails
-    server.use(http.get("/api/institutions", () => HttpResponse.error()));
+    server.use(http.get("/api/analytics/institutions", () => HttpResponse.error()));
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
     // WHEN the screen is rendered

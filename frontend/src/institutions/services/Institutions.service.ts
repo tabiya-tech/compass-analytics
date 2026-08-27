@@ -1,6 +1,6 @@
 import type { InstitutionDetail, InstitutionsQuery, InstitutionsResponse } from "@/institutions/institutions.types";
 
-export const INSTITUTIONS_API_BASE = "/api";
+export const INSTITUTIONS_API_BASE = "/api/analytics";
 
 export class InstitutionsApiError extends Error {
   readonly status: number;

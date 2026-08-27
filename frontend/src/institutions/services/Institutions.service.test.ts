@@ -38,7 +38,7 @@ describe("InstitutionsService", () => {
     // GIVEN an institutions endpoint that records how it was called
     let actualUrl: URL | undefined;
     server.use(
-      http.get("/api/institutions", ({ request }) => {
+      http.get("/api/analytics/institutions", ({ request }) => {
         actualUrl = new URL(request.url);
         return HttpResponse.json(givenResponse);
       })
@@ -48,7 +48,7 @@ describe("InstitutionsService", () => {
     await InstitutionsService.getInstance().getInstitutions(givenQuery, givenToken);
 
     // THEN the search, sort and pagination travel as query parameters
-    expect(actualUrl?.pathname).toBe("/api/institutions");
+    expect(actualUrl?.pathname).toBe("/api/analytics/institutions");
     expect(actualUrl?.searchParams.get("search")).toBe("skills");
     expect(actualUrl?.searchParams.get("sort_by")).toBe("active_users");
     expect(actualUrl?.searchParams.get("sort_dir")).toBe("asc");
@@ -62,7 +62,7 @@ describe("InstitutionsService", () => {
     // GIVEN an institutions endpoint that records the authorization header
     let actualAuthorization: string | null = null;
     server.use(
-      http.get("/api/institutions", ({ request }) => {
+      http.get("/api/analytics/institutions", ({ request }) => {
         actualAuthorization = request.headers.get("Authorization");
         return HttpResponse.json(givenResponse);
       })
@@ -77,7 +77,7 @@ describe("InstitutionsService", () => {
 
   it("should return the institutions, totals and region options the endpoint responds with", async () => {
     // GIVEN an institutions endpoint that responds with a page of institutions
-    server.use(http.get("/api/institutions", () => HttpResponse.json(givenResponse)));
+    server.use(http.get("/api/analytics/institutions", () => HttpResponse.json(givenResponse)));
 
     // WHEN the institutions are fetched
     const actual = await InstitutionsService.getInstance().getInstitutions(givenQuery, givenToken);
@@ -88,7 +88,7 @@ describe("InstitutionsService", () => {
 
   it("should throw an InstitutionsApiError when the endpoint rejects the request", async () => {
     // GIVEN an institutions endpoint that refuses the request
-    server.use(http.get("/api/institutions", () => new HttpResponse(null, { status: 403 })));
+    server.use(http.get("/api/analytics/institutions", () => new HttpResponse(null, { status: 403 })));
 
     // WHEN the institutions are fetched
     const actualPromise = InstitutionsService.getInstance().getInstitutions(givenQuery, givenToken);

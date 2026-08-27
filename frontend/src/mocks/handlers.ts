@@ -8,8 +8,7 @@ import type {
   ReachResponse,
 } from "@/analytics/analytics.types";
 import type { MeResponse } from "@/user/user.types";
-import { buildOverviewMetrics, parseOverviewMetricsQuery } from "@/mocks/overview-metrics";
-import { OVERVIEW_API_BASE } from "@/pages/Overview/services/OverviewMetrics.service";
+import { REACH_API_PATH } from "@/pages/Overview/services/OverviewMetrics.service";
 import { MODULES_API_BASE } from "@/pages/Modules/services/ModuleMetrics.service";
 import type { InstitutionSortKey, SortDirection } from "@/institutions/institutions.types";
 import { findInstitutionDetail, queryInstitutions } from "@/mocks/data/institutions";
@@ -119,7 +118,7 @@ const stubMe: MeResponse = {
 };
 
 /** Applies the query server-side, the way the real endpoint will: search, filter, sort, paginate. */
-export const institutionsHandler = http.get("/api/institutions", ({ request }) => {
+export const institutionsHandler = http.get("/api/analytics/institutions", ({ request }) => {
   const params = new URL(request.url).searchParams;
   return HttpResponse.json(
     queryInstitutions({
@@ -136,7 +135,7 @@ export const institutionsHandler = http.get("/api/institutions", ({ request }) =
 });
 
 /** The drill-down behind a table row. */
-export const institutionDetailHandler = http.get("/api/institutions/:institutionId", ({ params }) => {
+export const institutionDetailHandler = http.get("/api/analytics/institutions/:institutionId", ({ params }) => {
   const detail = findInstitutionDetail(String(params.institutionId));
   return detail ? HttpResponse.json(detail) : new HttpResponse(null, { status: 404 });
 });
@@ -183,7 +182,6 @@ export const jobseekerDetailHandler = http.get("/api/jobseekers/:jobseekerId", (
 
 /** Stands in for /api/reach — used by tests and Storybook so the Overview screen renders with realistic data. */
 export const overviewMetricsHandler = http.get(REACH_API_PATH, () => HttpResponse.json(stubReach));
-
 
 const stubJobReadiness: JobReadinessResponse = {
   started_percentage: 34.0,

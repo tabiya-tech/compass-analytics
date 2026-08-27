@@ -1,18 +1,17 @@
 import logging
-from typing import Union
+from typing import Optional, Union
 
 from http import HTTPStatus
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.analytics.dependencies import get_institutions_service
 from app.analytics.institutions.service import IInstitutionsService
-from app.analytics.institutions.types import InstitutionsResponse
+from app.analytics.institutions.types import InstitutionDetail, InstitutionsResponse
 from app.auth.errors import InvalidTokenErrorResponse
 from app.auth.firebase import Authentication, UserInfo
 from app.casbin.requires import CasbinAPIRouter, make_requires
 from app.errors import ForbiddenInstitutionErrorResponse
-from app.shared.filters import AnalyticsFiltersDep, verify_basic_filters
 from app.users.dependencies import get_grant_repository
 from app.users.errors import ForbiddenInstitutionError, NotProvisionedForbiddenErrorResponse, UserNotProvisionedError
 from app.users.types import Action, Subject
@@ -35,14 +34,12 @@ def add_institutions_routes(router: APIRouter, auth: Authentication) -> None:
     })
     @requires(Subject.DASHBOARD, Action.VIEW)
     async def get_institutions(
-        filters: AnalyticsFiltersDep,
+        institution_id: Optional[str] = Query(default=None, description="Drill down to a single institution."),
         user_info: UserInfo = Depends(get_user_info),
         service: IInstitutionsService = Depends(get_institutions_service),
     ) -> InstitutionsResponse:
-        filters = verify_basic_filters(filters)
-
         try:
-            return await service.get_institutions(filters, user_info)
+            return await service.get_institutions(institution_id, user_info)
         except UserNotProvisionedError as exc:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -53,5 +50,37 @@ def add_institutions_routes(router: APIRouter, auth: Authentication) -> None:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You do not have access to the requested institution.",
             ) from exc
+
+    @institutions_router.get("/analytics/institutions/{inst_id}", response_model=InstitutionDetail, responses={
+        HTTPStatus.UNAUTHORIZED: {"model": InvalidTokenErrorResponse, "description": "Missing or invalid authentication token."},
+        HTTPStatus.NOT_FOUND: {"description": "Institution not found or not accessible."},
+        HTTPStatus.FORBIDDEN: {
+            "model": Union[NotProvisionedForbiddenErrorResponse, ForbiddenInstitutionErrorResponse],
+            "description": "User has not been provisioned with dashboard access.",
+        },
+    })
+    @requires(Subject.DASHBOARD, Action.VIEW)
+    async def get_institution(
+        inst_id: str,
+        user_info: UserInfo = Depends(get_user_info),
+        service: IInstitutionsService = Depends(get_institutions_service),
+    ) -> InstitutionDetail:
+        try:
+            detail = await service.get_institution(inst_id, user_info)
+        except UserNotProvisionedError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your access has not been provisioned yet.",
+            ) from exc
+        except ForbiddenInstitutionError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have access to the requested institution.",
+            ) from exc
+
+        if detail is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Institution not found.")
+
+        return detail
 
     router.include_router(institutions_router)
