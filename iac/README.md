@@ -298,6 +298,50 @@ Runs `pulumi up` in order: `environment → dns → auth → frontend → backen
 
 ---
 
+## Running IAC locally
+
+The CI pipeline authenticates via WIF, which only works from GitHub Actions. To run `pulumi up` (or any `gcloud`/`pulumi` command) from your local machine you need to impersonate one of the deploy service accounts.
+
+### 1. Ensure your user account has permission to impersonate
+
+Your personal Google account must have `roles/iam.serviceAccountTokenCreator` on the target SA:
+
+> ask a realm admin to give you the appropriate permissions for impersonation
+
+### 2. Activate impersonation
+
+```bash
+# Lower / dev environments
+gcloud config set auth/impersonate_service_account \
+  analytics-deploy-lower@analytics-realm-root.iam.gserviceaccount.com
+
+# Prod / upper environments
+gcloud config set auth/impersonate_service_account \
+  analytics-deploy-prod@analytics-realm-root.iam.gserviceaccount.com
+```
+
+All subsequent `gcloud` and `pulumi up` calls in that shell will act as the SA.
+
+### 3. Run prepare + up as normal
+
+```bash
+cd iac
+source venv-iac/bin/activate
+
+python scripts/prepare.py --env-type dev --env-name zambia
+python scripts/up.py      --env-type dev --env-name zambia
+```
+
+### 4. Stop impersonating when done
+
+```bash
+gcloud config unset auth/impersonate_service_account
+```
+
+> **Troubleshooting:** if you get `403 Permission denied on 'iam.serviceAccounts.getAccessToken'`, your user account hasn't been granted `serviceAccountTokenCreator` on the SA yet (step 1 above). If you get `400 Request had invalid authentication credentials`, run `gcloud auth application-default login` first to refresh your user credentials before impersonating.
+
+---
+
 ## Building artifacts locally
 
 ```bash
