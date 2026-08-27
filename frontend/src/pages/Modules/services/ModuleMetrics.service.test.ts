@@ -81,19 +81,29 @@ describe("ModuleMetricsService.getModuleMetrics", () => {
     expect((byp as { degraded?: boolean }).degraded).toBe(true);
   });
 
+  it("should map Job Readiness figures from the backend response", async () => {
+    // GIVEN the JR endpoint returns known figures
+    server.use(http.get(`${MODULES_API_BASE}/build-your-profile`, () => HttpResponse.json(GIVEN_BYP_RESPONSE)));
+
+    // WHEN metrics are fetched
+    const actual = await service().getModuleMetrics(GIVEN_REQUEST, "test-token");
+    const jr = actual.modules.find((m) => m.moduleId === "job-readiness");
+
+    // THEN JR figures are mapped from the real response (stub handler returns 34%)
+    expect(jr?.startedPercentage).toBe(34);
+  });
+
   it("should return degraded stubs for modules with no backend endpoint yet", async () => {
-    // GIVEN the BYP endpoint responds
+    // GIVEN BYP and JR endpoints respond; CE and Jobs have no endpoint
     server.use(http.get(`${MODULES_API_BASE}/build-your-profile`, () => HttpResponse.json(GIVEN_BYP_RESPONSE)));
 
     // WHEN metrics are fetched
     const actual = await service().getModuleMetrics(GIVEN_REQUEST, "test-token");
 
     // THEN unimplemented modules come back as empty, zero-value stubs
-    const jr = actual.modules.find((m) => m.moduleId === "job-readiness");
     const ce = actual.modules.find((m) => m.moduleId === "career-explorer");
     const jobs = actual.modules.find((m) => m.moduleId === "jobs");
 
-    expect(jr?.startedPercentage).toBe(0);
     expect(ce?.startedPercentage).toBe(0);
     expect(jobs?.startedPercentage).toBe(0);
   });
