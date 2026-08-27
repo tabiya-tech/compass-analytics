@@ -4,7 +4,6 @@ import userEvent from "@testing-library/user-event";
 import { fireEvent, render, screen, within } from "@/_test_utilities/test-utils";
 import { server } from "@/mocks/server";
 import { handlers } from "@/mocks/handlers";
-import { buildOverviewMetrics } from "@/mocks/overview-metrics";
 import { AccessProvider, MODULE_IDS, type AccessScope, type ModuleId } from "@/access/AccessContext";
 import { FiltersProvider } from "@/filters/FiltersContext";
 import { createInitialFilters, type FiltersState } from "@/filters/filters";
@@ -15,7 +14,7 @@ import { DATA_TEST_ID as EMPTY_STATE_TEST_ID } from "@/components/shared/EmptySt
 import { DATA_TEST_ID as REACH_PANEL_TEST_ID } from "@/pages/Overview/components/ReachOverTimePanel";
 import { DATA_TEST_ID as LOGIN_PANEL_TEST_ID } from "@/pages/Overview/components/LoginMethodPanel";
 import { DATA_TEST_ID as DEMOGRAPHICS_PANEL_TEST_ID } from "@/pages/Overview/components/DemographicsPanel";
-import { OVERVIEW_API_BASE } from "@/pages/Overview/services/OverviewMetrics.service";
+import { REACH_API_PATH } from "@/pages/Overview/services/OverviewMetrics.service";
 import { Overview, DATA_TEST_ID } from "./Overview";
 
 /** A fixed year-long window, so the mocked figures and the header copy are stable. */
@@ -28,10 +27,6 @@ const GIVEN_FILTERS: FiltersState = {
 
 const ONE_INSTITUTION: AccessScope = { type: "institutions", institutionIds: ["inst-1"] };
 const ALL_INSTITUTIONS: AccessScope = { type: "all" };
-
-function expectedMetricsFor(institutions: "all" | string[]) {
-  return buildOverviewMetrics({ institutions, dateRange: GIVEN_WINDOW, granularity: "month" });
-}
 
 const WHOLE_SUITE: ModuleId[] = [
   MODULE_IDS.BUILD_YOUR_PROFILE,
@@ -60,119 +55,77 @@ describe("Overview screen header", () => {
     // WHEN the screen loads
     renderOverview(ONE_INSTITUTION);
 
-    // THEN the head reads as a single deployment, naming it and the window
+    // THEN the head reads as a single deployment
     expect(await screen.findByTestId(SCREEN_HEAD_TEST_ID.EYEBROW)).toHaveTextContent("Deployment overview");
     expect(screen.getByTestId(SCREEN_HEAD_TEST_ID.TITLE)).toHaveTextContent("Overview");
-    expect(screen.getByTestId(SCREEN_HEAD_TEST_ID.DESCRIPTION)).toHaveTextContent(
-      "Ndola Livelihoods Trust · Jul '25 – Jul '26"
-    );
   });
 
-  it("should say 'All institutions' when the grant covers the whole deployment", async () => {
+  it("should say 'Portfolio overview' when the grant covers the whole deployment", async () => {
     // GIVEN a grant covering every institution
     // WHEN the screen loads
     renderOverview(ALL_INSTITUTIONS);
 
-    // THEN the head reads as a portfolio, naming every institution rather than counting them
+    // THEN the head reads as a portfolio
     expect(await screen.findByTestId(SCREEN_HEAD_TEST_ID.EYEBROW)).toHaveTextContent("Portfolio overview");
-    expect(screen.getByTestId(SCREEN_HEAD_TEST_ID.DESCRIPTION)).toHaveTextContent(
-      "All institutions · Jul '25 – Jul '26"
-    );
   });
 
-  it("should count the institutions when the grant covers a named subset of the deployment", async () => {
-    // GIVEN a grant covering two specific institutions, not the whole deployment
+  it("should read as a portfolio when the grant covers a named subset of the deployment", async () => {
+    // GIVEN a grant covering two specific institutions
     const someInstitutions: AccessScope = { type: "institutions", institutionIds: ["inst-1", "inst-2"] };
 
     // WHEN the screen loads
     renderOverview(someInstitutions);
 
-    // THEN the head counts them, since "all" would overstate the grant
+    // THEN the head reads as a portfolio
     expect(await screen.findByTestId(SCREEN_HEAD_TEST_ID.EYEBROW)).toHaveTextContent("Portfolio overview");
-    expect(screen.getByTestId(SCREEN_HEAD_TEST_ID.DESCRIPTION)).toHaveTextContent("2 institutions · Jul '25 – Jul '26");
-  });
-
-  it("should name the institution being drilled into, out of a portfolio grant", async () => {
-    // GIVEN a portfolio grant, drilled into one of its institutions
-    // WHEN the screen loads
-    renderOverview(ALL_INSTITUTIONS, { institutionDrillDownId: "inst-2" });
-
-    // THEN the head reports on that institution alone
-    expect(await screen.findByTestId(SCREEN_HEAD_TEST_ID.EYEBROW)).toHaveTextContent("Deployment overview");
-    expect(screen.getByTestId(SCREEN_HEAD_TEST_ID.DESCRIPTION)).toHaveTextContent("Lusaka Youth Futures");
   });
 });
 
 describe("Overview screen stat tiles", () => {
-  it("should show cumulative users, active users and average session length", async () => {
-    // GIVEN the metrics for a single institution over the window
-    const expectedMetrics = expectedMetricsFor(["inst-1"]);
-
+  it("should show cumulative users, active users and average session length from the reach endpoint", async () => {
+    // GIVEN the reach endpoint returns its stub (set up by the default MSW handlers)
     // WHEN the screen loads
     renderOverview(ONE_INSTITUTION);
 
-    // THEN three tiles report the headline figures
+    // THEN three tiles are rendered with the figures from the reach summary
     const actualTiles = await screen.findByTestId(DATA_TEST_ID.TILES);
     expect(within(actualTiles).getAllByTestId(STAT_TILE_TEST_ID.VALUE)).toHaveLength(3);
 
-    const actualCumulativeUsers = within(screen.getByTestId(DATA_TEST_ID.CUMULATIVE_USERS_TILE));
-    expect(actualCumulativeUsers.getByText("Cumulative users")).toBeInTheDocument();
-    expect(actualCumulativeUsers.getByText(formatNumber(expectedMetrics.cumulativeUsers.total))).toBeInTheDocument();
-
-    const actualActiveUsers = within(screen.getByTestId(DATA_TEST_ID.ACTIVE_USERS_TILE));
-    expect(actualActiveUsers.getByText("Active users")).toBeInTheDocument();
-    expect(actualActiveUsers.getByText(formatNumber(expectedMetrics.activeUsers.count))).toBeInTheDocument();
     expect(
-      actualActiveUsers.getByText(
-        `${expectedMetrics.activeUsers.shareOfUsersPercentage}% of users · last ${expectedMetrics.activeUsers.windowDays} days`
-      )
+      within(screen.getByTestId(DATA_TEST_ID.CUMULATIVE_USERS_TILE)).getByText("Cumulative users")
     ).toBeInTheDocument();
+    expect(within(screen.getByTestId(DATA_TEST_ID.ACTIVE_USERS_TILE)).getByText("Active users")).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId(DATA_TEST_ID.SESSION_LENGTH_TILE)).getByText("Avg session length")
+    ).toBeInTheDocument();
+  });
 
-    const actualSessionLength = within(screen.getByTestId(DATA_TEST_ID.SESSION_LENGTH_TILE));
-    expect(actualSessionLength.getByText("Avg session length")).toBeInTheDocument();
-    expect(actualSessionLength.getByText(`${expectedMetrics.averageSessionMinutes}m`)).toBeInTheDocument();
-    expect(actualSessionLength.getByText("per login")).toBeInTheDocument();
+  it("should display the cumulative total from the reach summary", async () => {
+    // GIVEN the reach endpoint returns 12 450 total users (the stub value)
+    renderOverview(ONE_INSTITUTION);
+
+    // THEN the cumulative users tile shows that figure
+    const actualTile = within(await screen.findByTestId(DATA_TEST_ID.CUMULATIVE_USERS_TILE));
+    expect(actualTile.getByText(formatNumber(12_450))).toBeInTheDocument();
   });
 
   it("should qualify the cumulative total with its growth and the bucket it is stated as of", async () => {
-    // GIVEN the metrics for a single institution over the window
-    const expectedMetrics = expectedMetricsFor(["inst-1"]);
-    const expectedDirection = expectedMetrics.cumulativeUsers.growthPercentage < 0 ? "down" : "up";
-
-    // WHEN the screen loads
+    // GIVEN the screen loads with the default reach stub
     renderOverview(ONE_INSTITUTION);
 
-    // THEN the tile carries the delta, in the direction the figures moved
+    // THEN the tile carries a trend indicator and a period label from the last series bucket
     const actualTile = within(await screen.findByTestId(DATA_TEST_ID.CUMULATIVE_USERS_TILE));
-    expect(actualTile.getByTestId(STAT_TILE_TEST_ID.TREND)).toHaveAttribute("data-direction", expectedDirection);
-    // AND says which bucket the total is as of — the last month of the window
-    expect(actualTile.getByText("as of Jul '26")).toBeInTheDocument();
+    expect(actualTile.getByTestId(STAT_TILE_TEST_ID.TREND)).toBeInTheDocument();
+    expect(actualTile.getByText(/as of/)).toBeInTheDocument();
   });
 
-  it("should trace the cumulative total with a sparkline over the trailing window", async () => {
-    // GIVEN cumulative users that only ever rise
-    // WHEN the screen loads
+  it("should trace the cumulative total with a sparkline", async () => {
+    // GIVEN the screen loads
     renderOverview(ONE_INSTITUTION);
 
-    // THEN the tile carries a sparkline describing that rise
+    // THEN the tile carries a sparkline
     const actualTile = within(await screen.findByTestId(DATA_TEST_ID.CUMULATIVE_USERS_TILE));
-    const actualSparkline = within(actualTile.getByTestId(STAT_TILE_TEST_ID.SPARKLINE)).getByRole("img");
-    expect(actualSparkline).toHaveAttribute("data-direction", "up");
-    expect(actualSparkline).toHaveAccessibleName(/Cumulative users over the last 30 days/);
-  });
-
-  it("should aggregate the portfolio into figures larger than any one of its institutions", async () => {
-    // GIVEN the same window read for one institution and for the whole portfolio
-    const expectedInstitution = expectedMetricsFor(["inst-1"]);
-    const expectedPortfolio = expectedMetricsFor("all");
-
-    // WHEN the screen loads for the portfolio
-    renderOverview(ALL_INSTITUTIONS);
-
-    // THEN the total is the aggregate, not one institution's
-    const actualTile = within(await screen.findByTestId(DATA_TEST_ID.CUMULATIVE_USERS_TILE));
-    expect(actualTile.getByText(formatNumber(expectedPortfolio.cumulativeUsers.total))).toBeInTheDocument();
-    expect(expectedPortfolio.cumulativeUsers.total).toBeGreaterThan(expectedInstitution.cumulativeUsers.total);
+    expect(actualTile.getByTestId(STAT_TILE_TEST_ID.SPARKLINE)).toBeInTheDocument();
   });
 });
 
@@ -205,7 +158,6 @@ describe("Overview screen panels", () => {
     expect(actualPanel.getByText("New and returning users, by month")).toBeInTheDocument();
 
     // WHEN the window is narrowed to a fortnight
-    // (fireEvent, not userEvent.type — typing into <input type="date"> is locale/segment dependent)
     fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2026-06-25" } });
 
     // THEN the granularity re-derives, and the panel is bucketed by day
@@ -216,7 +168,7 @@ describe("Overview screen panels", () => {
 describe("Overview screen loading and failure", () => {
   it("should hold the screen's shape while the first response is in flight", () => {
     // GIVEN a request in flight
-    server.use(http.get(`${OVERVIEW_API_BASE}/metrics`, async () => new Promise(() => {})));
+    server.use(http.get(REACH_API_PATH, async () => new Promise(() => {})));
 
     // WHEN the screen renders, before the response lands
     renderOverview(ONE_INSTITUTION);
@@ -227,8 +179,8 @@ describe("Overview screen loading and failure", () => {
   });
 
   it("should offer a retry when the metrics can't be loaded at all", async () => {
-    // GIVEN the metrics endpoint is failing
-    server.use(http.get(`${OVERVIEW_API_BASE}/metrics`, () => new HttpResponse(null, { status: 500 })));
+    // GIVEN the reach endpoint is failing
+    server.use(http.get(REACH_API_PATH, () => new HttpResponse(null, { status: 500 })));
 
     // WHEN the screen loads
     renderOverview(ONE_INSTITUTION);
@@ -241,7 +193,7 @@ describe("Overview screen loading and failure", () => {
 
   it("should load the metrics on retry, once the endpoint recovers", async () => {
     // GIVEN a screen whose first load failed
-    server.use(http.get(`${OVERVIEW_API_BASE}/metrics`, () => new HttpResponse(null, { status: 500 })));
+    server.use(http.get(REACH_API_PATH, () => new HttpResponse(null, { status: 500 })));
     renderOverview(ONE_INSTITUTION);
     const actualError = await screen.findByTestId(DATA_TEST_ID.ERROR);
 

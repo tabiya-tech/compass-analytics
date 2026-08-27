@@ -1,5 +1,5 @@
 import type { ModuleId } from "@/access/AccessContext";
-import { serializeInstitutions } from "@/pages/Overview/services/OverviewMetrics.service";
+import { serializeInstitutions } from "@/analytics/analytics.utils";
 import type { ModuleMetricsRequest, ModuleMetricsResponse } from "@/pages/Modules/types";
 
 export const MODULES_API_BASE = "/api/modules";

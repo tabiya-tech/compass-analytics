@@ -1,10 +1,8 @@
-import type {
-  OverviewMetricsRequest,
-  OverviewMetricsResponse,
-  RequestedInstitutions,
-} from "@/pages/Overview/overview.types";
+import type { ReachResponse } from "@/analytics/analytics.types";
+import type { OverviewMetricsRequest, OverviewMetricsResponse } from "@/pages/Overview/overview.types";
+import { buildReachQuery, mapReachToOverviewMetrics } from "./OverviewMetrics.adapter";
 
-export const OVERVIEW_API_BASE = "/api/overview";
+export const REACH_API_PATH = "/api/reach";
 
 export class OverviewMetricsApiError extends Error {
   readonly status: number;
@@ -16,25 +14,6 @@ export class OverviewMetricsApiError extends Error {
   }
 }
 
-/** `all`, or a comma-separated list of ids — one param either way. */
-export function serializeInstitutions(institutions: RequestedInstitutions): string {
-  return institutions === "all" ? "all" : institutions.join(",");
-}
-
-/** `?institutions=&start=&end=&granularity=` plus a param per applied filter. */
-export function buildOverviewMetricsQuery(request: OverviewMetricsRequest): URLSearchParams {
-  const query = new URLSearchParams({
-    institutions: serializeInstitutions(request.institutions),
-    start: request.dateRange.start,
-    end: request.dateRange.end,
-    granularity: request.granularity,
-  });
-  // Omitted rather than sent empty: an absent param means "not filtered".
-  if (request.audienceSegment) query.set("audienceSegment", request.audienceSegment);
-  if (request.loginMethod) query.set("loginMethod", request.loginMethod);
-  return query;
-}
-
 export class OverviewMetricsService {
   private static instance: OverviewMetricsService | null = null;
 
@@ -43,14 +22,14 @@ export class OverviewMetricsService {
     return OverviewMetricsService.instance;
   }
 
-  /** Every figure the Overview screen shows, in one round trip, so the tiles and panels can't disagree. */
   async getOverviewMetrics(
     request: OverviewMetricsRequest,
+    token: string,
     options?: { signal?: AbortSignal }
   ): Promise<OverviewMetricsResponse> {
-    const query = buildOverviewMetricsQuery(request);
-    const response = await fetch(`${OVERVIEW_API_BASE}/metrics?${query.toString()}`, {
-      headers: { Accept: "application/json" },
+    const query = buildReachQuery(request);
+    const response = await fetch(`${REACH_API_PATH}?${query.toString()}`, {
+      headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
       signal: options?.signal,
     });
 
@@ -58,6 +37,7 @@ export class OverviewMetricsService {
       throw new OverviewMetricsApiError(response.status, `Failed to fetch overview metrics (${response.status}).`);
     }
 
-    return (await response.json()) as OverviewMetricsResponse;
+    const reach = (await response.json()) as ReachResponse;
+    return mapReachToOverviewMetrics(reach, request);
   }
 }

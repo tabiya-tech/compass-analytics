@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import * as Sentry from "@sentry/react";
+import { useAuth } from "@/auth/AuthContext";
 import { useAccess, type AccessScope } from "@/access/AccessContext";
 import { useFilters } from "@/filters/FiltersContext";
 import type { FiltersState } from "@/filters/filters";
@@ -34,6 +36,7 @@ export function toOverviewMetricsRequest(scope: AccessScope, filters: FiltersSta
 
 /** The Overview screen's data. Refetches on scope/filters changes, holding the previous figures while the next ones load. */
 export function useOverviewMetrics(): OverviewMetricsResult {
+  const { getIdToken } = useAuth();
   const { scope } = useAccess();
   const { filters } = useFilters();
   const service = OverviewMetricsService.getInstance();
@@ -48,24 +51,26 @@ export function useOverviewMetrics(): OverviewMetricsResult {
     const controller = new AbortController();
     setState((previous) => ({ ...previous, isLoading: true }));
 
-    service
-      .getOverviewMetrics(request, { signal: controller.signal })
-      .then((metrics) => {
+    (async () => {
+      try {
+        const token = await getIdToken();
+        const metrics = await service.getOverviewMetrics(request, token, { signal: controller.signal });
         if (controller.signal.aborted) return;
         setState({ metrics, isLoading: false, error: null });
-      })
-      .catch((error: unknown) => {
+      } catch (error: unknown) {
         if (controller.signal.aborted) return;
+        Sentry.captureException(error);
         // Keeps the last good figures visible, with the error alongside them.
         setState((previous) => ({
           metrics: previous.metrics,
           isLoading: false,
           error: error instanceof Error ? error : new Error(String(error)),
         }));
-      });
+      }
+    })();
 
     return () => controller.abort();
-  }, [request, service, attempt]);
+  }, [request, service, attempt, getIdToken]);
 
   return { ...state, reload };
 }

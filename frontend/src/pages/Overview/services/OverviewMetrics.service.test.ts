@@ -1,216 +1,217 @@
 import { describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "@/mocks/server";
+import type { ReachResponse } from "@/analytics/analytics.types";
 import type { OverviewMetricsRequest } from "@/pages/Overview/overview.types";
-import { listPeriods } from "@/pages/Overview/utils";
-import {
-  buildOverviewMetricsQuery,
-  OVERVIEW_API_BASE,
-  OverviewMetricsApiError,
-  OverviewMetricsService,
-} from "./OverviewMetrics.service";
+import { mapReachToOverviewMetrics } from "./OverviewMetrics.adapter";
+import { OverviewMetricsApiError, OverviewMetricsService, REACH_API_PATH } from "./OverviewMetrics.service";
 
-const GIVEN_YEAR_TO_JULY: OverviewMetricsRequest = {
-  institutions: ["inst-1"],
-  dateRange: { start: "2025-07-08", end: "2026-07-07" },
-  granularity: "month",
+const GIVEN_REACH: ReachResponse = {
+  summary: {
+    total_users: 12_000,
+    active_users_30d: 3_000,
+    total_logins: 48_000,
+    avg_logins_per_user: 4.0,
+    avg_session_minutes: 22,
+  },
+  series: [
+    { label: "2026-01", cumulative: 10_000, added: 900, new_users: 900, returning: 9_100, logins: 6_000 },
+    { label: "2026-02", cumulative: 11_000, added: 1_000, new_users: 1_000, returning: 10_000, logins: 7_000 },
+    { label: "2026-03", cumulative: 12_000, added: 1_200, new_users: 1_200, returning: 10_800, logins: 8_000 },
+  ],
 };
 
-const GIVEN_ALL_INSTITUTIONS: OverviewMetricsRequest = { ...GIVEN_YEAR_TO_JULY, institutions: "all" };
+const GIVEN_REQUEST: OverviewMetricsRequest = {
+  institutions: ["inst-1"],
+  dateRange: { start: "2026-01-01", end: "2026-03-31" },
+  granularity: "month",
+};
 
 function service(): OverviewMetricsService {
   return OverviewMetricsService.getInstance();
 }
 
-describe("buildOverviewMetricsQuery", () => {
-  it("should send the scope, the range and the granularity, and nothing for the unset filters", () => {
-    // GIVEN a request with no chip filters applied
-    // WHEN the query is built
-    const actualQuery = buildOverviewMetricsQuery(GIVEN_YEAR_TO_JULY);
+describe("mapReachToOverviewMetrics", () => {
+  it("should map summary totals onto the tile metrics", () => {
+    // GIVEN a reach response with known summary figures
+    // WHEN mapped
+    const actual = mapReachToOverviewMetrics(GIVEN_REACH, GIVEN_REQUEST);
 
-    // THEN the scope, range and granularity are sent
-    expect(actualQuery.get("institutions")).toBe("inst-1");
-    expect(actualQuery.get("start")).toBe("2025-07-08");
-    expect(actualQuery.get("end")).toBe("2026-07-07");
-    expect(actualQuery.get("granularity")).toBe("month");
-    // AND the filters are absent rather than empty
-    expect(actualQuery.has("audienceSegment")).toBe(false);
-    expect(actualQuery.has("loginMethod")).toBe(false);
+    // THEN the tiles carry those figures
+    expect(actual.cumulativeUsers.total).toBe(12_000);
+    expect(actual.activeUsers.count).toBe(3_000);
+    expect(actual.activeUsers.windowDays).toBe(30);
+    expect(actual.averageSessionMinutes).toBe(22);
+    expect(actual.averageLoginsPerUser).toBe(4.0);
   });
 
-  it("should send several institutions as one comma-separated param", () => {
-    // GIVEN a grant covering three institutions
-    const givenRequest: OverviewMetricsRequest = {
-      ...GIVEN_YEAR_TO_JULY,
-      institutions: ["inst-1", "inst-2", "inst-3"],
-    };
+  it("should compute active users share as a percentage of total", () => {
+    // GIVEN 3 000 active out of 12 000 total
+    const actual = mapReachToOverviewMetrics(GIVEN_REACH, GIVEN_REQUEST);
 
-    // WHEN the query is built
-    const actualQuery = buildOverviewMetricsQuery(givenRequest);
-
-    // THEN they travel in a single param
-    expect(actualQuery.get("institutions")).toBe("inst-1,inst-2,inst-3");
+    // THEN the share is 25 %
+    expect(actual.activeUsers.shareOfUsersPercentage).toBe(25);
   });
 
-  it("should send every institution as the 'all' sentinel", () => {
-    // GIVEN a grant covering the whole deployment
-    // WHEN the query is built
-    const actualQuery = buildOverviewMetricsQuery(GIVEN_ALL_INSTITUTIONS);
+  it("should map series labels and user counts onto the reach series", () => {
+    // GIVEN a three-bucket series
+    const actual = mapReachToOverviewMetrics(GIVEN_REACH, GIVEN_REQUEST);
 
-    // THEN the scope is stated once, without naming institutions
-    expect(actualQuery.get("institutions")).toBe("all");
+    // THEN each bucket is mapped by label, new users, and returning users
+    expect(actual.reachSeries).toEqual([
+      { period: "2026-01", newUsers: 900, returningUsers: 9_100 },
+      { period: "2026-02", newUsers: 1_000, returningUsers: 10_000 },
+      { period: "2026-03", newUsers: 1_200, returningUsers: 10_800 },
+    ]);
   });
 
-  it("should send the applied chip filters", () => {
-    // GIVEN a request narrowed to young jobseekers who sign in with Google
-    const givenRequest: OverviewMetricsRequest = {
-      ...GIVEN_YEAR_TO_JULY,
-      audienceSegment: "youth",
-      loginMethod: "google",
-    };
+  it("should map the cumulative series onto the daily sparkline", () => {
+    // GIVEN the same series
+    const actual = mapReachToOverviewMetrics(GIVEN_REACH, GIVEN_REQUEST);
 
-    // WHEN the query is built
-    const actualQuery = buildOverviewMetricsQuery(givenRequest);
+    // THEN the sparkline carries each bucket's cumulative count
+    expect(actual.dailySeries).toEqual([
+      { date: "2026-01", users: 10_000 },
+      { date: "2026-02", users: 11_000 },
+      { date: "2026-03", users: 12_000 },
+    ]);
+  });
 
-    // THEN both filters are sent
-    expect(actualQuery.get("audienceSegment")).toBe("youth");
-    expect(actualQuery.get("loginMethod")).toBe("google");
+  it("should compute growth percentage as the change in 'added' between the last two buckets", () => {
+    // GIVEN 1 000 added in Feb and 1 200 in Mar — 20 % increase
+    const actual = mapReachToOverviewMetrics(GIVEN_REACH, GIVEN_REQUEST);
+
+    expect(actual.cumulativeUsers.growthPercentage).toBe(20);
+  });
+
+  it("should mark the last bucket's label as the asOfPeriod", () => {
+    const actual = mapReachToOverviewMetrics(GIVEN_REACH, GIVEN_REQUEST);
+
+    expect(actual.cumulativeUsers.asOfPeriod).toBe("2026-03");
+  });
+
+  it("should echo the request's dateRange and granularity", () => {
+    const actual = mapReachToOverviewMetrics(GIVEN_REACH, GIVEN_REQUEST);
+
+    expect(actual.dateRange).toEqual(GIVEN_REQUEST.dateRange);
+    expect(actual.granularity).toBe("month");
+  });
+
+  it("should report a portfolio scope when multiple institutions are in scope", () => {
+    // GIVEN a request covering three institutions
+    const givenRequest: OverviewMetricsRequest = { ...GIVEN_REQUEST, institutions: ["inst-1", "inst-2", "inst-3"] };
+
+    const actual = mapReachToOverviewMetrics(GIVEN_REACH, givenRequest);
+
+    expect(actual.scope).toEqual({ type: "portfolio", institutionCount: 3 });
+  });
+
+  it("should report a portfolio scope with count 0 when the grant covers all institutions", () => {
+    // GIVEN a request covering the whole deployment
+    const givenRequest: OverviewMetricsRequest = { ...GIVEN_REQUEST, institutions: "all" };
+
+    const actual = mapReachToOverviewMetrics(GIVEN_REACH, givenRequest);
+
+    expect(actual.scope).toEqual({ type: "portfolio", institutionCount: 0 });
+  });
+
+  it("should return an empty loginMethods array — the reach endpoint does not break down by method", () => {
+    const actual = mapReachToOverviewMetrics(GIVEN_REACH, GIVEN_REQUEST);
+
+    expect(actual.loginMethods).toEqual([]);
   });
 });
 
 describe("OverviewMetricsService.getOverviewMetrics", () => {
-  it("should return metrics scoped to the one institution in scope, naming it", async () => {
-    // GIVEN a grant covering a single institution
-    // WHEN the overview metrics are fetched
-    const actualMetrics = await service().getOverviewMetrics(GIVEN_YEAR_TO_JULY);
+  it("should fetch /api/reach and return a mapped OverviewMetricsResponse", async () => {
+    // GIVEN the reach endpoint returns the stub
+    server.use(http.get(REACH_API_PATH, () => HttpResponse.json(GIVEN_REACH)));
 
-    // THEN the payload reports on that institution by name
-    expect(actualMetrics.scope).toEqual({
-      type: "institution",
-      institutionId: "inst-1",
-      institutionName: "Ndola Livelihoods Trust",
-    });
+    // WHEN overview metrics are fetched
+    const actual = await service().getOverviewMetrics(GIVEN_REQUEST, "test-token");
+
+    // THEN the response carries the mapped figures
+    expect(actual.cumulativeUsers.total).toBe(12_000);
+    expect(actual.reachSeries).toHaveLength(3);
   });
 
-  it("should return an aggregated portfolio when the grant covers every institution", async () => {
-    // GIVEN a grant covering the whole deployment
-    // WHEN the overview metrics are fetched
-    const actualMetrics = await service().getOverviewMetrics(GIVEN_ALL_INSTITUTIONS);
+  it("should send start_date, end_date, and granularity as query params", async () => {
+    // GIVEN the reach endpoint captures the request URL
+    let capturedUrl: URL | null = null;
+    server.use(
+      http.get(REACH_API_PATH, ({ request }) => {
+        capturedUrl = new URL(request.url);
+        return HttpResponse.json(GIVEN_REACH);
+      })
+    );
 
-    // THEN the payload reports a count of institutions rather than naming one
-    expect(actualMetrics.scope).toEqual({ type: "portfolio", institutionCount: 5 });
+    // WHEN the service fetches
+    await service().getOverviewMetrics(GIVEN_REQUEST, "test-token");
+
+    // THEN the date and granularity params are present
+    expect(capturedUrl!.searchParams.get("start_date")).toBe("2026-01-01");
+    expect(capturedUrl!.searchParams.get("end_date")).toBe("2026-03-31");
+    expect(capturedUrl!.searchParams.get("granularity")).toBe("month");
   });
 
-  it("should report a larger population for the portfolio than for one of its institutions", async () => {
-    // GIVEN the same window read at both scopes
-    // WHEN both are fetched
-    const actualPortfolio = await service().getOverviewMetrics(GIVEN_ALL_INSTITUTIONS);
-    const actualInstitution = await service().getOverviewMetrics(GIVEN_YEAR_TO_JULY);
+  it("should send institution_id when scoped to a single institution", async () => {
+    let capturedUrl: URL | null = null;
+    server.use(
+      http.get(REACH_API_PATH, ({ request }) => {
+        capturedUrl = new URL(request.url);
+        return HttpResponse.json(GIVEN_REACH);
+      })
+    );
 
-    // THEN the portfolio aggregates its members rather than sampling one
-    expect(actualPortfolio.cumulativeUsers.total).toBeGreaterThan(actualInstitution.cumulativeUsers.total);
+    await service().getOverviewMetrics({ ...GIVEN_REQUEST, institutions: ["inst-1"] }, "test-token");
+
+    expect(capturedUrl!.searchParams.get("institution_id")).toBe("inst-1");
   });
 
-  it("should echo the requested window and bucket the reach series by the requested granularity", async () => {
-    // GIVEN a year-long window read by month
-    const givenPeriods = listPeriods(GIVEN_YEAR_TO_JULY.dateRange, "month");
+  it("should not send institution_id when scoped to all institutions", async () => {
+    let capturedUrl: URL | null = null;
+    server.use(
+      http.get(REACH_API_PATH, ({ request }) => {
+        capturedUrl = new URL(request.url);
+        return HttpResponse.json(GIVEN_REACH);
+      })
+    );
 
-    // WHEN the overview metrics are fetched
-    const actualMetrics = await service().getOverviewMetrics(GIVEN_YEAR_TO_JULY);
+    await service().getOverviewMetrics({ ...GIVEN_REQUEST, institutions: "all" }, "test-token");
 
-    // THEN the response states the window it answers for
-    expect(actualMetrics.dateRange).toEqual(GIVEN_YEAR_TO_JULY.dateRange);
-    expect(actualMetrics.granularity).toBe("month");
-    // AND there is one reach bucket per month in it
-    expect(actualMetrics.reachSeries.map((point) => point.period)).toEqual(givenPeriods);
+    expect(capturedUrl!.searchParams.has("institution_id")).toBe(false);
   });
 
-  it("should return finer buckets when the same window is read by week", async () => {
-    // GIVEN a six-week window read by week
-    const givenRequest: OverviewMetricsRequest = {
-      ...GIVEN_YEAR_TO_JULY,
-      dateRange: { start: "2026-05-01", end: "2026-06-12" },
-      granularity: "week",
-    };
+  it("should send the token as a Bearer Authorization header", async () => {
+    // GIVEN the reach endpoint captures the request headers
+    let capturedAuth: string | null = null;
+    server.use(
+      http.get(REACH_API_PATH, ({ request }) => {
+        capturedAuth = request.headers.get("Authorization");
+        return HttpResponse.json(GIVEN_REACH);
+      })
+    );
 
-    // WHEN the overview metrics are fetched
-    const actualMetrics = await service().getOverviewMetrics(givenRequest);
+    // WHEN the service fetches with a known token
+    await service().getOverviewMetrics(GIVEN_REQUEST, "my-token");
 
-    // THEN the series is bucketed weekly
-    expect(actualMetrics.granularity).toBe("week");
-    expect(actualMetrics.reachSeries).toHaveLength(listPeriods(givenRequest.dateRange, "week").length);
+    // THEN the token is sent as a bearer credential
+    expect(capturedAuth).toBe("Bearer my-token");
   });
 
-  it("should return a complete dashboard payload, with every panel's data present", async () => {
-    // GIVEN a grant covering a single institution
-    // WHEN the overview metrics are fetched
-    const actualMetrics = await service().getOverviewMetrics(GIVEN_YEAR_TO_JULY);
+  it("should throw an OverviewMetricsApiError carrying the status when the endpoint fails", async () => {
+    // GIVEN the reach endpoint is failing
+    server.use(http.get(REACH_API_PATH, () => new HttpResponse(null, { status: 500 })));
 
-    // THEN the tiles have their figures
-    expect(actualMetrics.cumulativeUsers.total).toBeGreaterThan(0);
-    expect(actualMetrics.activeUsers.count).toBeGreaterThan(0);
-    expect(actualMetrics.activeUsers.windowDays).toBe(30);
-    expect(actualMetrics.averageSessionMinutes).toBeGreaterThan(0);
-    // AND the sparkline has a series that only ever rises
-    const actualSparkline = actualMetrics.dailySeries.map((point) => point.users);
-    expect(actualSparkline.length).toBeGreaterThan(1);
-    expect([...actualSparkline].sort((a, b) => a - b)).toEqual(actualSparkline);
-    // AND the login split and its centre figure are there
-    expect(actualMetrics.loginMethods.map((slice) => slice.method)).toEqual(["google", "email"]);
-    expect(actualMetrics.averageLoginsPerUser).toBeGreaterThan(0);
-  });
+    // WHEN overview metrics are fetched
+    const actualPromise = service().getOverviewMetrics(GIVEN_REQUEST, "test-token");
 
-  it("should narrow the login split to the filtered method", async () => {
-    // GIVEN a request filtered to Google sign-ins
-    const givenRequest: OverviewMetricsRequest = { ...GIVEN_YEAR_TO_JULY, loginMethod: "google" };
-
-    // WHEN the overview metrics are fetched
-    const actualMetrics = await service().getOverviewMetrics(givenRequest);
-
-    // THEN only that method is left in the split
-    expect(actualMetrics.loginMethods.map((slice) => slice.method)).toEqual(["google"]);
-  });
-
-  it("should report a smaller population once an audience segment is filtered", async () => {
-    // GIVEN the same window, read unfiltered and then narrowed to youth
-    // WHEN both are fetched
-    const actualUnfiltered = await service().getOverviewMetrics(GIVEN_YEAR_TO_JULY);
-    const actualFiltered = await service().getOverviewMetrics({ ...GIVEN_YEAR_TO_JULY, audienceSegment: "youth" });
-
-    // THEN the filtered slice is a subset of the whole
-    expect(actualFiltered.cumulativeUsers.total).toBeLessThan(actualUnfiltered.cumulativeUsers.total);
-  });
-
-  it("should return the same figures for the same request, so the numbers never drift between renders", async () => {
-    // GIVEN one request
-    // WHEN it is fetched twice
-    const actualFirst = await service().getOverviewMetrics(GIVEN_YEAR_TO_JULY);
-    const actualSecond = await service().getOverviewMetrics(GIVEN_YEAR_TO_JULY);
-
-    // THEN both responses are identical
-    expect(actualSecond).toEqual(actualFirst);
-  });
-
-  it("should throw an api error carrying the status when the endpoint fails", async () => {
-    // GIVEN the metrics endpoint is failing
-    server.use(http.get(`${OVERVIEW_API_BASE}/metrics`, () => new HttpResponse(null, { status: 500 })));
-
-    // WHEN the overview metrics are fetched
-    const actualPromise = service().getOverviewMetrics(GIVEN_YEAR_TO_JULY);
-
-    // THEN it rejects with the api error, carrying the status
+    // THEN it rejects with the api error and the status
     await expect(actualPromise).rejects.toBeInstanceOf(OverviewMetricsApiError);
     await expect(actualPromise).rejects.toMatchObject({ status: 500 });
   });
 
-  it("should reuse a single instance, so callers share one service", () => {
-    // GIVEN the service has been resolved once
-    const givenService = OverviewMetricsService.getInstance();
-
-    // WHEN it is resolved again
-    const actualService = OverviewMetricsService.getInstance();
-
-    // THEN it is the same instance
-    expect(actualService).toBe(givenService);
+  it("should reuse a single instance", () => {
+    expect(OverviewMetricsService.getInstance()).toBe(OverviewMetricsService.getInstance());
   });
 });
