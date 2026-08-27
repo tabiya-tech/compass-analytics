@@ -15,7 +15,9 @@ initSentry();
 async function enableMocking() {
   if (import.meta.env.VITE_MSW === "true") {
     const { worker } = await import("./mocks/browser");
-    return worker.start({ onUnhandledRequest: "bypass" });
+    const result = await worker.start({ onUnhandledRequest: "bypass" });
+    console.warn("[MSW] Mock Service Worker is active — API responses are intercepted and mocked.");
+    return result;
   }
 
   if (!("serviceWorker" in navigator)) return;
