@@ -167,8 +167,26 @@ function JobReadinessBody({ metrics, isLoading }: Readonly<{ metrics: JobReadine
   );
 }
 
+function CareerExplorerSkeleton() {
+  return (
+    <div data-testid={DATA_TEST_ID.LOADING} className="grid gap-6">
+      <Skeleton className="h-96 rounded-card" />
+    </div>
+  );
+}
+
 function CareerExplorerBody({ metrics, isLoading }: Readonly<{ metrics: CareerExplorerMetrics; isLoading: boolean }>) {
   const { t } = useTranslation();
+
+  // Zeroed data shown as real would misread as "nobody explores anything" — show the gap instead.
+  if (metrics.degraded) {
+    if (isLoading) return <CareerExplorerSkeleton />;
+    return (
+      <div data-testid={DATA_TEST_ID.DEGRADED}>
+        <EmptyState message={t("modules.careerExplorer.degraded")} />
+      </div>
+    );
+  }
 
   const items = metrics.topSectors.map((sector) => ({
     id: sector.id,

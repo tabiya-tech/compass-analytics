@@ -1,6 +1,7 @@
 import type {
   AnalyticsParams,
   BuildYourProfileResponse,
+  CareerExplorerResponse,
   DemographicsParams,
   DemographicsResponse,
   JobReadinessResponse,
@@ -78,6 +79,17 @@ export class AnalyticsService {
 
   async getJobReadiness(params: AnalyticsParams, token: string): Promise<JobReadinessResponse> {
     return this._fetch<JobReadinessResponse>("/modules/job-readiness", token, {
+      start_date: params.start_date,
+      end_date: params.end_date,
+      granularity: params.granularity,
+      audience_segment: params.audience_segment,
+      login_method: params.login_method,
+      institution_id: params.institution_id,
+    });
+  }
+
+  async getCareerExplorer(params: AnalyticsParams, token: string): Promise<CareerExplorerResponse> {
+    return this._fetch<CareerExplorerResponse>("/modules/career-explorer", token, {
       start_date: params.start_date,
       end_date: params.end_date,
       granularity: params.granularity,

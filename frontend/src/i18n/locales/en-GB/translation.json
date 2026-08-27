@@ -534,6 +534,7 @@
       }
     },
     "careerExplorer": {
+      "degraded": "Career Explorer figures aren't available right now — the upstream data source didn't respond.",
       "sectors": {
         "title": "Top sectors & careers explored",
         "description": "Where curiosity is going"

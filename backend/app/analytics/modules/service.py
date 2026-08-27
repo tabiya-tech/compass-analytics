@@ -35,6 +35,8 @@ class ModulesService(IModulesService):
             return await self._repo.get_build_your_profile(scope.institution_ids, filters)
         if module_key == "job-readiness":
             return await self._repo.get_job_readiness(scope.institution_ids, filters)
+        if module_key == "career-explorer":
+            return await self._repo.get_career_explorer(scope.institution_ids, filters)
         if module_key == "jobs":
             return await self._repo.get_jobs(scope.institution_ids, filters)
 
