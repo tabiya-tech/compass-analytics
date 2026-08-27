@@ -12,7 +12,7 @@ import { LoginMethodPanel } from "@/pages/Overview/components/LoginMethodPanel";
 import { ReachOverTimePanel } from "@/pages/Overview/components/ReachOverTimePanel";
 import type { OverviewMetricsResponse, MetricsScope } from "@/pages/Overview/overview.types";
 import { useOverviewMetrics } from "@/pages/Overview/hooks/use-overview-metrics";
-import { useDemographics } from "@/pages/Overview/useDemographics";
+import { useDemographics } from "@/pages/Overview/hooks/use-demographics";
 import { ModuleBody } from "@/pages/Modules/components/ModuleBody";
 import { ModuleHeader } from "@/pages/Modules/components/ModuleHeader";
 import { useModuleMetrics } from "@/pages/Modules/hooks/use-module-metrics";

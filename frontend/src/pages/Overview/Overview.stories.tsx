@@ -68,6 +68,19 @@ export const FailedToLoad: Story = {
   },
 };
 
+/** Demographics endpoint fails while the main metrics load fine — the panel shows the degraded message. */
+export const DemographicsFailed: Story = {
+  decorators: [withAccess({ type: "institutions", institutionIds: ["inst-1"] })],
+  parameters: {
+    msw: {
+      handlers: [http.get("/api/demographics", () => new HttpResponse(null, { status: 500 }))],
+    },
+  },
+  play: async ({ canvas }) => {
+    await waitFor(() => canvas.getByText("We couldn't load demographic data right now."));
+  },
+};
+
 /** A deployment running one module has no Modules screen — that module's figures are part of Overview instead. */
 export const SingleModuleDeployment: Story = {
   decorators: [withAccess({ type: "institutions", institutionIds: ["inst-1"] }, [MODULE_IDS.BUILD_YOUR_PROFILE])],
