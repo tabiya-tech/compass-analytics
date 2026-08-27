@@ -42,6 +42,47 @@ def _get_open_api_config(cloud_run_url: str, id_token: str) -> dict:
     return response.json()
 
 
+def _resolve_ref(openapi3: dict, ref: str) -> dict:
+    """Resolve a local `#/components/schemas/Name` reference to its schema."""
+    return openapi3.get('components', {}).get('schemas', {}).get(ref.split('/')[-1], {})
+
+
+def _swagger_param_fields(schema: dict, openapi3: dict) -> dict:
+    """
+    Translate an OpenAPI 3 parameter `schema` into the Swagger 2.0 fields that live
+    directly on the parameter object (`type`, `items`, `collectionFormat`, `enum`).
+
+    An array parameter *must* carry `items` — Swagger 2.0 has no untyped array. Without
+    it, GCP's service-config translator models the parameter as a google.protobuf.Struct
+    /ListValue and then rejects the config with "repeated message field ... cannot be
+    mapped as an HTTP parameter".
+    """
+    if '$ref' in schema:
+        schema = _resolve_ref(openapi3, schema['$ref'])
+
+    if 'anyOf' in schema:
+        # Nullable types (e.g. Optional[str] → anyOf: [{type: string}, {type: null}]).
+        # Keep the first non-null branch — Swagger 2.0 has no union type.
+        for entry in schema['anyOf']:
+            if entry.get('type') == 'null':
+                continue
+            fields = _swagger_param_fields(entry, openapi3)
+            if fields:
+                return fields
+        return {}
+
+    if 'type' not in schema:
+        return {}
+
+    fields = {'type': schema['type']}
+    if 'enum' in schema:
+        fields['enum'] = schema['enum']
+    if schema['type'] == 'array':
+        # Fall back to a string item rather than emitting an array without `items`.
+        fields['items'] = _swagger_param_fields(schema.get('items', {}), openapi3) or {'type': 'string'}
+    return fields
+
+
 def _convert_open_api_3_to_2(openapi3: dict):
     """
     Convert OpenAPI 3.1 to OpenAPI 2.0 format for GCP API Gateway configuration.
@@ -61,29 +102,14 @@ def _convert_open_api_3_to_2(openapi3: dict):
         for method in openapi3['paths'][path]:
 
             # OpenAPI 3 and OpenAPI 2 has different way to handle the schema/type
-            if 'parameters' in openapi3['paths'][path][method]:
-                for param in openapi3['paths'][path][method]['parameters']:
-                    schema = param.pop('schema', {'type': None})
-                    if schema:
-                        if 'type' in schema:
-                            param['type'] = schema['type']
-                        elif 'anyOf' in schema:
-                            # Handle nullable types (e.g. Optional[str] → anyOf: [{type: string}, {type: null}])
-                            # Pick the first non-null type for Swagger 2.0 compatibility.
-                            # If the non-null entry is a $ref (e.g. Optional[SomeEnum]), resolve it
-                            # from components/schemas and inline the enum values with type: string.
-                            non_null_entries = [s for s in schema['anyOf'] if s.get('type') != 'null']
-                            for entry in non_null_entries:
-                                if 'type' in entry:
-                                    param['type'] = entry['type']
-                                    break
-                                elif '$ref' in entry:
-                                    ref_name = entry['$ref'].split('/')[-1]
-                                    ref_schema = openapi3.get('components', {}).get('schemas', {}).get(ref_name, {})
-                                    param['type'] = ref_schema.get('type', 'string')
-                                    if 'enum' in ref_schema:
-                                        param['enum'] = ref_schema['enum']
-                                    break
+            for param in openapi3['paths'][path][method].get('parameters', []):
+                schema = param.pop('schema', None) or {}
+                fields = _swagger_param_fields(schema, openapi3)
+                # Every non-body Swagger 2.0 parameter needs a type; string is the safe default.
+                param.update(fields or {'type': 'string'})
+                if param.get('type') == 'array' and param.get('in') in ('query', 'formData'):
+                    # FastAPI reads repeated query params (`?x=a&x=b`), not comma-joined ones.
+                    param['collectionFormat'] = 'multi'
 
             # Add quota/rate-limiter
             metric_costs = {'metricCosts': {}}  # set the default value
