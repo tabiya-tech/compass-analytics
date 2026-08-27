@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as Sentry from "@sentry/react";
 import { MODULE_IDS, useAccess, type AccessScope, type ModuleId } from "@/access/AccessContext";
+import { useAuth } from "@/auth/AuthContext";
 import { useFilters } from "@/filters/FiltersContext";
 import { createFixedModulesDateRange, type FiltersState } from "@/filters/filters";
 import {
@@ -7,15 +9,9 @@ import {
   unavailableBuildYourProfileMetrics,
   useBuildYourProfile,
 } from "@/pages/Modules/hooks/use-build-your-profile";
-import {
-  toCareerExplorerMetrics,
-  unavailableCareerExplorerMetrics,
-  useCareerExplorer,
-} from "@/pages/Modules/hooks/use-career-explorer";
 import { toJobsMetrics, unavailableJobsMetrics, useJobs } from "@/pages/Modules/hooks/use-jobs";
 import type {
   BuildYourProfileMetrics,
-  CareerExplorerMetrics,
   JobsMetrics,
   ModuleMetrics,
   ModuleMetricsRequest,
@@ -33,13 +29,6 @@ export interface ModuleMetricsResult extends ModuleMetricsState {
   reload: () => void; // refetches the current selection — what the error state's retry calls
   isModuleLoading: (moduleId: ModuleId) => boolean; // per module, so one refetch doesn't dim every tile
 }
-
-// Single source of truth for which modules have migrated off the aggregate mock.
-export const MODULES_WITH_OWN_ENDPOINT: readonly ModuleId[] = [
-  MODULE_IDS.BUILD_YOUR_PROFILE,
-  MODULE_IDS.CAREER_EXPLORER,
-  MODULE_IDS.JOBS,
-];
 
 export interface UseModuleMetricsOptions {
   /** Off on a screen that may not render the figures, so it doesn't pay for a call it won't use. */
@@ -86,6 +75,7 @@ function resolveModuleMetrics<TResponse>(
 
 /** The deployed modules' figures. Refetches on scope/filters changes, holding the previous ones meanwhile. */
 export function useModuleMetrics({ enabled = true }: UseModuleMetricsOptions = {}): ModuleMetricsResult {
+  const { getIdToken } = useAuth();
   const { scope, activeModules } = useAccess();
   const { filters } = useFilters();
   const service = ModuleMetricsService.getInstance();
@@ -101,24 +91,26 @@ export function useModuleMetrics({ enabled = true }: UseModuleMetricsOptions = {
     const controller = new AbortController();
     setState((previous) => ({ ...previous, isLoading: true }));
 
-    service
-      .getModuleMetrics(request, { signal: controller.signal })
-      .then((metrics) => {
+    (async () => {
+      try {
+        const token = await getIdToken();
+        const metrics = await service.getModuleMetrics(request, token, { signal: controller.signal });
         if (controller.signal.aborted) return;
         setState({ metrics, isLoading: false, error: null });
-      })
-      .catch((error: unknown) => {
+      } catch (error: unknown) {
         if (controller.signal.aborted) return;
+        Sentry.captureException(error);
         // Keeps the last good figures visible, with the error alongside them.
         setState((previous) => ({
           metrics: previous.metrics,
           isLoading: false,
           error: error instanceof Error ? error : new Error(String(error)),
         }));
-      });
+      }
+    })();
 
     return () => controller.abort();
-  }, [request, service, attempt, enabled]);
+  }, [request, service, attempt, enabled, getIdToken]);
 
   // reloadToken lets reload() retry these fetches too, not just the one above.
   const buildYourProfileEnabled = enabled && activeModules.includes(MODULE_IDS.BUILD_YOUR_PROFILE);
@@ -126,13 +118,6 @@ export function useModuleMetrics({ enabled = true }: UseModuleMetricsOptions = {
   const lastRealBuildYourProfile = useRef<BuildYourProfileMetrics | null>(null);
   if (buildYourProfile.status === "success") {
     lastRealBuildYourProfile.current = toBuildYourProfileMetrics(buildYourProfile.data);
-  }
-
-  const careerExplorerEnabled = enabled && activeModules.includes(MODULE_IDS.CAREER_EXPLORER);
-  const careerExplorer = useCareerExplorer({ enabled: careerExplorerEnabled, reloadToken: attempt });
-  const lastRealCareerExplorer = useRef<CareerExplorerMetrics | null>(null);
-  if (careerExplorer.status === "success") {
-    lastRealCareerExplorer.current = toCareerExplorerMetrics(careerExplorer.data);
   }
 
   const jobsEnabled = enabled && activeModules.includes(MODULE_IDS.JOBS);
@@ -155,14 +140,6 @@ export function useModuleMetrics({ enabled = true }: UseModuleMetricsOptions = {
             lastRealBuildYourProfile.current
           );
         }
-        if (moduleId === MODULE_IDS.CAREER_EXPLORER && careerExplorerEnabled) {
-          return resolveModuleMetrics(
-            careerExplorer,
-            toCareerExplorerMetrics,
-            unavailableCareerExplorerMetrics,
-            lastRealCareerExplorer.current
-          );
-        }
         if (moduleId === MODULE_IDS.JOBS && jobsEnabled) {
           return resolveModuleMetrics(jobs, toJobsMetrics, unavailableJobsMetrics, lastRealJobs.current);
         }
@@ -174,21 +151,11 @@ export function useModuleMetrics({ enabled = true }: UseModuleMetricsOptions = {
     // Key omitted, not set to undefined, when the aggregate endpoint hasn't answered yet.
     const scope = state.metrics?.scope;
     return scope ? { scope, dateRange: request.dateRange, modules } : { dateRange: request.dateRange, modules };
-  }, [
-    state.metrics,
-    request,
-    buildYourProfileEnabled,
-    buildYourProfile,
-    careerExplorerEnabled,
-    careerExplorer,
-    jobsEnabled,
-    jobs,
-  ]);
+  }, [state.metrics, request, buildYourProfileEnabled, buildYourProfile, jobsEnabled, jobs]);
 
   // One entry per module with its own endpoint; everything else falls back to state.isLoading.
   const ownLoadingStateByModule: Partial<Record<ModuleId, boolean>> = {
     [MODULE_IDS.BUILD_YOUR_PROFILE]: buildYourProfileEnabled && buildYourProfile.status === "loading",
-    [MODULE_IDS.CAREER_EXPLORER]: careerExplorerEnabled && careerExplorer.status === "loading",
     [MODULE_IDS.JOBS]: jobsEnabled && jobs.status === "loading",
   };
   const isModuleLoading = (moduleId: ModuleId): boolean => ownLoadingStateByModule[moduleId] ?? state.isLoading;

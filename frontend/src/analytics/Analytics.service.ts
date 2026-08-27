@@ -28,7 +28,12 @@ export class AnalyticsService {
     return AnalyticsService.instance;
   }
 
-  private async _fetch<T>(path: string, token: string, params?: Record<string, string | undefined>): Promise<T> {
+  private async _fetch<T>(
+    path: string,
+    token: string,
+    params?: Record<string, string | undefined>,
+    options?: { signal?: AbortSignal }
+  ): Promise<T> {
     const url = new URL(`${ANALYTICS_API_BASE}${path}`, window.location.origin);
     if (params) {
       for (const [key, value] of Object.entries(params)) {
@@ -38,6 +43,7 @@ export class AnalyticsService {
 
     const response = await fetch(url.toString(), {
       headers: { Authorization: `Bearer ${token}` },
+      signal: options?.signal,
     });
 
     if (!response.ok) {
@@ -57,15 +63,24 @@ export class AnalyticsService {
     });
   }
 
-  async getBuildYourProfile(params: AnalyticsParams, token: string): Promise<BuildYourProfileResponse> {
-    return this._fetch<BuildYourProfileResponse>("/modules/build-your-profile", token, {
-      start_date: params.start_date,
-      end_date: params.end_date,
-      granularity: params.granularity,
-      audience_segment: params.audience_segment,
-      login_method: params.login_method,
-      institution_id: params.institution_id,
-    });
+  async getBuildYourProfile(
+    params: AnalyticsParams,
+    token: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<BuildYourProfileResponse> {
+    return this._fetch<BuildYourProfileResponse>(
+      "/modules/build-your-profile",
+      token,
+      {
+        start_date: params.start_date,
+        end_date: params.end_date,
+        granularity: params.granularity,
+        audience_segment: params.audience_segment,
+        login_method: params.login_method,
+        institution_id: params.institution_id,
+      },
+      options
+    );
   }
 
   async getDemographics(params: DemographicsParams, token: string): Promise<DemographicsResponse> {

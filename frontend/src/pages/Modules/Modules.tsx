@@ -1,6 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { MODULE_IDS, useAccess } from "@/access/AccessContext";
+import { useAccess } from "@/access/AccessContext";
 import { routerPaths } from "@/app/routerPaths";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ScreenHead } from "@/components/shared/ScreenHead";
