@@ -4,17 +4,17 @@ from typing import Final
 
 import sentry_sdk
 
-from app.analytics.institutions.types import InstitutionsResponse
+from app.analytics.institutions.types import CompassInstitutionsResponse
 from common_libs.http_client.base import AsyncHttpClient, HttpClientError
 
 logger = logging.getLogger(__name__)
 
-EMPTY_INSTITUTIONS_RESPONSE: Final[InstitutionsResponse] = InstitutionsResponse(institutions=[])
+EMPTY_INSTITUTIONS_RESPONSE: Final[CompassInstitutionsResponse] = CompassInstitutionsResponse(institutions=[])
 
 
 class IInstitutionsRepository(ABC):
     @abstractmethod
-    async def get_institutions(self, institution_ids: list[str] | None) -> InstitutionsResponse: ...
+    async def get_institutions(self, institution_ids: list[str] | None) -> CompassInstitutionsResponse: ...
 
 
 class CompassInstitutionsRepository(IInstitutionsRepository):
@@ -23,12 +23,12 @@ class CompassInstitutionsRepository(IInstitutionsRepository):
     def __init__(self, http_client: AsyncHttpClient):
         self._client = http_client
 
-    def _handle_failure(self, message: str, exc: Exception) -> InstitutionsResponse:
+    def _handle_failure(self, message: str, exc: Exception) -> CompassInstitutionsResponse:
         logger.warning(message, exc)
         sentry_sdk.capture_exception(exc)
         return EMPTY_INSTITUTIONS_RESPONSE
 
-    async def get_institutions(self, institution_ids: list[str] | None) -> InstitutionsResponse:
+    async def get_institutions(self, institution_ids: list[str] | None) -> CompassInstitutionsResponse:
         params: dict = {}
         if institution_ids:
             params["institution_ids"] = ",".join(institution_ids)
@@ -44,6 +44,6 @@ class CompassInstitutionsRepository(IInstitutionsRepository):
             return EMPTY_INSTITUTIONS_RESPONSE
 
         try:
-            return InstitutionsResponse.model_validate(data)
+            return CompassInstitutionsResponse.model_validate(data)
         except Exception as exc:  # pylint: disable=broad-except
             return self._handle_failure("Compass institutions response failed validation: %s", exc)

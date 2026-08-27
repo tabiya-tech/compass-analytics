@@ -5,10 +5,6 @@ import { useFilters } from "@/filters/FiltersContext";
 import { createFixedModulesDateRange, deriveGranularity } from "@/filters/filters";
 import { AnalyticsService } from "@/analytics/Analytics.service";
 import type { BuildYourProfileResponse } from "@/analytics/analytics.types";
-import {
-  mapBuildYourProfileResponse,
-  unavailableBuildYourProfile,
-} from "@/pages/Modules/services/ModuleMetrics.adapter";
 
 export type BuildYourProfileState =
   { status: "loading" } | { status: "error"; message: string } | { status: "success"; data: BuildYourProfileResponse };
