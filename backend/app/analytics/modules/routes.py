@@ -1,17 +1,22 @@
 import logging
 from datetime import date
+from typing import Union
+
+from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
 from app.analytics.dependencies import get_modules_service
+from app.analytics.modules.errors import UnknownModuleErrorResponse
 from app.analytics.modules.service import IModulesService, UnsupportedModuleError
 from app.analytics.modules.types import BuildYourProfileResponse, JobReadinessResponse
+from app.auth.errors import InvalidTokenErrorResponse
 from app.auth.firebase import Authentication, UserInfo
 from app.casbin.requires import CasbinAPIRouter, make_requires
+from app.errors import ForbiddenInstitutionErrorResponse
 from app.shared.filters import AnalyticsFilters, AudienceSegment, Granularity, LoginMethod, verify_basic_filters
 from app.users.dependencies import get_grant_repository
-from app.errors import HTTPErrorResponse
-from app.users.errors import ForbiddenInstitutionError, UserNotProvisionedError
+from app.users.errors import ForbiddenInstitutionError, NotProvisionedForbiddenErrorResponse, UserNotProvisionedError
 from app.users.types import Action, Subject
 
 logger = logging.getLogger(__name__)
@@ -42,7 +47,14 @@ def add_modules_routes(router: APIRouter, auth: Authentication) -> None:
     modules_router = CasbinAPIRouter(requires_factory=requires)
 
     # str, not a Literal, so an unknown key reaches the service layer and gets a 404, not a 422.
-    @modules_router.get("/modules/{module_key}", response_model=BuildYourProfileResponse | JobReadinessResponse, responses={403: {"model": HTTPErrorResponse}, 404: {"model": HTTPErrorResponse}, 401: {"model": HTTPErrorResponse}})
+    @modules_router.get("/modules/{module_key}", response_model=BuildYourProfileResponse | JobReadinessResponse, responses={
+        HTTPStatus.UNAUTHORIZED: {"model": InvalidTokenErrorResponse, "description": "Missing or invalid authentication token."},
+        HTTPStatus.FORBIDDEN: {
+            "model": Union[NotProvisionedForbiddenErrorResponse, ForbiddenInstitutionErrorResponse],
+            "description": "User has not been provisioned with dashboard access, or does not have access to the requested institution.",
+        },
+        HTTPStatus.NOT_FOUND: {"model": UnknownModuleErrorResponse, "description": "The requested module key does not exist."},
+    })
     @requires(Subject.DASHBOARD, Action.VIEW)
     async def get_module(
         module_key: str = Path(..., description="Which module's analytics to fetch, e.g. 'build-your-profile'."),

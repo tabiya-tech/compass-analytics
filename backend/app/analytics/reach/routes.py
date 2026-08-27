@@ -1,16 +1,20 @@
 import logging
+from typing import Union
+
+from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.analytics.dependencies import get_reach_service
 from app.analytics.reach.service import IReachService
 from app.analytics.reach.types import ReachResponse
+from app.auth.errors import InvalidTokenErrorResponse
 from app.auth.firebase import Authentication, UserInfo
 from app.casbin.requires import CasbinAPIRouter, make_requires
-from app.errors import HTTPErrorResponse
+from app.errors import ForbiddenInstitutionErrorResponse
 from app.shared.filters import AnalyticsFiltersDep, verify_basic_filters
 from app.users.dependencies import get_grant_repository
-from app.users.errors import ForbiddenInstitutionError, UserNotProvisionedError
+from app.users.errors import ForbiddenInstitutionError, NotProvisionedForbiddenErrorResponse, UserNotProvisionedError
 from app.users.types import Action, Subject
 
 logger = logging.getLogger(__name__)
@@ -22,7 +26,13 @@ def add_reach_routes(router: APIRouter, auth: Authentication) -> None:
 
     reach_router = CasbinAPIRouter(requires_factory=requires)
 
-    @reach_router.get("/reach", response_model=ReachResponse, responses={403: {"model": HTTPErrorResponse}, 401: {"model": HTTPErrorResponse}})
+    @reach_router.get("/reach", response_model=ReachResponse, responses={
+        HTTPStatus.UNAUTHORIZED: {"model": InvalidTokenErrorResponse, "description": "Missing or invalid authentication token."},
+        HTTPStatus.FORBIDDEN: {
+            "model": Union[NotProvisionedForbiddenErrorResponse, ForbiddenInstitutionErrorResponse],
+            "description": "User has not been provisioned with dashboard access, or does not have access to the requested institution.",
+        },
+    })
     @requires(Subject.DASHBOARD, Action.VIEW)
     async def get_reach(
         filters: AnalyticsFiltersDep,
