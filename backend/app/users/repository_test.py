@@ -12,7 +12,7 @@ from app.users.types import Action, Subject, UserRecord
 
 
 async def _insert_user(db, user_id: str = "u1", **overrides) -> None:
-    doc = {"user_id": user_id, "email": f"{user_id}@example.com", "name": "Test User", "active_modules": []}
+    doc = {"user_id": user_id, "email": f"{user_id}@example.com", "name": "Test User"}
     doc.update(overrides)
     await db[USERS_COLLECTION].insert_one(doc)
 
@@ -67,12 +67,12 @@ class TestMongoUserRepository:
         assert {r.user_id for r in results} == {"u1", "u2"}
 
     async def test_should_ignore_extra_fields_from_old_records(self, in_memory_analytics_database):
-        # GIVEN a record with a legacy field (e.g. role from the old model)
+        # GIVEN a record with legacy fields (role from the old model, active_modules moved to deployment config)
         await in_memory_analytics_database[USERS_COLLECTION].insert_one({
             "user_id": "u1",
             "email": "u1@example.com",
             "role": "implementer",  # legacy field — should be ignored
-            "active_modules": [],
+            "active_modules": [],   # legacy field — now a deployment-level config, ignored here
         })
         repo = MongoUserRepository(in_memory_analytics_database)
 
