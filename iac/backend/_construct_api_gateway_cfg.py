@@ -47,6 +47,18 @@ def _resolve_ref(openapi3: dict, ref: str) -> dict:
     return openapi3.get('components', {}).get('schemas', {}).get(ref.split('/')[-1], {})
 
 
+#: The only `type` values Swagger 2.0 allows on a non-body parameter. Anything else
+#: (notably `object`, which is what FastAPI emits for a Pydantic-model query parameter,
+#: i.e. `Annotated[Model, Query()]`) has no Swagger 2.0 equivalent, and GCP rejects the
+#: whole config with an opaque "Cannot convert to service config" 400. Declare such a
+#: parameter as individual query params instead — see `AnalyticsFiltersDep` in the backend.
+SWAGGER2_PARAM_TYPES = frozenset({'string', 'number', 'integer', 'boolean', 'array', 'file'})
+
+#: Keys of an OpenAPI path item that are operations; anything else (`parameters`,
+#: `summary`, `servers`, ...) is not a method and must not be walked as one.
+HTTP_METHODS = frozenset({'get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'})
+
+
 def _swagger_param_fields(schema: dict, openapi3: dict) -> dict:
     """
     Translate an OpenAPI 3 parameter `schema` into the Swagger 2.0 fields that live
@@ -99,7 +111,7 @@ def _convert_open_api_3_to_2(openapi3: dict):
 
     # Transform the OpenAPI 3.1 to OpenAPI 2.0
     for path in openapi3['paths']:
-        for method in openapi3['paths'][path]:
+        for method in [m for m in openapi3['paths'][path] if m in HTTP_METHODS]:
 
             # OpenAPI 3 and OpenAPI 2 has different way to handle the schema/type
             for param in openapi3['paths'][path][method].get('parameters', []):
@@ -107,7 +119,15 @@ def _convert_open_api_3_to_2(openapi3: dict):
                 fields = _swagger_param_fields(schema, openapi3)
                 # Every non-body Swagger 2.0 parameter needs a type; string is the safe default.
                 param.update(fields or {'type': 'string'})
-                if param.get('type') == 'array' and param.get('in') in ('query', 'formData'):
+                if param['type'] not in SWAGGER2_PARAM_TYPES:
+                    raise ValueError(
+                        f"{method.upper()} {path}: parameter '{param.get('name')}' has type "
+                        f"'{param['type']}', which Swagger 2.0 does not allow on a non-body "
+                        f"parameter (allowed: {', '.join(sorted(SWAGGER2_PARAM_TYPES))}). "
+                        "Declare it as individual primitive query parameters in the backend "
+                        "instead of a single model-typed one."
+                    )
+                if param['type'] == 'array' and param.get('in') in ('query', 'formData'):
                     # FastAPI reads repeated query params (`?x=a&x=b`), not comma-joined ones.
                     param['collectionFormat'] = 'multi'
 
@@ -131,7 +151,7 @@ def _convert_open_api_3_to_2(openapi3: dict):
     for path in openapi3['paths']:
         # Collect path parameters from any existing method on this path
         path_params = []
-        for method in openapi3['paths'][path]:
+        for method in [m for m in openapi3['paths'][path] if m in HTTP_METHODS]:
             params = openapi3['paths'][path][method].get('parameters', [])
             for param in params:
                 if param.get('in') == 'path' and not any(p['name'] == param['name'] for p in path_params):
