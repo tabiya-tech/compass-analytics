@@ -63,6 +63,7 @@ const JOBS: JobsMetrics = {
     { id: "retail-sales", label: "Retail & sales", matches: 252 },
     { id: "hospitality", label: "Hospitality", matches: 216 },
   ],
+  degraded: false,
 };
 
 /** A course's bar is its completions stacked inside its starts, so its full length is both rectangles. */
@@ -231,27 +232,46 @@ describe("ModuleBody for Career Explorer", () => {
 });
 
 describe("ModuleBody for Jobs", () => {
-  it("should report what the classifier surfaced, who it matched, and what visitors looked at", () => {
-    // GIVEN 30,610 jobs in the feed, 879 matched profiles and 8.4 jobs viewed per visitor
+  it("should report what the classifier surfaced, thousands-separated and captioned", () => {
+    // GIVEN 30,610 jobs in the feed
     // WHEN the body is rendered
     render(<ModuleBody metrics={JOBS} />);
 
-    // THEN each figure is on its own tile, thousands-separated and captioned
+    // THEN its figure is on its own tile
     expect(within(tileNamed("Jobs sourced")).getByTestId(STAT_TILE_TEST_ID.VALUE)).toHaveTextContent("30,610");
-    const actualMatched = within(tileNamed("Profiles with matches"));
-    expect(actualMatched.getByTestId(STAT_TILE_TEST_ID.VALUE)).toHaveTextContent("879");
-    expect(actualMatched.getByTestId(STAT_TILE_TEST_ID.CAPTION)).toHaveTextContent("21% of users");
-    // AND an average keeps its decimal rather than rounding to a whole job
-    expect(within(tileNamed("Jobs viewed per user")).getByTestId(STAT_TILE_TEST_ID.VALUE)).toHaveTextContent("8.4");
+    // AND no tile is shown for profilesWithMatches/jobsViewedPerUser — neither has a real data source yet
+    expect(screen.queryByText("Profiles with matches")).not.toBeInTheDocument();
+    expect(screen.queryByText("Jobs viewed per user")).not.toBeInTheDocument();
   });
 
-  it("should still report its tiles when no matches have landed anywhere yet", () => {
-    // GIVEN a feed nobody has been matched against yet
+  it("should say the figures are unavailable rather than show zeroes when the upstream call failed", () => {
+    // GIVEN a degraded response — the upstream call failed, so these zeroes aren't real counts
     // WHEN the body is rendered
-    render(<ModuleBody metrics={{ ...JOBS, profilesWithMatches: 0 }} />);
+    render(
+      <ModuleBody metrics={{ ...JOBS, jobsSourced: 0, profilesWithMatches: 0, jobsViewedPerUser: 0, degraded: true }} />
+    );
 
-    // THEN the feed's own figure still stands even with no matches
-    expect(within(tileNamed("Jobs sourced")).getByTestId(STAT_TILE_TEST_ID.VALUE)).toHaveTextContent("30,610");
+    // THEN the screen says the data is unavailable, not that nobody used the module
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Jobs figures aren't available right now — the upstream data source didn't respond."
+    );
+    // AND no zeroed tile is shown in its place — that would misread as real, bad news
+    expect(screen.queryByText("Jobs sourced")).not.toBeInTheDocument();
+  });
+
+  it("should show a loading skeleton, not the unavailable message or fabricated zeroes, while the very first fetch is still pending", () => {
+    // GIVEN a degraded response that's still loading, not yet a confirmed failure
+    render(
+      <ModuleBody
+        metrics={{ ...JOBS, jobsSourced: 0, profilesWithMatches: 0, jobsViewedPerUser: 0, degraded: true }}
+        isLoading
+      />
+    );
+
+    // THEN a skeleton shows, not the "unavailable" message (that's only for a settled failure)
+    expect(screen.getByTestId(DATA_TEST_ID.LOADING)).toBeInTheDocument();
+    expect(screen.queryByTestId(DATA_TEST_ID.DEGRADED)).not.toBeInTheDocument();
+    expect(screen.queryByText("Jobs sourced")).not.toBeInTheDocument();
   });
 });
 

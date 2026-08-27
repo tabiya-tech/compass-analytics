@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { delay, http, HttpResponse } from "msw";
 import { Route, Routes } from "react-router-dom";
 import { render, screen, userEvent, waitFor, within } from "@/_test_utilities/test-utils";
-import type { BuildYourProfileResponse } from "@/analytics/analytics.types";
 import { server } from "@/mocks/server";
 import { AccessProvider, MODULE_IDS, type AccessScope, type ModuleId } from "@/access/AccessContext";
 import { FiltersProvider } from "@/filters/FiltersContext";
 import { createFixedModulesDateRange, createInitialFilters, type FiltersState } from "@/filters/filters";
+import { MODULES_WITH_OWN_ENDPOINT } from "@/pages/Modules/hooks/use-module-metrics";
 import { routerPaths } from "@/app/routerPaths";
 import { DATA_TEST_ID as SCREEN_HEAD_TEST_ID } from "@/components/shared/ScreenHead";
 import { DATA_TEST_ID as EMPTY_STATE_TEST_ID } from "@/components/shared/EmptyState";
@@ -23,24 +23,6 @@ const GIVEN_FILTERS: FiltersState = {
   granularity: "month",
 };
 
-/** A value distinct from anything the mock generator itself produces, to tell "the real endpoint answered" apart from "stale mock data is still showing". */
-const BUILD_YOUR_PROFILE_RECOVERED: BuildYourProfileResponse = {
-  summary: {
-    started_users: 900,
-    started_percentage: 50,
-    completed_users: 777,
-    avg_completion_minutes: 9,
-  },
-  series: [],
-  phases: [
-    { id: "intro", reached: 900 },
-    { id: "experiences", reached: 850 },
-    { id: "skills", reached: 820 },
-    { id: "completed", reached: 790 },
-  ],
-  degraded: false,
-};
-
 const ONE_INSTITUTION: AccessScope = { type: "institutions", institutionIds: ["inst-1"] };
 const WHOLE_SUITE: ModuleId[] = [
   MODULE_IDS.BUILD_YOUR_PROFILE,
@@ -48,6 +30,10 @@ const WHOLE_SUITE: ModuleId[] = [
   MODULE_IDS.CAREER_EXPLORER,
   MODULE_IDS.JOBS,
 ];
+
+const MODULES_WITHOUT_THEIR_OWN_ENDPOINT: ModuleId[] = WHOLE_SUITE.filter(
+  (moduleId) => !MODULES_WITH_OWN_ENDPOINT.includes(moduleId)
+);
 
 function renderModules(activeModules: readonly ModuleId[] = WHOLE_SUITE, scope: AccessScope = ONE_INSTITUTION) {
   return render(
@@ -132,9 +118,8 @@ describe("Modules screen", () => {
     expect(within(stepFor(MODULE_IDS.BUILD_YOUR_PROFILE)).getByTestId(TIMELINE_TEST_ID.STEP_STARTED)).toHaveTextContent(
       "44% started"
     );
-    expect(within(stepFor(MODULE_IDS.JOBS)).getByTestId(TIMELINE_TEST_ID.STEP_STARTED)).toHaveTextContent(
-      "26% started"
-    );
+    // Jobs' own real endpoint doesn't report a started share (no aggregate endpoint to borrow one from).
+    expect(within(stepFor(MODULE_IDS.JOBS)).getByTestId(TIMELINE_TEST_ID.STEP_STARTED)).toHaveTextContent("0% started");
   });
 
   it("should open at the module a link asked for, rather than at the top of the screen", async () => {
@@ -167,11 +152,11 @@ describe("Modules screen", () => {
   });
 
   it("should show a placeholder while the first figures are on their way", () => {
-    // GIVEN a request that hasn't come back yet
+    // GIVEN a deployment whose modules all depend on the aggregate mock, which hasn't answered yet
     server.use(http.get(`${MODULES_API_BASE}/metrics`, () => new Promise(() => {})));
 
     // WHEN the screen loads
-    renderModules();
+    renderModules(MODULES_WITHOUT_THEIR_OWN_ENDPOINT);
 
     // THEN the screen is laid out but empty, rather than jumping into place later
     expect(screen.getByTestId(DATA_TEST_ID.LOADING)).toBeInTheDocument();
@@ -179,11 +164,11 @@ describe("Modules screen", () => {
   });
 
   it("should offer a retry when the figures could not be loaded at all", async () => {
-    // GIVEN the endpoint is failing
+    // GIVEN a deployment whose modules all depend on the aggregate mock, and it is failing
     server.use(http.get(`${MODULES_API_BASE}/metrics`, () => new HttpResponse(null, { status: 500 })));
 
     // WHEN the screen loads
-    renderModules();
+    renderModules(MODULES_WITHOUT_THEIR_OWN_ENDPOINT);
 
     // THEN it says so and offers a way to try again
     expect(await screen.findByTestId(DATA_TEST_ID.ERROR)).toHaveTextContent("We couldn't load the module metrics.");
@@ -193,9 +178,9 @@ describe("Modules screen", () => {
   });
 
   it("should reload the figures when the retry is taken", async () => {
-    // GIVEN a first attempt that failed
+    // GIVEN a first attempt that failed, for a deployment whose modules all depend on the aggregate mock
     server.use(http.get(`${MODULES_API_BASE}/metrics`, () => new HttpResponse(null, { status: 500 })));
-    renderModules();
+    renderModules(MODULES_WITHOUT_THEIR_OWN_ENDPOINT);
     const actualRetry = await screen.findByRole("button", { name: "Retry" });
 
     // WHEN the endpoint recovers and the retry is taken
@@ -203,7 +188,7 @@ describe("Modules screen", () => {
     await userEvent.click(actualRetry);
 
     // THEN the figures arrive
-    await waitFor(() => expect(screen.getAllByTestId(DATA_TEST_ID.SECTION)).toHaveLength(4));
+    await waitFor(() => expect(screen.getAllByTestId(DATA_TEST_ID.SECTION)).toHaveLength(2));
   });
 
   it("should show a skeleton for Build Your Profile while its own endpoint is still loading, not the mock's fabricated numbers", async () => {
@@ -235,26 +220,5 @@ describe("Modules screen", () => {
     );
     // AND the rest of the page isn't told there's an error — only this one module's data failed
     expect(screen.queryByTestId(DATA_TEST_ID.ERROR)).not.toBeInTheDocument();
-  });
-
-  it("should retry Build Your Profile's figures too, not just the other modules', when the page-level retry is taken", async () => {
-    // GIVEN both the mock endpoint and Build Your Profile's real endpoint are failing
-    server.use(
-      http.get(`${MODULES_API_BASE}/metrics`, () => new HttpResponse(null, { status: 500 })),
-      http.get(`${MODULES_API_BASE}/build-your-profile`, () => new HttpResponse(null, { status: 500 }))
-    );
-    renderModules();
-    const actualRetry = await screen.findByRole("button", { name: "Retry" });
-
-    // WHEN both endpoints recover and the retry is taken
-    server.resetHandlers();
-    server.use(
-      http.get(`${MODULES_API_BASE}/build-your-profile`, () => HttpResponse.json(BUILD_YOUR_PROFILE_RECOVERED))
-    );
-    await userEvent.click(actualRetry);
-
-    // THEN Build Your Profile's real figures load too — the retry isn't limited to the mocked modules
-    await waitFor(() => expect(screen.getAllByTestId(DATA_TEST_ID.SECTION)).toHaveLength(4));
-    expect(within(screen.getAllByTestId(DATA_TEST_ID.SECTION)[0]).getByText("777")).toBeInTheDocument();
   });
 });

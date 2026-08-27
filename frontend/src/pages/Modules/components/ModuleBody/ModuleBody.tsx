@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Briefcase, Clock, FileText, Search, Target } from "lucide-react";
+import { Briefcase, Clock, FileText } from "lucide-react";
 import { MODULE_IDS } from "@/access/AccessContext";
 import { Funnel } from "@/components/charts/Funnel";
 import { GaugeBar } from "@/components/charts/GaugeBar";
@@ -188,28 +188,41 @@ function CareerExplorerBody({ metrics, isLoading }: Readonly<{ metrics: CareerEx
   );
 }
 
-function JobsBody({ metrics }: Readonly<{ metrics: JobsMetrics; isLoading?: boolean }>) {
+function JobsSkeleton() {
+  return (
+    <div data-testid={DATA_TEST_ID.LOADING} className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <Skeleton className="h-36 rounded-card" />
+    </div>
+  );
+}
+
+// profilesWithMatches/jobsViewedPerUser have no real data source yet — only jobsSourced renders.
+function JobsBody({ metrics, isLoading }: Readonly<{ metrics: JobsMetrics; isLoading: boolean }>) {
   const { t } = useTranslation();
 
+  // Zeroed data shown as real would misread as "nobody uses this" — show the gap instead.
+  if (metrics.degraded) {
+    if (isLoading) return <JobsSkeleton />;
+    return (
+      <div data-testid={DATA_TEST_ID.DEGRADED}>
+        <EmptyState message={t("modules.jobs.degraded")} />
+      </div>
+    );
+  }
+
   return (
-    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+    <div
+      aria-busy={isLoading || undefined}
+      className={cn(
+        "grid gap-6 sm:grid-cols-2 lg:grid-cols-3 transition-opacity duration-(--duration-base)",
+        isLoading && "opacity-60"
+      )}
+    >
       <StatTile
         label={t("modules.jobs.tiles.sourced.label")}
         value={formatNumber(metrics.jobsSourced)}
         icon={<Briefcase />}
         caption={t("modules.jobs.tiles.sourced.caption")}
-      />
-      <StatTile
-        label={t("modules.jobs.tiles.matched.label")}
-        value={formatNumber(metrics.profilesWithMatches)}
-        icon={<Target />}
-        caption={t("modules.jobs.tiles.matched.caption", { share: metrics.profilesWithMatchesSharePercentage })}
-      />
-      <StatTile
-        label={t("modules.jobs.tiles.viewed.label")}
-        value={metrics.jobsViewedPerUser.toFixed(1)}
-        icon={<Search />}
-        caption={t("modules.jobs.tiles.viewed.caption")}
       />
     </div>
   );

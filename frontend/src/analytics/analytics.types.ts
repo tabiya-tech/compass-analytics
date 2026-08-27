@@ -101,3 +101,15 @@ export interface JobReadinessResponse {
   sub_modules: SubModuleProgress[];
   degraded: boolean;
 }
+
+export interface JobsSummary {
+  jobs_sourced: number;
+  profiles_with_matches: number;
+  profiles_with_matches_percentage: number;
+  jobs_viewed_per_user: number;
+}
+
+export interface JobsResponse {
+  summary: JobsSummary;
+  degraded: boolean;
+}

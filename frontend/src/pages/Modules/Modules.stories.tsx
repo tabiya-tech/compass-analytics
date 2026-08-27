@@ -5,7 +5,7 @@ import { AccessProvider, MODULE_IDS, type AccessScope, type ModuleId } from "@/a
 import { FiltersProvider } from "@/filters/FiltersContext";
 import { createInitialFilters } from "@/filters/filters";
 import { DATA_TEST_ID as TIMELINE_TEST_ID } from "@/pages/Modules/components/ModuleTimeline";
-import { buildYourProfileHandler, moduleMetricsHandler } from "@/mocks/handlers";
+import { buildYourProfileHandler, jobsHandler, moduleMetricsHandler } from "@/mocks/handlers";
 import { MODULES_API_BASE } from "@/pages/Modules/services/ModuleMetrics.service";
 import { Modules, DATA_TEST_ID } from "./Modules";
 
@@ -64,7 +64,11 @@ export const Loading: Story = {
   decorators: [withDeployment(Object.values(MODULE_IDS))],
   parameters: {
     msw: {
-      handlers: [http.get(`${MODULES_API_BASE}/metrics`, async () => await delay("infinite")), buildYourProfileHandler],
+      handlers: [
+        http.get(`${MODULES_API_BASE}/metrics`, async () => await delay("infinite")),
+        buildYourProfileHandler,
+        jobsHandler,
+      ],
     },
   },
   play: async ({ canvasElement }) => {
@@ -73,13 +77,11 @@ export const Loading: Story = {
 };
 
 export const FailedToLoad: Story = {
-  decorators: [withDeployment(Object.values(MODULE_IDS))],
+  // Only modules with no endpoint of their own depend entirely on the aggregate mock.
+  decorators: [withDeployment([MODULE_IDS.JOB_READINESS, MODULE_IDS.CAREER_EXPLORER])],
   parameters: {
     msw: {
-      handlers: [
-        http.get(`${MODULES_API_BASE}/metrics`, () => new HttpResponse(null, { status: 500 })),
-        buildYourProfileHandler,
-      ],
+      handlers: [http.get(`${MODULES_API_BASE}/metrics`, () => new HttpResponse(null, { status: 500 }))],
     },
   },
   play: async ({ canvas }) => {
@@ -95,6 +97,7 @@ export const BuildYourProfileUnavailable: Story = {
       handlers: [
         moduleMetricsHandler,
         http.get(`${MODULES_API_BASE}/build-your-profile`, () => new HttpResponse(null, { status: 500 })),
+        jobsHandler,
       ],
     },
   },
@@ -105,6 +108,28 @@ export const BuildYourProfileUnavailable: Story = {
         canvas.getByText(
           "Build Your Profile figures aren't available right now — the upstream data source didn't respond."
         )
+      ).toBeVisible()
+    );
+    await expect(canvas.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  },
+};
+
+export const JobsUnavailable: Story = {
+  decorators: [withDeployment(Object.values(MODULE_IDS))],
+  parameters: {
+    msw: {
+      handlers: [
+        moduleMetricsHandler,
+        buildYourProfileHandler,
+        http.get(`${MODULES_API_BASE}/jobs`, () => new HttpResponse(null, { status: 500 })),
+      ],
+    },
+  },
+  play: async ({ canvas }) => {
+    await waitFor(() => expect(canvas.getAllByTestId(DATA_TEST_ID.SECTION)).toHaveLength(4));
+    await waitFor(() =>
+      expect(
+        canvas.getByText("Jobs figures aren't available right now — the upstream data source didn't respond.")
       ).toBeVisible()
     );
     await expect(canvas.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();

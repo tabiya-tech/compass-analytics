@@ -3,6 +3,7 @@ import type {
   BuildYourProfileResponse,
   DemographicsResponse,
   JobReadinessResponse,
+  JobsResponse,
   ReachResponse,
 } from "@/analytics/analytics.types";
 import type { MeResponse } from "@/user/user.types";
@@ -74,6 +75,16 @@ const stubDemographics: DemographicsResponse = {
       ],
     },
   ],
+  degraded: false,
+};
+
+const stubJobs: JobsResponse = {
+  summary: {
+    jobs_sourced: 30_610,
+    profiles_with_matches: 879,
+    profiles_with_matches_percentage: 21,
+    jobs_viewed_per_user: 8.4,
+  },
   degraded: false,
 };
 
@@ -186,6 +197,9 @@ export const buildYourProfileHandler = http.get(`${MODULES_API_BASE}/build-your-
 /** Not in the dev worker, like /api/reach — exported individually so overriding stories can still include it. */
 export const demographicsHandler = http.get("/api/demographics", () => HttpResponse.json(stubDemographics));
 
+/** Not in the dev worker, like /api/reach — exported individually so overriding stories can still include it. */
+export const jobsHandler = http.get(`${MODULES_API_BASE}/jobs`, () => HttpResponse.json(stubJobs));
+
 /** Full handler list for tests and Storybook, so components render with realistic data without the backend running. */
 export const handlers: HttpHandler[] = [
   overviewMetricsHandler,
@@ -198,6 +212,7 @@ export const handlers: HttpHandler[] = [
   http.get("/api/reach", () => HttpResponse.json(stubReach)),
   buildYourProfileHandler,
   demographicsHandler,
+  jobsHandler,
   jobseekersHandler,
   jobseekerDetailHandler,
 ];

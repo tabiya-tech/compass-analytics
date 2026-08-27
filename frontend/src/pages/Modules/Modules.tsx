@@ -49,7 +49,7 @@ export function Modules() {
   const { t } = useTranslation();
   const { activeModules } = useAccess();
   // Skip fetch on single-module deployments that redirect to Overview.
-  const { metrics, isLoading, buildYourProfileIsLoading, error, reload } = useModuleMetrics({
+  const { metrics, isModuleLoading, error, reload } = useModuleMetrics({
     enabled: !rendersModulesInline(activeModules),
   });
   const jobReadinessState = useJobReadiness();
@@ -121,10 +121,7 @@ export function Modules() {
             className={`grid scroll-mt-36 content-start gap-6 pt-6 ${PADDING}`}
           >
             <ModuleHeader moduleId={module.moduleId} />
-            <ModuleBody
-              metrics={module}
-              isLoading={module.moduleId === MODULE_IDS.BUILD_YOUR_PROFILE ? buildYourProfileIsLoading : isLoading}
-            />
+            <ModuleBody metrics={module} isLoading={isModuleLoading(module.moduleId)} />
           </section>
         ))}
     </div>
