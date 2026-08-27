@@ -45,11 +45,17 @@ const JOB_READINESS: JobReadinessMetrics = {
 const CAREER_EXPLORER: CareerExplorerMetrics = {
   moduleId: MODULE_IDS.CAREER_EXPLORER,
   startedPercentage: 18,
+  exploredUsers: 2241,
+  returnedUsers: 890,
+  returnedSharePercentage: 40,
+  prioritySectorUsers: 640,
+  nonPrioritySectorUsers: 1601,
   topSectors: [
-    { id: "healthcare", label: "Healthcare", explorations: 188 },
-    { id: "technology", label: "Technology", explorations: 152 },
-    { id: "finance", label: "Finance", explorations: 116 },
+    { id: "healthcare", label: "Healthcare", explorations: 421, uniqueUsers: 188, isPriority: true },
+    { id: "technology", label: "Technology", explorations: 310, uniqueUsers: 152, isPriority: false },
+    { id: "finance", label: "Finance", explorations: 198, uniqueUsers: 116, isPriority: false },
   ],
+  degraded: false,
 };
 
 const JOBS: JobsMetrics = {
@@ -208,8 +214,8 @@ describe("ModuleBody for Job Readiness", () => {
 });
 
 describe("ModuleBody for Career Explorer", () => {
-  it("should rank the sectors people explored, keeping the order the figures came in", () => {
-    // GIVEN Healthcare explored most and Finance least
+  it("should rank the sectors people explored by how many inquiries each drew, in the order they came in", () => {
+    // GIVEN Healthcare drawing the most inquiries (421) and Finance the fewest
     // WHEN the body is rendered
     render(<ModuleBody metrics={CAREER_EXPLORER} />);
 
@@ -217,7 +223,7 @@ describe("ModuleBody for Career Explorer", () => {
     const actualRows = screen.getAllByTestId(H_BAR_TEST_ID.ROW);
     expect(actualRows).toHaveLength(3);
     expect(actualRows[0]).toHaveTextContent("Healthcare");
-    expect(actualRows[0]).toHaveTextContent("188");
+    expect(actualRows[0]).toHaveTextContent("421");
     expect(screen.getByRole("heading", { level: 2, name: "Top sectors & careers explored" })).toBeInTheDocument();
   });
 
@@ -228,6 +234,30 @@ describe("ModuleBody for Career Explorer", () => {
 
     // THEN it says so rather than drawing an empty ranking
     expect(screen.getByTestId(DATA_TEST_ID.PANEL)).toHaveTextContent("No data to show for this selection.");
+  });
+
+  it("should say the figures are unavailable rather than show zeroes when the upstream call failed", () => {
+    // GIVEN a degraded response — the upstream call failed, so these zeroes aren't real counts
+    // WHEN the body is rendered
+    render(<ModuleBody metrics={{ ...CAREER_EXPLORER, topSectors: [], degraded: true }} />);
+
+    // THEN the screen says the data is unavailable, not that nobody explored anything
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Career Explorer figures aren't available right now — the upstream data source didn't respond."
+    );
+    // AND no zeroed ranking is shown in its place — that would misread as real, bad news
+    expect(screen.queryByRole("heading", { name: "Top sectors & careers explored" })).not.toBeInTheDocument();
+  });
+
+  it("should show a loading skeleton, not the unavailable message, while the very first fetch is still pending", () => {
+    // GIVEN a degraded (no-real-data-yet) response that's still loading — what the very first fetch
+    // looks like before it settles, not yet a confirmed failure
+    render(<ModuleBody metrics={{ ...CAREER_EXPLORER, topSectors: [], degraded: true }} isLoading />);
+
+    // THEN a skeleton shows, not the "unavailable" message (that's only for a settled failure)
+    expect(screen.getByTestId(DATA_TEST_ID.LOADING)).toBeInTheDocument();
+    expect(screen.queryByTestId(DATA_TEST_ID.DEGRADED)).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Top sectors & careers explored" })).not.toBeInTheDocument();
   });
 });
 

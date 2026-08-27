@@ -40,13 +40,19 @@ const JOB_READINESS: JobReadinessMetrics = {
 const CAREER_EXPLORER: CareerExplorerMetrics = {
   moduleId: MODULE_IDS.CAREER_EXPLORER,
   startedPercentage: 18,
+  exploredUsers: 2241,
+  returnedUsers: 890,
+  returnedSharePercentage: 40,
+  prioritySectorUsers: 640,
+  nonPrioritySectorUsers: 1601,
   topSectors: [
-    { id: "healthcare", label: "Healthcare", explorations: 188 },
-    { id: "technology", label: "Technology", explorations: 152 },
-    { id: "green-jobs", label: "Green jobs", explorations: 137 },
-    { id: "education", label: "Education", explorations: 130 },
-    { id: "finance", label: "Finance", explorations: 116 },
+    { id: "healthcare", label: "Healthcare", explorations: 421, uniqueUsers: 188, isPriority: true },
+    { id: "technology", label: "Technology", explorations: 310, uniqueUsers: 152, isPriority: false },
+    { id: "green-jobs", label: "Green jobs", explorations: 289, uniqueUsers: 137, isPriority: true },
+    { id: "education", label: "Education", explorations: 244, uniqueUsers: 130, isPriority: false },
+    { id: "finance", label: "Finance", explorations: 198, uniqueUsers: 116, isPriority: false },
   ],
+  degraded: false,
 };
 
 const JOBS: JobsMetrics = {
@@ -141,6 +147,33 @@ export const CareerExplorerSectors: Story = {
   args: { metrics: CAREER_EXPLORER },
   play: async ({ canvas }) => {
     await expect(canvas.getByRole("list", { name: "Top sectors & careers explored" })).toBeVisible();
+    await expect(canvas.getByText("Healthcare")).toBeVisible();
+    await expect(canvas.getByText("421")).toBeVisible();
+  },
+};
+
+export const CareerExplorerDegraded: Story = {
+  args: {
+    metrics: { ...CAREER_EXPLORER, topSectors: [], degraded: true },
+  },
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.getByText("Career Explorer figures aren't available right now — the upstream data source didn't respond.")
+    ).toBeVisible();
+    // No zeroed ranking in its place — that would misread as real, bad news rather than a fetch failure.
+    await expect(canvas.queryByText("Top sectors & careers explored")).not.toBeInTheDocument();
+  },
+};
+
+export const CareerExplorerFirstLoad: Story = {
+  args: {
+    metrics: { ...CAREER_EXPLORER, topSectors: [], degraded: true },
+    isLoading: true,
+  },
+  play: async ({ canvas }) => {
+    // A skeleton, not the "unavailable" message — that's reserved for a settled failure, not a pending one.
+    await expect(canvas.queryByText("Career Explorer figures aren't available right now")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("Top sectors & careers explored")).not.toBeInTheDocument();
   },
 };
 

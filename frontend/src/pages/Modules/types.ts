@@ -54,12 +54,20 @@ export interface JobReadinessMetrics extends ModuleMetricsBase {
 export interface SectorBucket {
   id: string;
   label: string;
-  explorations: number;
+  explorations: number; // total inquiries — what the ranking is by
+  uniqueUsers: number;
+  isPriority: boolean; // a sector the deployment steers jobseekers towards
 }
 
 export interface CareerExplorerMetrics extends ModuleMetricsBase {
   moduleId: typeof MODULE_IDS.CAREER_EXPLORER;
+  exploredUsers: number;
+  returnedUsers: number; // came back for a second sector inquiry or more
+  returnedSharePercentage: number; // of those who started, not of everyone in scope
+  prioritySectorUsers: number;
+  nonPrioritySectorUsers: number;
   topSectors: readonly SectorBucket[];
+  degraded: boolean; // true when the fetch failed, or the backend itself reported a degraded upstream
 }
 
 export interface JobCategoryBucket {

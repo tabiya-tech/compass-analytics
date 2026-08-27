@@ -1,6 +1,7 @@
 import { http, HttpResponse, type HttpHandler } from "msw";
 import type {
   BuildYourProfileResponse,
+  CareerExplorerResponse,
   DemographicsResponse,
   JobReadinessResponse,
   JobsResponse,
@@ -74,6 +75,27 @@ const stubDemographics: DemographicsResponse = {
         { name: "Central", value: 1_230 },
       ],
     },
+  ],
+  degraded: false,
+};
+
+const stubCareerExplorer: CareerExplorerResponse = {
+  summary: {
+    total_registered_students: 12_450,
+    started_users: 2_241,
+    started_percentage: 18,
+    returned_users: 890,
+    returned_percentage: 39.7,
+    priority_sector_users: 640,
+    non_priority_sector_users: 1_601,
+  },
+  // Ranked by total inquiries, the way the real endpoint ranks them.
+  top_sectors: [
+    { sector_name: "Healthcare", is_priority: true, unique_users: 188, total_inquiries: 421 },
+    { sector_name: "Technology", is_priority: false, unique_users: 152, total_inquiries: 310 },
+    { sector_name: "Green jobs", is_priority: true, unique_users: 137, total_inquiries: 289 },
+    { sector_name: "Education", is_priority: false, unique_users: 130, total_inquiries: 244 },
+    { sector_name: "Finance", is_priority: false, unique_users: 116, total_inquiries: 198 },
   ],
   degraded: false,
 };
@@ -198,6 +220,11 @@ export const buildYourProfileHandler = http.get(`${MODULES_API_BASE}/build-your-
 export const demographicsHandler = http.get("/api/demographics", () => HttpResponse.json(stubDemographics));
 
 /** Not in the dev worker, like /api/reach — exported individually so overriding stories can still include it. */
+export const careerExplorerHandler = http.get(`${MODULES_API_BASE}/career-explorer`, () =>
+  HttpResponse.json(stubCareerExplorer)
+);
+
+/** Not in the dev worker, like /api/reach — exported individually so overriding stories can still include it. */
 export const jobsHandler = http.get(`${MODULES_API_BASE}/jobs`, () => HttpResponse.json(stubJobs));
 
 /** Full handler list for tests and Storybook, so components render with realistic data without the backend running. */
@@ -212,6 +239,7 @@ export const handlers: HttpHandler[] = [
   http.get("/api/reach", () => HttpResponse.json(stubReach)),
   buildYourProfileHandler,
   demographicsHandler,
+  careerExplorerHandler,
   jobsHandler,
   jobseekersHandler,
   jobseekerDetailHandler,

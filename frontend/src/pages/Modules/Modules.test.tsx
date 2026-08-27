@@ -1,15 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { delay, http, HttpResponse } from "msw";
 import { Route, Routes } from "react-router-dom";
-import { render, screen, userEvent, waitFor, within } from "@/_test_utilities/test-utils";
+import { render, screen, waitFor, within } from "@/_test_utilities/test-utils";
 import { server } from "@/mocks/server";
 import { AccessProvider, MODULE_IDS, type AccessScope, type ModuleId } from "@/access/AccessContext";
 import { FiltersProvider } from "@/filters/FiltersContext";
 import { createFixedModulesDateRange, createInitialFilters, type FiltersState } from "@/filters/filters";
-import { MODULES_WITH_OWN_ENDPOINT } from "@/pages/Modules/hooks/use-module-metrics";
 import { routerPaths } from "@/app/routerPaths";
 import { DATA_TEST_ID as SCREEN_HEAD_TEST_ID } from "@/components/shared/ScreenHead";
-import { DATA_TEST_ID as EMPTY_STATE_TEST_ID } from "@/components/shared/EmptyState";
 import { DATA_TEST_ID as TIMELINE_TEST_ID } from "@/pages/Modules/components/ModuleTimeline";
 import { DATA_TEST_ID as MODULE_BODY_TEST_ID } from "@/pages/Modules/components/ModuleBody";
 import { MODULES_API_BASE } from "@/pages/Modules/services/ModuleMetrics.service";
@@ -30,10 +28,6 @@ const WHOLE_SUITE: ModuleId[] = [
   MODULE_IDS.CAREER_EXPLORER,
   MODULE_IDS.JOBS,
 ];
-
-const MODULES_WITHOUT_THEIR_OWN_ENDPOINT: ModuleId[] = WHOLE_SUITE.filter(
-  (moduleId) => !MODULES_WITH_OWN_ENDPOINT.includes(moduleId)
-);
 
 function renderModules(activeModules: readonly ModuleId[] = WHOLE_SUITE, scope: AccessScope = ONE_INSTITUTION) {
   return render(
@@ -151,44 +145,41 @@ describe("Modules screen", () => {
     expect(screen.queryByTestId(DATA_TEST_ID.CONTAINER)).not.toBeInTheDocument();
   });
 
-  it("should show a placeholder while the first figures are on their way", () => {
-    // GIVEN a deployment whose modules all depend on the aggregate mock, which hasn't answered yet
-    server.use(http.get(`${MODULES_API_BASE}/metrics`, () => new Promise(() => {})));
+  // The page-level placeholder/error/retry states used to be covered here, driven by a deployment
+  // whose modules all fell back to the aggregate mock. Career Explorer moving to its own endpoint
+  // left only one module on that mock, and a single-module deployment redirects to Overview — so
+  // those states can no longer be reached through this screen. The per-module states that replaced
+  // them are covered below, one module at a time.
+
+  it("should show a skeleton for Career Explorer while its own endpoint is still loading, not the mock's fabricated numbers", async () => {
+    // GIVEN Career Explorer's real endpoint hasn't answered yet, while the rest load fine
+    server.use(http.get(`${MODULES_API_BASE}/career-explorer`, async () => await delay("infinite")));
 
     // WHEN the screen loads
-    renderModules(MODULES_WITHOUT_THEIR_OWN_ENDPOINT);
+    renderModules();
 
-    // THEN the screen is laid out but empty, rather than jumping into place later
-    expect(screen.getByTestId(DATA_TEST_ID.LOADING)).toBeInTheDocument();
-    expect(screen.queryByTestId(TIMELINE_TEST_ID.CONTAINER)).not.toBeInTheDocument();
+    // THEN the other modules' figures are already up...
+    await waitFor(() => expect(screen.getAllByTestId(DATA_TEST_ID.SECTION)).toHaveLength(4));
+    // ...but Career Explorer shows a loading skeleton, not the mock's own (fabricated) numbers
+    expect(screen.getAllByTestId(MODULE_BODY_TEST_ID.LOADING).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("heading", { name: "Top sectors & careers explored" })).not.toBeInTheDocument();
   });
 
-  it("should offer a retry when the figures could not be loaded at all", async () => {
-    // GIVEN a deployment whose modules all depend on the aggregate mock, and it is failing
-    server.use(http.get(`${MODULES_API_BASE}/metrics`, () => new HttpResponse(null, { status: 500 })));
+  it("should say Career Explorer's figures are unavailable, not show fabricated numbers, when its own endpoint fails", async () => {
+    // GIVEN the rest of the deployment's figures load fine, but Career Explorer's real endpoint fails
+    server.use(http.get(`${MODULES_API_BASE}/career-explorer`, () => new HttpResponse(null, { status: 500 })));
 
     // WHEN the screen loads
-    renderModules(MODULES_WITHOUT_THEIR_OWN_ENDPOINT);
+    renderModules();
+    await waitFor(() => expect(screen.getAllByTestId(DATA_TEST_ID.SECTION)).toHaveLength(4));
 
-    // THEN it says so and offers a way to try again
-    expect(await screen.findByTestId(DATA_TEST_ID.ERROR)).toHaveTextContent("We couldn't load the module metrics.");
+    // THEN Career Explorer says its figures are unavailable — not the mock's fabricated numbers
+    const actualDegraded = await screen.findAllByTestId(MODULE_BODY_TEST_ID.DEGRADED);
     expect(
-      within(screen.getByTestId(EMPTY_STATE_TEST_ID.CONTAINER)).getByRole("button", { name: "Retry" })
-    ).toBeVisible();
-  });
-
-  it("should reload the figures when the retry is taken", async () => {
-    // GIVEN a first attempt that failed, for a deployment whose modules all depend on the aggregate mock
-    server.use(http.get(`${MODULES_API_BASE}/metrics`, () => new HttpResponse(null, { status: 500 })));
-    renderModules(MODULES_WITHOUT_THEIR_OWN_ENDPOINT);
-    const actualRetry = await screen.findByRole("button", { name: "Retry" });
-
-    // WHEN the endpoint recovers and the retry is taken
-    server.resetHandlers();
-    await userEvent.click(actualRetry);
-
-    // THEN the figures arrive
-    await waitFor(() => expect(screen.getAllByTestId(DATA_TEST_ID.SECTION)).toHaveLength(2));
+      actualDegraded.some((element) => element.textContent?.includes("Career Explorer figures aren't available"))
+    ).toBe(true);
+    // AND the rest of the page isn't told there's an error — only this one module's data failed
+    expect(screen.queryByTestId(DATA_TEST_ID.ERROR)).not.toBeInTheDocument();
   });
 
   it("should show a skeleton for Build Your Profile while its own endpoint is still loading, not the mock's fabricated numbers", async () => {

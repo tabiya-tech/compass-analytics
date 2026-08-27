@@ -64,6 +64,19 @@ _STUB_JOBS_PAYLOAD = {
     },
 }
 
+# Mirrors compass-connect's CareerExplorerStatsResponse — see app/analytics/career_explorer/types.py there.
+_STUB_CAREER_EXPLORER_PAYLOAD = {
+    "total_registered_students": 12_450,
+    "started": {"count": 2_241, "percentage": 18.0},
+    "returned_2_plus": {"count": 890, "percentage": 39.7},
+    "priority_sector_users": 640,
+    "non_priority_sector_users": 1_601,
+    "top_sectors": [
+        {"sector_name": "Healthcare", "is_priority": True, "unique_users": 188, "total_inquiries": 421},
+        {"sector_name": "Technology", "is_priority": False, "unique_users": 152, "total_inquiries": 310},
+    ],
+}
+
 
 def _make_mock_transport(payload: dict | None = None, status_code: int = 200, unreachable: bool = False):
     if unreachable:
@@ -84,6 +97,8 @@ def _routing_transport():
     def handler(request):
         if "job-readiness" in request.url.path:
             body = json.dumps(_STUB_JOB_READINESS_PAYLOAD).encode()
+        elif "career-explorer" in request.url.path:
+            body = json.dumps(_STUB_CAREER_EXPLORER_PAYLOAD).encode()
         elif "jobs" in request.url.path:
             body = json.dumps(_STUB_JOBS_PAYLOAD).encode()
         else:
@@ -178,6 +193,12 @@ async def jobs_recording_upstream(make_modules_client):
     return await make_modules_client(transport), transport
 
 
+@pytest.fixture()
+async def career_explorer_recording_upstream(make_modules_client):
+    transport = _RecordingTransport(_STUB_CAREER_EXPLORER_PAYLOAD)
+    return await make_modules_client(transport), transport
+
+
 class TestModulesAuth:
     async def test_should_reject_request_with_no_auth_header(self, client_with_data):
         # GIVEN no Authorization header is sent
@@ -231,6 +252,17 @@ class TestModulesAllowList:
         # WHEN the modules endpoint is called
         actual_response = await client_with_data.get(
             _module_url("job-readiness", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER
+        )
+
+        # THEN expect a successful response
+        assert actual_response.status_code == 200
+
+    async def test_should_return_200_for_career_explorer(self, client_with_data):
+        # GIVEN module_key=career-explorer
+
+        # WHEN the modules endpoint is called
+        actual_response = await client_with_data.get(
+            _module_url("career-explorer", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER
         )
 
         # THEN expect a successful response
@@ -347,6 +379,119 @@ class TestJobReadinessResponse:
 
         # THEN upstream is called at the job-readiness analytics path
         assert transport.upstream_path == "/analytics/modules/job-readiness"
+
+
+class TestCareerExplorerResponse:
+    async def test_should_include_summary_top_sectors_and_degraded_flag(self, client_with_data):
+        # GIVEN a valid request
+
+        # WHEN the modules endpoint is called
+        actual_body = (
+            await client_with_data.get(
+                _module_url("career-explorer", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER
+            )
+        ).json()
+
+        # THEN expect the response to contain summary, top_sectors and a degraded flag
+        assert "summary" in actual_body
+        assert "top_sectors" in actual_body
+        assert actual_body["degraded"] is False
+
+    async def test_should_flatten_the_upstream_count_percentage_pairs_into_the_summary(self, client_with_data):
+        # GIVEN the Compass API reports started and returned-2+ as count/percentage pairs
+
+        # WHEN the modules endpoint is called
+        actual_summary = (
+            await client_with_data.get(
+                _module_url("career-explorer", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER
+            )
+        ).json()["summary"]
+
+        # THEN each pair arrives as a flat count and percentage the frontend can read directly
+        assert actual_summary["total_registered_students"] == 12_450
+        assert actual_summary["started_users"] == 2_241
+        assert actual_summary["started_percentage"] == 18.0
+        assert actual_summary["returned_users"] == 890
+        assert actual_summary["returned_percentage"] == 39.7
+        assert actual_summary["priority_sector_users"] == 640
+        assert actual_summary["non_priority_sector_users"] == 1_601
+
+    async def test_should_forward_top_sectors_from_the_compass_api_unchanged(self, client_with_data):
+        # GIVEN the Compass API returns two ranked sectors
+
+        # WHEN the modules endpoint is called
+        actual_sectors = (
+            await client_with_data.get(
+                _module_url("career-explorer", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER
+            )
+        ).json()["top_sectors"]
+
+        # THEN every sector is forwarded exactly as the upstream ranked it, priority flag included
+        assert actual_sectors == [
+            {"sector_name": "Healthcare", "is_priority": True, "unique_users": 188, "total_inquiries": 421},
+            {"sector_name": "Technology", "is_priority": False, "unique_users": 152, "total_inquiries": 310},
+        ]
+
+    async def test_should_resolve_career_explorer_to_the_correct_upstream_path(self, career_explorer_recording_upstream):
+        # GIVEN a request for career-explorer
+        client, transport = career_explorer_recording_upstream
+
+        # WHEN the endpoint is called
+        await client.get(_module_url("career-explorer", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)
+
+        # THEN upstream is called at the career-explorer analytics path
+        assert transport.upstream_path == "/analytics/modules/career-explorer"
+
+
+class TestCareerExplorerWhenApiUnavailable:
+    async def test_should_return_200_with_zeroed_and_degraded_payload(self, client_no_api):
+        # GIVEN the Compass API is unreachable
+
+        # WHEN the modules endpoint is called
+        actual_response = await client_no_api.get(
+            _module_url("career-explorer", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER
+        )
+        actual_body = actual_response.json()
+
+        # THEN expect 200 with a zeroed summary, no sectors, and degraded=True
+        assert actual_response.status_code == 200
+        assert actual_body["summary"]["started_users"] == 0
+        assert actual_body["summary"]["total_registered_students"] == 0
+        assert actual_body["top_sectors"] == []
+        assert actual_body["degraded"] is True
+
+
+class TestCareerExplorerWhenApiReturnsEmptyBody:
+    async def test_should_return_200_zeroed_but_not_degraded(self, client_empty_body):
+        # GIVEN the Compass API returns a successful, empty response (legitimately no data)
+
+        # WHEN the modules endpoint is called
+        actual_response = await client_empty_body.get(
+            _module_url("career-explorer", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER
+        )
+        actual_body = actual_response.json()
+
+        # THEN expect 200 with zeroed data, but degraded=False since this wasn't a failure
+        assert actual_response.status_code == 200
+        assert actual_body["summary"]["started_users"] == 0
+        assert actual_body["degraded"] is False
+
+
+class TestCareerExplorerWhenResponseIsMalformed:
+    async def test_should_return_200_zeroed_and_degraded(self, client_malformed):
+        # GIVEN the Compass API returns a payload that doesn't match the expected schema
+
+        # WHEN the modules endpoint is called
+        actual_body = (
+            await client_malformed.get(
+                _module_url("career-explorer", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER
+            )
+        ).json()
+
+        # THEN expect 200 with zeroed data, and degraded=True since this is schema drift, not real data
+        assert actual_body["summary"]["started_users"] == 0
+        assert actual_body["top_sectors"] == []
+        assert actual_body["degraded"] is True
 
 
 class TestJobsResponse:
@@ -597,6 +742,42 @@ class TestModulesFilterForwarding:
             "login_method": "google",
             "institution_ids": "aW5zdGl0dXRpb24",
         }]
+
+    async def test_forwards_all_filter_params_to_upstream_for_career_explorer(self, career_explorer_recording_upstream):
+        # GIVEN a career-explorer request with every optional filter set, plus an institution scope
+        client, transport = career_explorer_recording_upstream
+        url = _module_url(
+            "career-explorer", "2026-01-01", "2026-06-30", granularity="week",
+            audience_segment=_A_VALID_AUDIENCE_SEGMENT, login_method="google", institution_id="aW5zdGl0dXRpb24",
+        )
+
+        # WHEN the modules endpoint is called
+        await client.get(url, headers=_AUTH_HEADER)
+
+        # THEN every filter is forwarded to the upstream Compass call, the same as any other module
+        assert transport.upstream_params == {
+            "start_date": "2026-01-01",
+            "end_date": "2026-06-30",
+            "granularity": "week",
+            "audience_segment": _A_VALID_AUDIENCE_SEGMENT,
+            "login_method": "google",
+            "institution_ids": "aW5zdGl0dXRpb24",
+        }
+
+    async def test_should_forward_resolved_scope_not_raw_institution_id_for_career_explorer(
+        self, career_explorer_recording_upstream
+    ):
+        # GIVEN a request drilling down to one institution for career-explorer
+        client, transport = career_explorer_recording_upstream
+        given_url = _module_url("career-explorer", "2026-01-01", "2026-06-30", institution_id="inst-1")
+
+        # WHEN the endpoint is called
+        await client.get(given_url, headers=_AUTH_HEADER)
+
+        # THEN upstream sees the resolved institution_ids, not the raw institution_id
+        actual_params = transport.upstream_params
+        assert actual_params["institution_ids"] == "inst-1"
+        assert "institution_id" not in actual_params
 
     async def test_should_forward_resolved_scope_not_raw_institution_id_for_job_readiness(self, jr_recording_upstream):
         # GIVEN a request drilling down to one institution for job-readiness

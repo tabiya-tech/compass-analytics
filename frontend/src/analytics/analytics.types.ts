@@ -113,3 +113,29 @@ export interface JobsResponse {
   summary: JobsSummary;
   degraded: boolean;
 }
+
+/** One sector people asked about. `is_priority` marks the sectors the deployment steers towards. */
+export interface CareerExplorerSector {
+  sector_name: string;
+  is_priority: boolean;
+  unique_users: number;
+  total_inquiries: number;
+}
+
+export interface CareerExplorerSummary {
+  total_registered_students: number;
+  started_users: number;
+  started_percentage: number;
+  /** Came back for a second sector inquiry or more — the module's retention signal. */
+  returned_users: number;
+  /** `returned_users` as a share of those who started, not of everyone registered. */
+  returned_percentage: number;
+  priority_sector_users: number;
+  non_priority_sector_users: number;
+}
+
+export interface CareerExplorerResponse {
+  summary: CareerExplorerSummary;
+  top_sectors: CareerExplorerSector[];
+  degraded: boolean;
+}

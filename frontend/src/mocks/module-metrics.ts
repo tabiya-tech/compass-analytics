@@ -51,14 +51,26 @@ const SUB_MODULE_PROFILES: readonly { id: string; name: string; startShare: numb
   { id: "digital-basics", name: "Digital Basics", startShare: 0.2166, completionShare: 0.4911 },
 ];
 
-/** Explorations per jobseeker in scope, by sector. */
-const SECTOR_PROFILES: readonly { id: string; label: string; share: number }[] = [
-  { id: "healthcare", label: "Healthcare", share: 0.04565 },
-  { id: "technology", label: "Technology", share: 0.03691 },
-  { id: "green-jobs", label: "Green jobs", share: 0.03327 },
-  { id: "education", label: "Education", share: 0.03157 },
-  { id: "finance", label: "Finance", share: 0.02817 },
+/** Explorations per jobseeker in scope, by sector — plus how many distinct people those came from. */
+const SECTOR_PROFILES: readonly {
+  id: string;
+  label: string;
+  share: number;
+  isPriority: boolean;
+  uniqueUserShare: number;
+}[] = [
+  { id: "healthcare", label: "Healthcare", share: 0.04565, isPriority: true, uniqueUserShare: 0.4465 },
+  { id: "technology", label: "Technology", share: 0.03691, isPriority: false, uniqueUserShare: 0.4903 },
+  { id: "green-jobs", label: "Green jobs", share: 0.03327, isPriority: true, uniqueUserShare: 0.4741 },
+  { id: "education", label: "Education", share: 0.03157, isPriority: false, uniqueUserShare: 0.5328 },
+  { id: "finance", label: "Finance", share: 0.02817, isPriority: false, uniqueUserShare: 0.5859 },
 ];
+
+/** Share of those who started Career Explorer who came back for a second sector inquiry or more. */
+const CAREER_EXPLORER_RETURNED_SHARE = 0.397;
+
+/** Share of those who started who asked about at least one priority sector. */
+const CAREER_EXPLORER_PRIORITY_SHARE = 0.2856;
 
 const JOB_CATEGORY_PROFILES: readonly { id: string; label: string; share: number }[] = [
   { id: "retail-sales", label: "Retail & sales", share: 0.0611 },
@@ -203,14 +215,31 @@ function metricsFor(moduleId: ModuleId, counts: ModuleCounts): ModuleMetrics {
           completed: counts.subModules[index].completed,
         })),
       };
-    case MODULE_IDS.CAREER_EXPLORER:
+    case MODULE_IDS.CAREER_EXPLORER: {
+      const returnedUsers = Math.round(counts.started * CAREER_EXPLORER_RETURNED_SHARE);
+      const prioritySectorUsers = Math.round(counts.started * CAREER_EXPLORER_PRIORITY_SHARE);
+
       return {
         moduleId: MODULE_IDS.CAREER_EXPLORER,
         startedPercentage,
+        exploredUsers: counts.started,
+        returnedUsers,
+        returnedSharePercentage: percentageOf(returnedUsers, counts.started),
+        prioritySectorUsers,
+        // Everyone who started but stayed outside the priority sectors.
+        nonPrioritySectorUsers: Math.max(0, counts.started - prioritySectorUsers),
         topSectors: rankDescending(
           SECTOR_PROFILES.map((sector, index) => ({ ...sector, value: counts.sectorExplorations[index] }))
-        ).map((sector) => ({ id: sector.id, label: sector.label, explorations: sector.value })),
+        ).map((sector) => ({
+          id: sector.id,
+          label: sector.label,
+          explorations: sector.value,
+          uniqueUsers: Math.round(sector.value * sector.uniqueUserShare),
+          isPriority: sector.isPriority,
+        })),
+        degraded: false,
       };
+    }
     case MODULE_IDS.JOBS:
       return {
         moduleId: MODULE_IDS.JOBS,
