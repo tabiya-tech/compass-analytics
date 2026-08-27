@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import * as Sentry from "@sentry/react";
 import { useAuth } from "@/auth/AuthContext";
 import { InstitutionsService } from "@/institutions/services/Institutions.service";
 import type { InstitutionsQuery, InstitutionsResponse } from "@/institutions/institutions.types";
@@ -24,7 +25,7 @@ export function useInstitutions(query: InstitutionsQuery): InstitutionsState {
         const data = await InstitutionsService.getInstance().getInstitutions(query, token);
         if (!cancelled) setState({ status: "success", data });
       } catch (error) {
-        console.error("Failed to load institutions:", error);
+        Sentry.captureException(error);
         if (!cancelled) setState({ status: "error", retry });
       }
     })();

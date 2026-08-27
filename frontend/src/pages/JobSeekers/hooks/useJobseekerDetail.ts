@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import * as Sentry from "@sentry/react";
 import { useAuth } from "@/auth/AuthContext";
 import { JobseekersService } from "@/jobseekers/services/Jobseekers.service";
 import type { JobseekerDetail } from "@/jobseekers/jobseekers.types";
@@ -32,8 +33,7 @@ export function useJobseekerDetail(jobseekerId: string | null): JobseekerDetailS
         const data = await JobseekersService.getInstance().getJobseeker(jobseekerId, token);
         if (!cancelled) setState({ status: "success", data });
       } catch (error) {
-        // The screen only says it failed; the reason (401, 502, no token) belongs in the console.
-        console.error("Failed to load jobseeker profile:", error);
+        Sentry.captureException(error);
         if (!cancelled) setState({ status: "error", retry });
       }
     })();

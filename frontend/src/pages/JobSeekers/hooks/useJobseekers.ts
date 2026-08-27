@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import * as Sentry from "@sentry/react";
 import { useAuth } from "@/auth/AuthContext";
 import { JobseekersService } from "@/jobseekers/services/Jobseekers.service";
 import type { JobseekersQuery, JobseekersResponse } from "@/jobseekers/jobseekers.types";
@@ -24,7 +25,7 @@ export function useJobseekers(query: JobseekersQuery): JobseekersState {
         const data = await JobseekersService.getInstance().getJobseekers(query, token);
         if (!cancelled) setState({ status: "success", data });
       } catch (error) {
-        console.error("Failed to load jobseekers:", error);
+        Sentry.captureException(error);
         if (!cancelled) setState({ status: "error", retry });
       }
     })();
