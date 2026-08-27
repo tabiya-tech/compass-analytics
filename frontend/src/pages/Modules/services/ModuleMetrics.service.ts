@@ -60,7 +60,8 @@ async function fetchModuleMetrics(
         // No backend endpoint for this module yet — return a degraded stub rather than failing the page.
         return unavailableForModule(moduleId);
     }
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") throw error;
     return unavailableForModule(moduleId);
   }
 }
