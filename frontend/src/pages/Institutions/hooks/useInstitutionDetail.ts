@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import * as Sentry from "@sentry/react";
 import { useAuth } from "@/auth/AuthContext";
 import { InstitutionsService } from "@/institutions/services/Institutions.service";
 import type { InstitutionDetail } from "@/institutions/institutions.types";
@@ -32,8 +33,7 @@ export function useInstitutionDetail(institutionId: string | null): InstitutionD
         const data = await InstitutionsService.getInstance().getInstitution(institutionId, token);
         if (!cancelled) setState({ status: "success", data });
       } catch (error) {
-        // The screen only says it failed; the reason (401, 502, no token) belongs in the console.
-        console.error("Failed to load institution detail:", error);
+        Sentry.captureException(error);
         if (!cancelled) setState({ status: "error", retry });
       }
     })();

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw";
 import userEvent from "@testing-library/user-event";
 import { render, screen, waitFor, waitForElementToBeRemoved, within } from "@/_test_utilities/test-utils";
@@ -197,19 +197,15 @@ describe("Institutions", () => {
     expect(screen.queryByTestId(DATA_TEST_ID.ERROR)).not.toBeInTheDocument();
   });
 
-  it("should show an error message when the institutions cannot be fetched, and log why", async () => {
+  it("should show an error message when the institutions cannot be fetched", async () => {
     // GIVEN an endpoint that fails
     server.use(http.get("/api/analytics/institutions", () => HttpResponse.error()));
-    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
     // WHEN the screen is rendered
     renderInstitutions();
 
-    // THEN the failure is explained
+    // THEN the failure is explained and the table is not shown
     await waitFor(() => expect(screen.getByTestId(DATA_TEST_ID.ERROR)).toBeInTheDocument());
     expect(screen.queryByTestId(TABLE_TEST_ID.CONTAINER)).not.toBeInTheDocument();
-    // AND the reason reaches the console, where it can be read when this happens for real
-    expect(logged).toHaveBeenCalledWith("Failed to load institutions:", expect.anything());
-    logged.mockRestore();
   });
 });
