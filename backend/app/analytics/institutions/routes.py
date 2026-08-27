@@ -9,7 +9,8 @@ from app.auth.firebase import Authentication, UserInfo
 from app.casbin.requires import CasbinAPIRouter, make_requires
 from app.shared.filters import AnalyticsFiltersDep, verify_basic_filters
 from app.users.dependencies import get_grant_repository
-from app.users.service import ForbiddenInstitutionError, UserNotProvisionedError
+from app.errors import HTTPErrorResponse
+from app.users.errors import ForbiddenInstitutionError, UserNotProvisionedError
 from app.users.types import Action, Subject
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ def add_institutions_routes(router: APIRouter, auth: Authentication) -> None:
 
     institutions_router = CasbinAPIRouter(requires_factory=requires)
 
-    @institutions_router.get("/analytics/institutions", response_model=InstitutionsResponse)
+    @institutions_router.get("/analytics/institutions", response_model=InstitutionsResponse, responses={403: {"model": HTTPErrorResponse}, 401: {"model": HTTPErrorResponse}})
     @requires(Subject.DASHBOARD, Action.VIEW)
     async def get_institutions(
         filters: AnalyticsFiltersDep,

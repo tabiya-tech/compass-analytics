@@ -6,8 +6,9 @@ from pathlib import Path
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.analytics.dependencies import close_demographics_service, close_institutions_service, close_modules_service, close_reach_service
 from app.analytics.routes import add_analytics_routes
@@ -133,6 +134,12 @@ firebase_auth = Authentication(
     firebase_project_id=application_config.firebase_project_id,
     environment_type=application_config.environment_type,
 )
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("Unhandled exception for %s %s %s", request.method, request.url.path, str(exc))
+    return JSONResponse(status_code=500, content={"detail": "An unexpected error occurred."})
+
 
 add_version_routes(app)
 add_users_routes(app, firebase_auth)
