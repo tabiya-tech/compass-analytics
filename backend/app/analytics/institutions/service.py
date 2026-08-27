@@ -94,7 +94,7 @@ class InstitutionsService(IInstitutionsService):
         )
 
     async def get_institution(self, institution_id: str, user_info: UserInfo) -> InstitutionDetail | None:
-        scope = await self._users.resolve_scope(user_info, None)
+        scope = await self._users.resolve_scope(user_info, institution_id)
         compass_response = await self._repo.get_institutions(scope.institution_ids)
 
         for raw in compass_response.institutions:
