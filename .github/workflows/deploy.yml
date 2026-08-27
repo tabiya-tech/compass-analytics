@@ -144,7 +144,7 @@ jobs:
             --realm-name ${{ vars.REALM_NAME }} \
             ${{ steps.target_environments.outputs.args }} \
             --target-git-sha ${{ inputs.target-git-sha }} \
-            --target-git-branch ${{ inputs.target-git-branch }}
+            --target-git-branch "${{ inputs.target-git-branch }}"
 
       - name: Deploy the infrastructure
         working-directory: iac
