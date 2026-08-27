@@ -13,12 +13,8 @@ from app.casbin.model import build_model
 from app.grants.repository import IGrantRepository
 from app.grants.types import GrantRecord, GrantRequest, RoleRequest
 from app.users.repository import IUserRepository
-from app.users.service import (
-    ForbiddenInstitutionError,
-    UnknownRoleError,
-    UserNotProvisionedError,
-    UserService,
-)
+from app.users.errors import ForbiddenInstitutionError, GrantNotFoundError, UnknownRoleError, UserNotProvisionedError
+from app.users.service import UserService
 from app.users.types import ALL_INSTITUTIONS, Action, ScopeType, Subject, UserRecord
 
 
@@ -322,9 +318,9 @@ class TestRevoke:
 
         await service.revoke(_user_info(), "u2", "g1")
 
-    async def test_raises_key_error_when_grant_not_found(self):
+    async def test_raises_grant_not_found_when_grant_not_found(self):
         service = await _service(records=[_record()])
-        with pytest.raises(KeyError):
+        with pytest.raises(GrantNotFoundError):
             await service.revoke(_user_info(), "u2", "no-such-grant")
 
     async def test_raises_not_provisioned_when_caller_has_no_record(self):

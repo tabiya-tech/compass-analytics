@@ -9,22 +9,11 @@ from app.auth.firebase import UserInfo
 from app.grants.repository import IGrantRepository
 from app.grants.roles import ROLES
 from app.grants.types import GrantRecord, GrantRequest, GrantView, ManagedUser, RoleRequest
+from app.users.errors import ForbiddenInstitutionError, GrantNotFoundError, UnknownRoleError, UserNotProvisionedError
 from app.users.repository import IUserRepository
 from app.users.types import ALL_INSTITUTIONS, Action, MeResponse, ScopeType, Subject, UserRecord, UserScope
 
 logger = logging.getLogger(__name__)
-
-
-class UserNotProvisionedError(Exception):
-    """The caller is authenticated but has no record in the `users` collection."""
-
-
-class ForbiddenInstitutionError(Exception):
-    """The caller requested an institution outside their granted scope."""
-
-
-class UnknownRoleError(Exception):
-    """The requested role name does not exist in ROLES."""
 
 
 class ScopeResolution(BaseModel):
@@ -203,7 +192,7 @@ class UserService(IUserService):
         await self._require_record(user_info)
         record = await self._grants.get_by_grant_id(user_id=target_user_id, grant_id=grant_id)
         if record is None:
-            raise KeyError(grant_id)
+            raise GrantNotFoundError(grant_id)
         perm = f"{record.subject.value}:{record.action.value}"
         removed = await self._enforcer.remove_policy(target_user_id, record.institution_id, perm)
         if not removed:

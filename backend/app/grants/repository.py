@@ -70,13 +70,25 @@ class MongoGrantRepository(IGrantRepository):
         self._collection = db[GRANTS_COLLECTION]
 
     async def list_all(self) -> list[GrantRecord]:
-        return [GrantRecord.model_validate(doc) async for doc in self._collection.find({})]
+        try:
+            return [GrantRecord.model_validate(doc) async for doc in self._collection.find({})]
+        except Exception:
+            logger.exception("Failed to list all grants")
+            raise
 
     async def list_for_user(self, user_id: str) -> list[GrantRecord]:
-        return [GrantRecord.model_validate(doc) async for doc in self._collection.find({"user_id": user_id})]
+        try:
+            return [GrantRecord.model_validate(doc) async for doc in self._collection.find({"user_id": user_id})]
+        except Exception:
+            logger.exception("Failed to list grants for user_id=%s", user_id)
+            raise
 
     async def list_for_users(self, user_ids: list[str]) -> list[GrantRecord]:
-        return [GrantRecord.model_validate(doc) async for doc in self._collection.find({"user_id": {"$in": user_ids}})]
+        try:
+            return [GrantRecord.model_validate(doc) async for doc in self._collection.find({"user_id": {"$in": user_ids}})]
+        except Exception:
+            logger.exception("Failed to list grants for user_ids=%s", user_ids)
+            raise
 
     async def create(
         self,
@@ -105,27 +117,47 @@ class MongoGrantRepository(IGrantRepository):
         return record
 
     async def get_by_tuple(self, user_id: str, subject: Subject, action: Action, institution_id: str) -> GrantRecord | None:
-        doc = await self._collection.find_one(
-            {"user_id": user_id, "subject": subject.value, "action": action.value, "institution_id": institution_id}
-        )
-        return GrantRecord.model_validate(doc) if doc else None
+        try:
+            doc = await self._collection.find_one(
+                {"user_id": user_id, "subject": subject.value, "action": action.value, "institution_id": institution_id}
+            )
+            return GrantRecord.model_validate(doc) if doc else None
+        except Exception:
+            logger.exception("Failed to get grant by tuple for user_id=%s", user_id)
+            raise
 
     async def get_by_grant_id(self, user_id: str, grant_id: str) -> GrantRecord | None:
-        doc = await self._collection.find_one({"user_id": user_id, "grant_id": grant_id})
-        return GrantRecord.model_validate(doc) if doc else None
+        try:
+            doc = await self._collection.find_one({"user_id": user_id, "grant_id": grant_id})
+            return GrantRecord.model_validate(doc) if doc else None
+        except Exception:
+            logger.exception("Failed to get grant by grant_id=%s for user_id=%s", grant_id, user_id)
+            raise
 
     async def set_granted_by(self, user_id: str, subject: Subject, action: Action, institution_id: str, granted_by: str) -> None:
-        await self._collection.update_one(
-            {"user_id": user_id, "subject": subject.value, "action": action.value, "institution_id": institution_id},
-            {"$set": {"granted_by": granted_by}},
-        )
+        try:
+            await self._collection.update_one(
+                {"user_id": user_id, "subject": subject.value, "action": action.value, "institution_id": institution_id},
+                {"$set": {"granted_by": granted_by}},
+            )
+        except Exception:
+            logger.exception("Failed to set granted_by for user_id=%s", user_id)
+            raise
 
     async def delete(self, user_id: str, grant_id: str) -> bool:
-        result = await self._collection.delete_one({"user_id": user_id, "grant_id": grant_id})
-        return result.deleted_count > 0
+        try:
+            result = await self._collection.delete_one({"user_id": user_id, "grant_id": grant_id})
+            return result.deleted_count > 0
+        except Exception:
+            logger.exception("Failed to delete grant_id=%s for user_id=%s", grant_id, user_id)
+            raise
 
     async def delete_by_tuple(self, user_id: str, subject: Subject, action: Action, institution_id: str) -> bool:
-        result = await self._collection.delete_one(
-            {"user_id": user_id, "subject": subject.value, "action": action.value, "institution_id": institution_id}
-        )
-        return result.deleted_count > 0
+        try:
+            result = await self._collection.delete_one(
+                {"user_id": user_id, "subject": subject.value, "action": action.value, "institution_id": institution_id}
+            )
+            return result.deleted_count > 0
+        except Exception:
+            logger.exception("Failed to delete grant by tuple for user_id=%s", user_id)
+            raise
