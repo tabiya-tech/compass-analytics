@@ -9,8 +9,6 @@ import { ModuleBody } from "@/pages/Modules/components/ModuleBody";
 import { ModuleHeader } from "@/pages/Modules/components/ModuleHeader";
 import { ModuleTimeline } from "@/pages/Modules/components/ModuleTimeline";
 import { useModuleMetrics } from "@/pages/Modules/hooks/use-module-metrics";
-import { useJobReadiness } from "@/pages/Modules/hooks/use-job-readiness";
-import type { ModuleMetrics } from "@/pages/Modules/types";
 import { moduleSectionElementId, rendersModulesInline } from "@/pages/Modules/utils";
 import { formatDateRangeLabel } from "@/pages/Overview/utils";
 
@@ -52,23 +50,6 @@ export function Modules() {
   const { metrics, isModuleLoading, error, reload } = useModuleMetrics({
     enabled: !rendersModulesInline(activeModules),
   });
-  const jobReadinessState = useJobReadiness();
-
-  // When the real job-readiness endpoint returns data, substitute it in; otherwise
-  // the mock-backed module metrics entry is used as a fallback so the screen still renders.
-  function mergeJobReadiness(modules: readonly ModuleMetrics[]): readonly ModuleMetrics[] {
-    if (jobReadinessState.status !== "success") return modules;
-    const { data } = jobReadinessState;
-    return modules.map((module) =>
-      module.moduleId === MODULE_IDS.JOB_READINESS
-        ? {
-            moduleId: MODULE_IDS.JOB_READINESS,
-            startedPercentage: data.started_percentage,
-            subModules: data.sub_modules,
-          }
-        : module
-    );
-  }
 
   if (rendersModulesInline(activeModules)) return <Navigate to={routerPaths.ROOT} replace />;
 
@@ -88,7 +69,7 @@ export function Modules() {
       {metrics && metrics.modules.length > 0 && (
         <ModuleTimeline
           className={PADDING}
-          modules={mergeJobReadiness(metrics.modules).map((module) => ({
+          modules={metrics.modules.map((module) => ({
             id: module.moduleId,
             startedPercentage: module.startedPercentage,
           }))}
@@ -111,7 +92,7 @@ export function Modules() {
       {!metrics && !error && <ModulesSkeleton />}
 
       {metrics &&
-        mergeJobReadiness(metrics.modules).map((module) => (
+        metrics.modules.map((module) => (
           <section
             key={module.moduleId}
             id={moduleSectionElementId(module.moduleId)}

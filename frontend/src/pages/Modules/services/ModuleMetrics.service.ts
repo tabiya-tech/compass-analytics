@@ -4,6 +4,7 @@ import { AnalyticsService } from "@/analytics/Analytics.service";
 import { deriveGranularity } from "@/filters/filters";
 import {
   mapBuildYourProfileResponse,
+  mapJobReadinessResponse,
   unavailableBuildYourProfile,
   unavailableCareerExplorer,
   unavailableJobReadiness,
@@ -50,6 +51,10 @@ async function fetchModuleMetrics(
       case MODULE_IDS.BUILD_YOUR_PROFILE: {
         const response = await AnalyticsService.getInstance().getBuildYourProfile(analyticsParams, token, options);
         return mapBuildYourProfileResponse(response);
+      }
+      case MODULE_IDS.JOB_READINESS: {
+        const response = await AnalyticsService.getInstance().getJobReadiness(analyticsParams, token, options);
+        return mapJobReadinessResponse(response);
       }
       default:
         // No backend endpoint for this module yet — return a degraded stub rather than failing the page.

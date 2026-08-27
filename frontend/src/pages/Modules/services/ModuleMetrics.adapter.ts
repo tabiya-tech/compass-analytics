@@ -1,6 +1,6 @@
 import { MODULE_IDS } from "@/access/AccessContext";
 import { percentageOf } from "@/components/charts/chart-scale";
-import type { BuildYourProfileResponse } from "@/analytics/analytics.types";
+import type { BuildYourProfileResponse, JobReadinessResponse } from "@/analytics/analytics.types";
 import { BUILD_YOUR_PROFILE_TARGET_MINUTES, type ConversationPhaseId } from "@/pages/Modules/types";
 import type {
   BuildYourProfileMetrics,
@@ -30,6 +30,14 @@ export function unavailableBuildYourProfile(): BuildYourProfileMetrics {
     phases: [],
     degraded: true,
   });
+}
+
+export function mapJobReadinessResponse(response: JobReadinessResponse): JobReadinessMetrics {
+  return {
+    moduleId: MODULE_IDS.JOB_READINESS,
+    startedPercentage: Math.round(response.started_percentage),
+    subModules: response.sub_modules,
+  };
 }
 
 export function unavailableJobReadiness(): JobReadinessMetrics {
