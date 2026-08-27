@@ -8,8 +8,8 @@ import type {
   ReachResponse,
 } from "@/analytics/analytics.types";
 import type { MeResponse } from "@/user/user.types";
-import { buildModuleMetrics, parseModuleMetricsQuery } from "@/mocks/module-metrics";
-import { REACH_API_PATH } from "@/pages/Overview/services/OverviewMetrics.service";
+import { buildOverviewMetrics, parseOverviewMetricsQuery } from "@/mocks/overview-metrics";
+import { OVERVIEW_API_BASE } from "@/pages/Overview/services/OverviewMetrics.service";
 import { MODULES_API_BASE } from "@/pages/Modules/services/ModuleMetrics.service";
 import type { InstitutionSortKey, SortDirection } from "@/institutions/institutions.types";
 import { findInstitutionDetail, queryInstitutions } from "@/mocks/data/institutions";
@@ -184,11 +184,6 @@ export const jobseekerDetailHandler = http.get("/api/jobseekers/:jobseekerId", (
 /** Stands in for /api/reach — used by tests and Storybook so the Overview screen renders with realistic data. */
 export const overviewMetricsHandler = http.get(REACH_API_PATH, () => HttpResponse.json(stubReach));
 
-/** Per-module figures for every module the caller asked for — the Modules screen compares them, so they come back together. */
-export const moduleMetricsHandler = http.get(`${MODULES_API_BASE}/metrics`, ({ request }) => {
-  const query = new URL(request.url).searchParams;
-  return HttpResponse.json(buildModuleMetrics(parseModuleMetricsQuery(query)));
-});
 
 const stubJobReadiness: JobReadinessResponse = {
   started_percentage: 34.0,
@@ -226,7 +221,6 @@ export const jobsHandler = http.get(`${MODULES_API_BASE}/jobs`, () => HttpRespon
 /** Full handler list for tests and Storybook, so components render with realistic data without the backend running. */
 export const handlers: HttpHandler[] = [
   overviewMetricsHandler,
-  moduleMetricsHandler,
   jobReadinessHandler,
   institutionsHandler,
   institutionDetailHandler,

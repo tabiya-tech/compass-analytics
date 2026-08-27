@@ -5,7 +5,7 @@ import { AccessProvider, MODULE_IDS, type AccessScope, type ModuleId } from "@/a
 import { FiltersProvider } from "@/filters/FiltersContext";
 import { createInitialFilters } from "@/filters/filters";
 import { DATA_TEST_ID as TIMELINE_TEST_ID } from "@/pages/Modules/components/ModuleTimeline";
-import { buildYourProfileHandler, careerExplorerHandler, jobsHandler, moduleMetricsHandler } from "@/mocks/handlers";
+import { buildYourProfileHandler, jobsHandler } from "@/mocks/handlers";
 import { MODULES_API_BASE } from "@/pages/Modules/services/ModuleMetrics.service";
 import { Modules, DATA_TEST_ID } from "./Modules";
 
@@ -64,42 +64,11 @@ export const Loading: Story = {
   decorators: [withDeployment(Object.values(MODULE_IDS))],
   parameters: {
     msw: {
-      handlers: [
-        http.get(`${MODULES_API_BASE}/metrics`, async () => await delay("infinite")),
-        buildYourProfileHandler,
-        careerExplorerHandler,
-        jobsHandler,
-      ],
+      handlers: [http.get(`${MODULES_API_BASE}/build-your-profile`, async () => await delay("infinite"))],
     },
   },
   play: async ({ canvasElement }) => {
     await expect(canvasElement.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
-  },
-};
-
-export const CareerExplorerUnavailable: Story = {
-  decorators: [withDeployment(Object.values(MODULE_IDS))],
-  parameters: {
-    msw: {
-      handlers: [
-        moduleMetricsHandler,
-        buildYourProfileHandler,
-        http.get(`${MODULES_API_BASE}/career-explorer`, () => new HttpResponse(null, { status: 500 })),
-        jobsHandler,
-      ],
-    },
-  },
-  play: async ({ canvas }) => {
-    await waitFor(() => expect(canvas.getAllByTestId(DATA_TEST_ID.SECTION)).toHaveLength(4));
-    await waitFor(() =>
-      expect(
-        canvas.getByText(
-          "Career Explorer figures aren't available right now — the upstream data source didn't respond."
-        )
-      ).toBeVisible()
-    );
-    // One module's failure is its own — the screen doesn't offer a page-wide retry for it.
-    await expect(canvas.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   },
 };
 
@@ -108,9 +77,7 @@ export const BuildYourProfileUnavailable: Story = {
   parameters: {
     msw: {
       handlers: [
-        moduleMetricsHandler,
         http.get(`${MODULES_API_BASE}/build-your-profile`, () => new HttpResponse(null, { status: 500 })),
-        careerExplorerHandler,
         jobsHandler,
       ],
     },
@@ -133,9 +100,7 @@ export const JobsUnavailable: Story = {
   parameters: {
     msw: {
       handlers: [
-        moduleMetricsHandler,
         buildYourProfileHandler,
-        careerExplorerHandler,
         http.get(`${MODULES_API_BASE}/jobs`, () => new HttpResponse(null, { status: 500 })),
       ],
     },

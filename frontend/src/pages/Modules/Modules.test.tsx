@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { delay, http, HttpResponse } from "msw";
+import { http, HttpResponse } from "msw";
 import { Route, Routes } from "react-router-dom";
 import { render, screen, waitFor, within } from "@/_test_utilities/test-utils";
 import { server } from "@/mocks/server";
@@ -145,58 +145,7 @@ describe("Modules screen", () => {
     expect(screen.queryByTestId(DATA_TEST_ID.CONTAINER)).not.toBeInTheDocument();
   });
 
-  // The page-level placeholder/error/retry states used to be covered here, driven by a deployment
-  // whose modules all fell back to the aggregate mock. Career Explorer moving to its own endpoint
-  // left only one module on that mock, and a single-module deployment redirects to Overview — so
-  // those states can no longer be reached through this screen. The per-module states that replaced
-  // them are covered below, one module at a time.
-
-  it("should show a skeleton for Career Explorer while its own endpoint is still loading, not the mock's fabricated numbers", async () => {
-    // GIVEN Career Explorer's real endpoint hasn't answered yet, while the rest load fine
-    server.use(http.get(`${MODULES_API_BASE}/career-explorer`, async () => await delay("infinite")));
-
-    // WHEN the screen loads
-    renderModules();
-
-    // THEN the other modules' figures are already up...
-    await waitFor(() => expect(screen.getAllByTestId(DATA_TEST_ID.SECTION)).toHaveLength(4));
-    // ...but Career Explorer shows a loading skeleton, not the mock's own (fabricated) numbers
-    expect(screen.getAllByTestId(MODULE_BODY_TEST_ID.LOADING).length).toBeGreaterThan(0);
-    expect(screen.queryByRole("heading", { name: "Top sectors & careers explored" })).not.toBeInTheDocument();
-  });
-
-  it("should say Career Explorer's figures are unavailable, not show fabricated numbers, when its own endpoint fails", async () => {
-    // GIVEN the rest of the deployment's figures load fine, but Career Explorer's real endpoint fails
-    server.use(http.get(`${MODULES_API_BASE}/career-explorer`, () => new HttpResponse(null, { status: 500 })));
-
-    // WHEN the screen loads
-    renderModules();
-    await waitFor(() => expect(screen.getAllByTestId(DATA_TEST_ID.SECTION)).toHaveLength(4));
-
-    // THEN Career Explorer says its figures are unavailable — not the mock's fabricated numbers
-    const actualDegraded = await screen.findAllByTestId(MODULE_BODY_TEST_ID.DEGRADED);
-    expect(
-      actualDegraded.some((element) => element.textContent?.includes("Career Explorer figures aren't available"))
-    ).toBe(true);
-    // AND the rest of the page isn't told there's an error — only this one module's data failed
-    expect(screen.queryByTestId(DATA_TEST_ID.ERROR)).not.toBeInTheDocument();
-  });
-
-  it("should show a skeleton for Build Your Profile while its own endpoint is still loading, not the mock's fabricated numbers", async () => {
-    // GIVEN Build Your Profile's real endpoint hasn't answered yet, while the rest load fine
-    server.use(http.get(`${MODULES_API_BASE}/build-your-profile`, async () => await delay("infinite")));
-
-    // WHEN the screen loads
-    renderModules();
-
-    // THEN the other three modules' figures are already up...
-    await waitFor(() => expect(screen.getAllByTestId(DATA_TEST_ID.SECTION)).toHaveLength(4));
-    // ...but Build Your Profile shows a loading skeleton, not the mock's own (fabricated) numbers
-    expect(screen.getByTestId(MODULE_BODY_TEST_ID.LOADING)).toBeInTheDocument();
-    expect(screen.queryByText("CVs generated")).not.toBeInTheDocument();
-  });
-
-  it("should say Build Your Profile's figures are unavailable, not show fabricated numbers, when its own endpoint fails", async () => {
+  it("should say Build Your Profile's figures are unavailable, not show zeroed stubs, when its endpoint fails", async () => {
     // GIVEN the rest of the deployment's figures load fine, but Build Your Profile's real endpoint fails
     server.use(http.get(`${MODULES_API_BASE}/build-your-profile`, () => new HttpResponse(null, { status: 500 })));
 

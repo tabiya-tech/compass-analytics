@@ -1,17 +1,14 @@
 import { useEffect, useState } from "react";
 import * as Sentry from "@sentry/react";
-import { MODULE_IDS } from "@/access/AccessContext";
 import { useAuth } from "@/auth/AuthContext";
-import { percentageOf } from "@/components/charts/chart-scale";
 import { useFilters } from "@/filters/FiltersContext";
 import { createFixedModulesDateRange, deriveGranularity } from "@/filters/filters";
 import { AnalyticsService } from "@/analytics/Analytics.service";
 import type { BuildYourProfileResponse } from "@/analytics/analytics.types";
 import {
-  BUILD_YOUR_PROFILE_TARGET_MINUTES,
-  type BuildYourProfileMetrics,
-  type ConversationPhaseId,
-} from "@/pages/Modules/types";
+  mapBuildYourProfileResponse,
+  unavailableBuildYourProfile,
+} from "@/pages/Modules/services/ModuleMetrics.adapter";
 
 export type BuildYourProfileState =
   { status: "loading" } | { status: "error"; message: string } | { status: "success"; data: BuildYourProfileResponse };
@@ -69,31 +66,9 @@ export function useBuildYourProfile({
   return state;
 }
 
-export function toBuildYourProfileMetrics(response: BuildYourProfileResponse): BuildYourProfileMetrics {
-  const { summary } = response;
-  return {
-    moduleId: MODULE_IDS.BUILD_YOUR_PROFILE,
-    startedPercentage: Math.round(summary.started_percentage),
-    cvsGenerated: summary.completed_users,
-    cvsGeneratedSharePercentage: percentageOf(summary.completed_users, summary.started_users),
-    averageMinutesToComplete: summary.avg_completion_minutes,
-    targetMinutes: BUILD_YOUR_PROFILE_TARGET_MINUTES,
-    phases: response.phases.map((phase) => ({ id: phase.id as ConversationPhaseId, reached: phase.reached })),
-    degraded: response.degraded,
-  };
-}
+export { mapBuildYourProfileResponse as toBuildYourProfileMetrics } from "@/pages/Modules/services/ModuleMetrics.adapter";
+export { unavailableBuildYourProfile as unavailableBuildYourProfileMetrics } from "@/pages/Modules/services/ModuleMetrics.adapter";
 
-/** Zeroed and degraded, same as a backend failure — used when the fetch itself throws. */
-export function unavailableBuildYourProfileMetrics(): BuildYourProfileMetrics {
-  return toBuildYourProfileMetrics({
-    summary: {
-      started_users: 0,
-      started_percentage: 0,
-      completed_users: 0,
-      avg_completion_minutes: 0,
-    },
-    series: [],
-    phases: [],
-    degraded: true,
-  });
-}
+// BuildYourProfileResponse is imported above for the useBuildYourProfile return type — kept as a type alias here so
+// callers that import it from this module continue to work.
+export type { BuildYourProfileResponse };
