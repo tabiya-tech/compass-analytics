@@ -55,6 +55,15 @@ _STUB_JOB_READINESS_PAYLOAD = {
     "degraded": False,
 }
 
+_STUB_JOBS_PAYLOAD = {
+    "summary": {
+        "jobs_sourced": 30_610,
+        "profiles_with_matches": 879,
+        "profiles_with_matches_percentage": 21.0,
+        "jobs_viewed_per_user": 8.4,
+    },
+}
+
 
 def _make_mock_transport(payload: dict | None = None, status_code: int = 200, unreachable: bool = False):
     if unreachable:
@@ -75,6 +84,8 @@ def _routing_transport():
     def handler(request):
         if "job-readiness" in request.url.path:
             body = json.dumps(_STUB_JOB_READINESS_PAYLOAD).encode()
+        elif "jobs" in request.url.path:
+            body = json.dumps(_STUB_JOBS_PAYLOAD).encode()
         else:
             body = json.dumps(_STUB_BYP_PAYLOAD).encode()
         return httpx.Response(200, content=body, headers={"content-type": "application/json"})
@@ -161,6 +172,12 @@ async def jr_recording_upstream(make_modules_client):
     return await make_modules_client(transport), transport
 
 
+@pytest.fixture()
+async def jobs_recording_upstream(make_modules_client):
+    transport = _RecordingTransport(_STUB_JOBS_PAYLOAD)
+    return await make_modules_client(transport), transport
+
+
 class TestModulesAuth:
     async def test_should_reject_request_with_no_auth_header(self, client_with_data):
         # GIVEN no Authorization header is sent
@@ -214,6 +231,17 @@ class TestModulesAllowList:
         # WHEN the modules endpoint is called
         actual_response = await client_with_data.get(
             _module_url("job-readiness", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER
+        )
+
+        # THEN expect a successful response
+        assert actual_response.status_code == 200
+
+    async def test_should_return_200_for_jobs(self, client_with_data):
+        # GIVEN module_key=jobs
+
+        # WHEN the modules endpoint is called
+        actual_response = await client_with_data.get(
+            _module_url("jobs", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER
         )
 
         # THEN expect a successful response
@@ -321,6 +349,61 @@ class TestJobReadinessResponse:
         assert transport.upstream_path == "/analytics/modules/job-readiness"
 
 
+class TestJobsResponse:
+    async def test_should_include_summary_and_degraded_flag(self, client_with_data):
+        # GIVEN a valid request
+
+        # WHEN the modules endpoint is called
+        actual_body = (
+            await client_with_data.get(_module_url("jobs", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)
+        ).json()
+
+        # THEN expect the response to contain summary and a degraded flag
+        assert "summary" in actual_body
+        assert actual_body["degraded"] is False
+
+    async def test_should_return_data_from_compass_api(self, client_with_data):
+        # GIVEN the Compass API returns stub data
+
+        # WHEN the modules endpoint is called
+        actual_summary = (
+            await client_with_data.get(_module_url("jobs", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)
+        ).json()["summary"]
+
+        # THEN expect the summary values to match what the Compass API returned
+        assert actual_summary["jobs_sourced"] == 30_610
+        assert actual_summary["profiles_with_matches"] == 879
+        assert actual_summary["jobs_viewed_per_user"] == 8.4
+
+    async def test_should_resolve_jobs_to_the_correct_upstream_path(self, jobs_recording_upstream):
+        # GIVEN a request for jobs
+        client, transport = jobs_recording_upstream
+
+        # WHEN the endpoint is called
+        await client.get(_module_url("jobs", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)
+
+        # THEN upstream is called at the jobs analytics path
+        assert transport.upstream_path == "/analytics/modules/jobs"
+
+
+class TestJobsWhenUpstreamOnlyReportsJobsSourced:
+    async def test_should_return_real_jobs_sourced_with_the_rest_defaulted_to_zero(self, make_modules_client):
+        # GIVEN the upstream only tracks jobs_sourced today — no match/view events exist yet
+        transport = _make_mock_transport({"summary": {"jobs_sourced": 12_345}})
+        client = await make_modules_client(transport)
+
+        # WHEN the modules endpoint is called
+        actual_body = (
+            await client.get(_module_url("jobs", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)
+        ).json()
+
+        # THEN the real count comes through, the untracked fields default to zero, and it isn't degraded
+        assert actual_body["summary"]["jobs_sourced"] == 12_345
+        assert actual_body["summary"]["profiles_with_matches"] == 0
+        assert actual_body["summary"]["jobs_viewed_per_user"] == 0
+        assert actual_body["degraded"] is False
+
+
 class TestBuildYourProfileWhenApiUnavailable:
     async def test_should_return_200_with_zeroed_and_degraded_payload(self, client_no_api):
         # GIVEN the Compass API is unreachable
@@ -366,6 +449,20 @@ class TestJobReadinessWhenApiUnavailable:
         assert actual_body["sub_modules"] == []
 
 
+class TestJobsWhenApiUnavailable:
+    async def test_should_return_200_with_zeroed_and_degraded_payload(self, client_no_api):
+        # GIVEN the Compass API is unreachable
+
+        # WHEN the modules endpoint is called
+        actual_body = (
+            await client_no_api.get(_module_url("jobs", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)
+        ).json()
+
+        # THEN expect 200 with a zeroed summary and degraded=True
+        assert actual_body["summary"]["jobs_sourced"] == 0
+        assert actual_body["degraded"] is True
+
+
 class TestBuildYourProfileWhenApiReturnsEmptyBody:
     async def test_should_return_200_zeroed_but_not_degraded(self, client_empty_body):
         # GIVEN the Compass API returns a successful, empty response (legitimately no data)
@@ -382,6 +479,20 @@ class TestBuildYourProfileWhenApiReturnsEmptyBody:
         assert actual_body["degraded"] is False
 
 
+class TestJobsWhenApiReturnsEmptyBody:
+    async def test_should_return_200_zeroed_but_not_degraded(self, client_empty_body):
+        # GIVEN the Compass API returns a successful, empty response (legitimately no data)
+
+        # WHEN the modules endpoint is called
+        actual_response = await client_empty_body.get(_module_url("jobs", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)
+        actual_body = actual_response.json()
+
+        # THEN expect 200 with zeroed data, but degraded=False since this wasn't a failure
+        assert actual_response.status_code == 200
+        assert actual_body["summary"]["jobs_sourced"] == 0
+        assert actual_body["degraded"] is False
+
+
 class TestBuildYourProfileWhenResponseIsMalformed:
     async def test_should_return_200_zeroed_and_degraded(self, client_malformed):
         # GIVEN the Compass API returns a payload that doesn't match the expected schema
@@ -393,6 +504,20 @@ class TestBuildYourProfileWhenResponseIsMalformed:
 
         # THEN expect 200 with zeroed data, and degraded=True since this is schema drift, not real data
         assert actual_body["summary"]["started_users"] == 0
+        assert actual_body["degraded"] is True
+
+
+class TestJobsWhenResponseIsMalformed:
+    async def test_should_return_200_zeroed_and_degraded(self, client_malformed):
+        # GIVEN the Compass API returns a payload that doesn't match the expected schema
+
+        # WHEN the modules endpoint is called
+        actual_body = (
+            await client_malformed.get(_module_url("jobs", "2026-01-01", "2026-06-30"), headers=_AUTH_HEADER)
+        ).json()
+
+        # THEN expect 200 with zeroed data, and degraded=True since this is schema drift, not real data
+        assert actual_body["summary"]["jobs_sourced"] == 0
         assert actual_body["degraded"] is True
 
 
@@ -442,6 +567,28 @@ class TestModulesFilterForwarding:
         await client.get(url, headers=_AUTH_HEADER)
 
         # THEN every filter is forwarded to the upstream Compass call
+        assert captured == [{
+            "start_date": "2026-01-01",
+            "end_date": "2026-06-30",
+            "granularity": "week",
+            "audience_segment": _A_VALID_AUDIENCE_SEGMENT,
+            "login_method": "google",
+            "institution_ids": "aW5zdGl0dXRpb24",
+        }]
+
+    async def test_forwards_all_filter_params_to_upstream_for_jobs(self, make_modules_client):
+        # GIVEN a jobs request with every optional filter set, plus an institution scope
+        captured: list = []
+        client = await make_modules_client(_capturing_transport(captured))
+        url = _module_url(
+            "jobs", "2026-01-01", "2026-06-30", granularity="week",
+            audience_segment=_A_VALID_AUDIENCE_SEGMENT, login_method="google", institution_id="aW5zdGl0dXRpb24",
+        )
+
+        # WHEN the modules endpoint is called
+        await client.get(url, headers=_AUTH_HEADER)
+
+        # THEN every filter is forwarded to the upstream Compass call, the same as any other module
         assert captured == [{
             "start_date": "2026-01-01",
             "end_date": "2026-06-30",

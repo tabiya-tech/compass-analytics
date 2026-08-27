@@ -540,6 +540,7 @@
       }
     },
     "jobs": {
+      "degraded": "Jobs figures aren't available right now — the upstream data source didn't respond.",
       "tiles": {
         "sourced": {
           "label": "Jobs sourced",

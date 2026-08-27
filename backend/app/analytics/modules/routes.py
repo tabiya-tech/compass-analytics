@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from app.analytics.dependencies import get_modules_service
 from app.analytics.modules.errors import UnknownModuleErrorResponse
 from app.analytics.modules.service import IModulesService, UnsupportedModuleError
-from app.analytics.modules.types import BuildYourProfileResponse, JobReadinessResponse
+from app.analytics.modules.types import ModulesResponse
 from app.auth.errors import InvalidTokenErrorResponse
 from app.auth.firebase import Authentication, UserInfo
 from app.casbin.requires import CasbinAPIRouter, make_requires
@@ -47,7 +47,7 @@ def add_modules_routes(router: APIRouter, auth: Authentication) -> None:
     modules_router = CasbinAPIRouter(requires_factory=requires)
 
     # str, not a Literal, so an unknown key reaches the service layer and gets a 404, not a 422.
-    @modules_router.get("/modules/{module_key}", response_model=BuildYourProfileResponse | JobReadinessResponse, responses={
+    @modules_router.get("/modules/{module_key}", response_model=ModulesResponse, responses={
         HTTPStatus.UNAUTHORIZED: {"model": InvalidTokenErrorResponse, "description": "Missing or invalid authentication token."},
         HTTPStatus.FORBIDDEN: {
             "model": Union[NotProvisionedForbiddenErrorResponse, ForbiddenInstitutionErrorResponse],
@@ -61,7 +61,7 @@ def add_modules_routes(router: APIRouter, auth: Authentication) -> None:
         user_info: UserInfo = Depends(get_user_info),
         filters: AnalyticsFilters = Depends(_filters),
         service: IModulesService = Depends(get_modules_service),
-    ) -> BuildYourProfileResponse | JobReadinessResponse:
+    ) -> ModulesResponse:
         try:
             return await service.get_module(module_key, filters, user_info)
         except UnsupportedModuleError as exc:

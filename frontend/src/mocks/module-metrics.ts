@@ -222,6 +222,7 @@ function metricsFor(moduleId: ModuleId, counts: ModuleCounts): ModuleMetrics {
         topCategories: rankDescending(
           JOB_CATEGORY_PROFILES.map((category, index) => ({ ...category, value: counts.categoryMatches[index] }))
         ).map((category) => ({ id: category.id, label: category.label, matches: category.value })),
+        degraded: false,
       };
   }
 }

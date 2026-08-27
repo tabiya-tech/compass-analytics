@@ -7,7 +7,14 @@ import {
   unavailableBuildYourProfileMetrics,
   useBuildYourProfile,
 } from "@/pages/Modules/hooks/use-build-your-profile";
-import type { BuildYourProfileMetrics, ModuleMetricsRequest, ModuleMetricsResponse } from "@/pages/Modules/types";
+import { toJobsMetrics, unavailableJobsMetrics, useJobs } from "@/pages/Modules/hooks/use-jobs";
+import type {
+  BuildYourProfileMetrics,
+  JobsMetrics,
+  ModuleMetrics,
+  ModuleMetricsRequest,
+  ModuleMetricsResponse,
+} from "@/pages/Modules/types";
 import { ModuleMetricsService } from "@/pages/Modules/services/ModuleMetrics.service";
 
 export interface ModuleMetricsState {
@@ -18,9 +25,11 @@ export interface ModuleMetricsState {
 
 export interface ModuleMetricsResult extends ModuleMetricsState {
   reload: () => void; // refetches the current selection — what the error state's retry calls
-  /** Build Your Profile has its own separate fetch, so its own loading can outlast the rest's. */
-  buildYourProfileIsLoading: boolean;
+  isModuleLoading: (moduleId: ModuleId) => boolean; // per module, so one refetch doesn't dim every tile
 }
+
+// Single source of truth for which modules have migrated off the aggregate mock.
+export const MODULES_WITH_OWN_ENDPOINT: readonly ModuleId[] = [MODULE_IDS.BUILD_YOUR_PROFILE, MODULE_IDS.JOBS];
 
 export interface UseModuleMetricsOptions {
   /** Off on a screen that may not render the figures, so it doesn't pay for a call it won't use. */
@@ -33,11 +42,12 @@ export function toModuleMetricsRequest(
   activeModules: readonly ModuleId[],
   filters: FiltersState
 ): ModuleMetricsRequest {
-  const institutions = filters.institutionDrillDownId
-    ? [filters.institutionDrillDownId]
-    : scope.type === "all"
-      ? "all"
-      : scope.institutionIds;
+  let institutions: ModuleMetricsRequest["institutions"];
+  if (filters.institutionDrillDownId) {
+    institutions = [filters.institutionDrillDownId];
+  } else {
+    institutions = scope.type === "all" ? "all" : scope.institutionIds;
+  }
 
   return {
     institutions,
@@ -47,6 +57,21 @@ export function toModuleMetricsRequest(
     audienceSegment: filters.audienceSegment,
     loginMethod: filters.loginMethod,
   };
+}
+
+type ModuleFetchState<TResponse> =
+  { status: "loading" } | { status: "error"; message: string } | { status: "success"; data: TResponse };
+
+/** Success → real figures. Error → unavailable. Loading → last real figures if any, else unavailable — never fabricated numbers. */
+function resolveModuleMetrics<TResponse>(
+  fetchState: ModuleFetchState<TResponse>,
+  toMetrics: (data: TResponse) => ModuleMetrics,
+  unavailableMetrics: () => ModuleMetrics,
+  lastReal: ModuleMetrics | null
+): ModuleMetrics {
+  if (fetchState.status === "success") return toMetrics(fetchState.data);
+  if (fetchState.status === "error") return unavailableMetrics();
+  return lastReal ?? unavailableMetrics();
 }
 
 /** The deployed modules' figures. Refetches on scope/filters changes, holding the previous ones meanwhile. */
@@ -85,41 +110,56 @@ export function useModuleMetrics({ enabled = true }: UseModuleMetricsOptions = {
     return () => controller.abort();
   }, [request, service, attempt, enabled]);
 
-  // reloadToken lets reload() retry this fetch too, not just the one above.
+  // reloadToken lets reload() retry these fetches too, not just the one above.
   const buildYourProfileEnabled = enabled && activeModules.includes(MODULE_IDS.BUILD_YOUR_PROFILE);
   const buildYourProfile = useBuildYourProfile({ enabled: buildYourProfileEnabled, reloadToken: attempt });
-
   const lastRealBuildYourProfile = useRef<BuildYourProfileMetrics | null>(null);
   if (buildYourProfile.status === "success") {
     lastRealBuildYourProfile.current = toBuildYourProfileMetrics(buildYourProfile.data);
   }
 
+  const jobsEnabled = enabled && activeModules.includes(MODULE_IDS.JOBS);
+  const jobs = useJobs({ enabled: jobsEnabled, reloadToken: attempt });
+  const lastRealJobs = useRef<JobsMetrics | null>(null);
+  if (jobs.status === "success") {
+    lastRealJobs.current = toJobsMetrics(jobs.data);
+  }
+
   const metrics = useMemo<ModuleMetricsResponse | null>(() => {
-    if (!state.metrics) return null;
-    if (!buildYourProfileEnabled) return state.metrics;
+    const aggregateModules = state.metrics?.modules ?? [];
 
-    // Loading reuses the last real figures if any, else unavailable — never another source's numbers.
-    const buildYourProfileMetrics =
-      buildYourProfile.status === "success"
-        ? toBuildYourProfileMetrics(buildYourProfile.data)
-        : buildYourProfile.status === "error"
-          ? unavailableBuildYourProfileMetrics()
-          : (lastRealBuildYourProfile.current ?? unavailableBuildYourProfileMetrics());
+    const modules = request.modules
+      .map((moduleId): ModuleMetrics | null => {
+        if (moduleId === MODULE_IDS.BUILD_YOUR_PROFILE && buildYourProfileEnabled) {
+          return resolveModuleMetrics(
+            buildYourProfile,
+            toBuildYourProfileMetrics,
+            unavailableBuildYourProfileMetrics,
+            lastRealBuildYourProfile.current
+          );
+        }
+        if (moduleId === MODULE_IDS.JOBS && jobsEnabled) {
+          return resolveModuleMetrics(jobs, toJobsMetrics, unavailableJobsMetrics, lastRealJobs.current);
+        }
+        return aggregateModules.find((module) => module.moduleId === moduleId) ?? null;
+      })
+      .filter((module): module is ModuleMetrics => module !== null);
 
-    return {
-      ...state.metrics,
-      modules: state.metrics.modules.map((module) =>
-        module.moduleId === MODULE_IDS.BUILD_YOUR_PROFILE ? buildYourProfileMetrics : module
-      ),
-    };
-  }, [state.metrics, buildYourProfile, buildYourProfileEnabled]);
+    if (modules.length === 0) return null;
+    // Key omitted, not set to undefined, when the aggregate endpoint hasn't answered yet.
+    const scope = state.metrics?.scope;
+    return scope ? { scope, dateRange: request.dateRange, modules } : { dateRange: request.dateRange, modules };
+  }, [state.metrics, request, buildYourProfileEnabled, buildYourProfile, jobsEnabled, jobs]);
 
-  // `isLoading` only tracks the shared /metrics fetch; this covers Build Your Profile's own, separate one too.
-  const buildYourProfileIsLoading =
-    state.isLoading || (buildYourProfileEnabled && buildYourProfile.status === "loading");
-  // Build Your Profile shows its own failure inline (the unavailable case above); it doesn't
-  // trigger the page-level error banner other modules failing would.
-  const error = state.error;
+  // One entry per module with its own endpoint; everything else falls back to state.isLoading.
+  const ownLoadingStateByModule: Partial<Record<ModuleId, boolean>> = {
+    [MODULE_IDS.BUILD_YOUR_PROFILE]: buildYourProfileEnabled && buildYourProfile.status === "loading",
+    [MODULE_IDS.JOBS]: jobsEnabled && jobs.status === "loading",
+  };
+  const isModuleLoading = (moduleId: ModuleId): boolean => ownLoadingStateByModule[moduleId] ?? state.isLoading;
 
-  return { metrics, isLoading: state.isLoading, buildYourProfileIsLoading, error, reload };
+  // Only surfaced at the page level when there's truly nothing else to render.
+  const error = metrics ? null : state.error;
+
+  return { metrics, isLoading: state.isLoading, isModuleLoading, error, reload };
 }

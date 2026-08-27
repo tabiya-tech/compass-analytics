@@ -63,6 +63,7 @@ const JOBS: JobsMetrics = {
     { id: "agriculture", label: "Agriculture", matches: 153 },
     { id: "logistics", label: "Logistics", matches: 121 },
   ],
+  degraded: false,
 };
 
 const meta = {
@@ -146,9 +147,20 @@ export const CareerExplorerSectors: Story = {
 export const JobsMatching: Story = {
   args: { metrics: JOBS },
   play: async ({ canvas }) => {
+    // Only jobsSourced has a real data source — profilesWithMatches/jobsViewedPerUser aren't shown.
     await expect(canvas.getByText("30,610")).toBeVisible();
-    await expect(canvas.getByText("879")).toBeVisible();
-    await expect(canvas.getByText("8.4")).toBeVisible();
+    await expect(canvas.queryByText("Profiles with matches")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("Jobs viewed per user")).not.toBeInTheDocument();
+  },
+};
+
+export const JobsDegraded: Story = {
+  args: { metrics: { ...JOBS, jobsSourced: 0, profilesWithMatches: 0, jobsViewedPerUser: 0, degraded: true } },
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.getByText("Jobs figures aren't available right now — the upstream data source didn't respond.")
+    ).toBeVisible();
+    await expect(canvas.queryByText("Jobs sourced")).not.toBeInTheDocument();
   },
 };
 

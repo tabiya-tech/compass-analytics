@@ -7,9 +7,13 @@ from app.analytics.modules.types import (
     BuildYourProfileResponse,
     BuildYourProfileSummary,
     CompassBuildYourProfilePayload,
+    CompassJobsPayload,
     ConversationPhaseReach,
     JobReadinessResponse,
+    JobsResponse,
+    JobsSummary,
     MODULE_KEY_JOB_READINESS,
+    MODULE_KEY_JOBS,
     UPSTREAM_PATH,
 )
 from app.shared.filters import AnalyticsFilters
@@ -46,6 +50,19 @@ def _empty_job_readiness() -> JobReadinessResponse:
     return JobReadinessResponse(started_percentage=0.0, sub_modules=[], degraded=True)
 
 
+def _empty_jobs(degraded: bool) -> JobsResponse:
+    """Graceful zero-response — degraded=True for a real upstream failure, False for legitimately empty data."""
+    return JobsResponse(
+        summary=JobsSummary(
+            jobs_sourced=0,
+            profiles_with_matches=0,
+            profiles_with_matches_percentage=0.0,
+            jobs_viewed_per_user=0.0,
+        ),
+        degraded=degraded,
+    )
+
+
 class IModulesRepository(ABC):
     @abstractmethod
     async def get_build_your_profile(
@@ -57,10 +74,13 @@ class IModulesRepository(ABC):
         self, institution_ids: list[str] | None, filters: AnalyticsFilters
     ) -> JobReadinessResponse: ...
 
+    @abstractmethod
+    async def get_jobs(self, institution_ids: list[str] | None, filters: AnalyticsFilters) -> JobsResponse: ...
+
 
 class CompassModulesRepository(IModulesRepository):
     """
-    Fetches module analytics from the Compass upstream.
+    Fetches module analytics from the Compass upstream, one method per module_key.
 
     A genuine failure degrades to zeros with `degraded=True`; a legitimately empty response
     degrades to the same zeros but `degraded=False`.
@@ -133,3 +153,30 @@ class CompassModulesRepository(IModulesRepository):
             logger.warning("Compass modules/%s response failed validation: %s", MODULE_KEY_JOB_READINESS, exc)
             sentry_sdk.capture_exception(exc)
             return _empty_job_readiness()
+
+    async def get_jobs(self, institution_ids: list[str] | None, filters: AnalyticsFilters) -> JobsResponse:
+        params = filters.to_upstream_params(institution_ids)
+        upstream_path = UPSTREAM_PATH[MODULE_KEY_JOBS]
+
+        try:
+            data = await self._client.get(upstream_path, params=params)
+        except HttpClientError as exc:
+            logger.warning("Compass modules/%s request failed (%s): %s", MODULE_KEY_JOBS, exc.status_code, exc)
+            sentry_sdk.capture_exception(exc)
+            return _empty_jobs(degraded=True)
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Compass modules/%s request error: %s", MODULE_KEY_JOBS, exc)
+            sentry_sdk.capture_exception(exc)
+            return _empty_jobs(degraded=True)
+
+        if not data:
+            return _empty_jobs(degraded=False)
+
+        try:
+            parsed = CompassJobsPayload.model_validate(data)
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Compass modules/%s response failed validation: %s", MODULE_KEY_JOBS, exc)
+            sentry_sdk.capture_exception(exc)
+            return _empty_jobs(degraded=True)
+
+        return JobsResponse(summary=parsed.summary, degraded=False)

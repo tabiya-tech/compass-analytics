@@ -75,13 +75,14 @@ export interface JobsMetrics extends ModuleMetricsBase {
   profilesWithMatchesSharePercentage: number;
   jobsViewedPerUser: number;
   topCategories: readonly JobCategoryBucket[];
+  degraded: boolean; // true when the fetch failed, or the backend itself reported a degraded upstream
 }
 
 /** Discriminated on `moduleId`, so a body can only read the figures its own module reports. */
 export type ModuleMetrics = BuildYourProfileMetrics | JobReadinessMetrics | CareerExplorerMetrics | JobsMetrics;
 
 export interface ModuleMetricsResponse {
-  scope: MetricsScope;
+  scope?: MetricsScope;
   dateRange: DateRange; // echoed back, so a stale response can be told apart from the current one
   modules: readonly ModuleMetrics[];
 }
