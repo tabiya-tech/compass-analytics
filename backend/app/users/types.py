@@ -36,23 +36,20 @@ class ScopeType(str, Enum):
     INSTITUTIONS = "institutions"
 
 
-ActiveModule = str  # "build-your-profile" | "job-readiness" | "career-explorer" | "jobs"
-
 # Sentinel institution_id on a grant meaning "every institution in the deployment".
 ALL_INSTITUTIONS = "*"
 
 
 class UserRecord(BaseModel):
     """
-    A row in the `users` collection — holds a user's identity and which product
-    modules are active for them. Access control lives in the separate `grants`
-    collection (see app.grants.types.GrantRecord), not here.
+    A row in the `users` collection — holds a user's identity.
+    Access control lives in the separate `grants` collection (see app.grants.types.GrantRecord).
+    Active modules are a deployment-level setting read from ApplicationConfig, not stored per-user.
     """
 
     user_id: str
     email: Optional[str] = None
     name: Optional[str] = None
-    active_modules: list[ActiveModule] = Field(default_factory=list)
     created_at: Optional[datetime] = None
 
     model_config = {"extra": "ignore"}
@@ -76,6 +73,6 @@ class MeResponse(BaseModel):
     name: Optional[str] = None
     permissions: list[str] = Field(default_factory=list)
     scope: UserScope
-    active_modules: list[ActiveModule] = Field(default_factory=list)
+    active_modules: list[str] = Field(default_factory=list)
 
     model_config = {"extra": "forbid"}

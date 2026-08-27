@@ -108,6 +108,7 @@ def _gcloud_deploy_backend(*, stack_name: str):
         cloudrun_cpu_limit=os.getenv("CLOUDRUN_CPU_LIMIT", "2"),
         api_gateway_timeout=os.getenv("API_GATEWAY_TIMEOUT", "60s"),
         api_gateway_rate_limit=os.getenv("API_GATEWAY_RATE_LIMIT", "100"),
+        active_modules=getenv("ACTIVE_MODULES"),
     )
 
     # Fetch NAT network/subnet from prior Pulumi backend stack outputs (empty on first run).

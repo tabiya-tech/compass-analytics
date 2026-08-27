@@ -50,6 +50,7 @@ class BackendServiceConfig:
     cloudrun_cpu_limit: str
     api_gateway_timeout: str
     api_gateway_rate_limit: str
+    active_modules: str
 
 
 def _write_env_vars_file(cfg: BackendServiceConfig) -> str:
@@ -76,6 +77,7 @@ def _write_env_vars_file(cfg: BackendServiceConfig) -> str:
         ("VERSION_BRANCH", cfg.version_branch),
         ("VERSION_BUILD_NUMBER", cfg.version_build_number),
         ("VERSION_SHA", cfg.version_sha),
+        ("ACTIVE_MODULES", cfg.active_modules),
     ] if v is not None}
 
     for k, v in entries.items():

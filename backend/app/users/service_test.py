@@ -129,6 +129,7 @@ async def _service(
     )
 
 
+@pytest.mark.usefixtures("setup_application_config")
 class TestGetMe:
     async def test_returns_permissions_derived_from_grants(self):
         # GIVEN a user with two grants

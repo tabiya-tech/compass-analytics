@@ -26,8 +26,7 @@ export const DATA_TEST_ID = {
   SKILLS_BUTTON: `jobseekers-table-skills-button-${uniqueId}`,
 };
 
-/** The header plus ten 65px rows — the rest of the roster scrolls into view. */
-const TABLE_MAX_HEIGHT = "max-h-[720px]";
+const TABLE_MAX_HEIGHT = "max-h-[70dvh]";
 
 const SORT_ICONS = { asc: ChevronUp, desc: ChevronDown } as const;
 

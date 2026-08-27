@@ -82,6 +82,7 @@ def _build_application_config() -> ApplicationConfig:
             ExternalService.COMPASS: _require_env("COMPASS_API_KEY"),
         },
         compass_base_url=_require_env("COMPASS_BASE_URL"),
+        active_modules=[m.strip() for m in os.getenv("ACTIVE_MODULES", "").split(",") if m.strip()],
     )
 
 

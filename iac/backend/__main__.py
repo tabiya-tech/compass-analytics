@@ -71,6 +71,7 @@ def main():
         cloudrun_cpu_limit=cloudrun_cpu_limit,
         api_gateway_timeout=api_gateway_timeout,
         api_gateway_rate_limit=api_gateway_rate_limit,
+        active_modules=getenv("ACTIVE_MODULES"),
     )
 
     # version of the artifacts to deploy

@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 import casbin
 
+from app.app_config import get_application_config
 from app.auth.firebase import UserInfo
 from app.grants.repository import IGrantRepository
 from app.grants.roles import ROLES
@@ -87,7 +88,7 @@ class UserService(IUserService):
             name=user_info.name or record.name,
             permissions=self._permissions(grants),
             scope=self._scope(grants),
-            active_modules=record.active_modules,
+            active_modules=get_application_config().active_modules,
         )
 
     async def resolve_scope(self, user_info: UserInfo, requested_institution_id: str | None) -> ScopeResolution:

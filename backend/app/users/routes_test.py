@@ -13,6 +13,8 @@ import jwt as pyjwt
 import pytest
 from fastapi import FastAPI
 
+from app.app_config import ApplicationConfig, clear_application_config, set_application_config
+from app.auth.api_key import ExternalService
 from app.auth.firebase import Authentication
 from app.casbin.adapter import GrantsAdapter
 from app.casbin.enforcer import clear_enforcer_cache, get_enforcer
@@ -22,6 +24,7 @@ from app.users.repository import USERS_COLLECTION, MongoUserRepository
 from app.users.routes import add_users_routes
 from app.users.service import UserService
 from app.users.types import ALL_INSTITUTIONS, Action, Subject
+from app.version.types import VersionInfo
 
 _TEST_SECRET = "test-secret-key-long-enough-for-hs256"  # nosec B105
 
@@ -39,7 +42,7 @@ def _auth(user_id: str = "u1") -> dict:
 
 
 async def _seed_user(db, user_id: str = "u1", **overrides) -> None:
-    doc = {"user_id": user_id, "email": f"{user_id}@example.com", "name": "Test User", "active_modules": []}
+    doc = {"user_id": user_id, "email": f"{user_id}@example.com", "name": "Test User"}
     doc.update(overrides)
     await db[USERS_COLLECTION].insert_one(doc)
 
@@ -53,10 +56,27 @@ async def _seed_grant(db, user_id: str, subject: Subject, action: Action, instit
     return record.grant_id
 
 
+_DEPLOYMENT_MODULES = ["build-your-profile", "job-readiness"]
+
+
 @pytest.fixture()
 async def client(monkeypatch, in_memory_analytics_database):
     monkeypatch.setenv("TARGET_ENVIRONMENT_TYPE", "local")
     clear_enforcer_cache()
+
+    set_application_config(ApplicationConfig(
+        version_info=VersionInfo(),
+        environment_type="local",
+        environment_name="local",
+        frontend_url="http://localhost:5173",
+        backend_url="http://localhost:8080",
+        enable_sentry=False,
+        analytics_mongodb_uri="mongodb://localhost:27017",
+        analytics_database_name="test",
+        service_api_keys={ExternalService.COMPASS: "test-key"},
+        compass_base_url="http://localhost:9999",
+        active_modules=_DEPLOYMENT_MODULES,
+    ))
 
     app = FastAPI()
     auth = Authentication()
@@ -77,6 +97,7 @@ async def client(monkeypatch, in_memory_analytics_database):
         yield c
 
     clear_enforcer_cache()
+    clear_application_config()
 
 
 class TestGetMe:
@@ -88,7 +109,7 @@ class TestGetMe:
 
     async def test_returns_profile_with_permissions_and_scope(self, client):
         # GIVEN a provisioned user with a wildcard dashboard grant
-        await _seed_user(client.db, "u1", active_modules=["build-your-profile"])
+        await _seed_user(client.db, "u1")
         await _seed_grant(client.db, "u1", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS)
         await _seed_grant(client.db, "u1", Subject.ACCOUNT, Action.VIEW, ALL_INSTITUTIONS)
 
@@ -98,7 +119,8 @@ class TestGetMe:
         assert "dashboard:view" in body["permissions"]
         assert "account:view" in body["permissions"]
         assert body["scope"]["type"] == "all"
-        assert body["active_modules"] == ["build-your-profile"]
+        # active_modules comes from deployment config, not the user document
+        assert body["active_modules"] == _DEPLOYMENT_MODULES
 
     async def test_prefers_jwt_identity_over_stored_copy(self, client):
         await _seed_user(client.db, "u1", email="stale@example.com", name="Stale")
