@@ -6,7 +6,7 @@ import { FiltersProvider } from "@/filters/FiltersContext";
 import { createInitialFilters } from "@/filters/filters";
 import { DATA_TEST_ID as DEMOGRAPHICS_PANEL_TEST_ID } from "@/pages/Overview/components/DemographicsPanel";
 import { demographicsHandler } from "@/mocks/handlers";
-import { OVERVIEW_API_BASE } from "@/pages/Overview/services/OverviewMetrics.service";
+import { REACH_API_PATH } from "@/pages/Overview/services/OverviewMetrics.service";
 import { Overview } from "./Overview";
 
 const FIXED_FILTERS = {
@@ -42,7 +42,7 @@ export const Loading: Story = {
   decorators: [withAccess({ type: "institutions", institutionIds: ["inst-1"] })],
   parameters: {
     msw: {
-      handlers: [http.get(`${OVERVIEW_API_BASE}/metrics`, async () => await delay("infinite")), demographicsHandler],
+      handlers: [http.get(REACH_API_PATH, async () => await delay("infinite")), demographicsHandler],
     },
   },
   play: async ({ canvas, canvasElement }) => {
@@ -55,10 +55,7 @@ export const FailedToLoad: Story = {
   decorators: [withAccess({ type: "institutions", institutionIds: ["inst-1"] })],
   parameters: {
     msw: {
-      handlers: [
-        http.get(`${OVERVIEW_API_BASE}/metrics`, () => new HttpResponse(null, { status: 500 })),
-        demographicsHandler,
-      ],
+      handlers: [http.get(REACH_API_PATH, () => new HttpResponse(null, { status: 500 })), demographicsHandler],
     },
   },
   play: async ({ canvas }) => {
