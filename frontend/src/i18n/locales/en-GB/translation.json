@@ -4,8 +4,11 @@
     "retry": "Retry",
     "close": "Close",
     "cancel": "Cancel",
+    "save": "Save",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "myAccount": "My account",
+    "unknown": "—"
   },
   "i18n": {
     "languageSwitcher": {
@@ -109,7 +112,6 @@
       "jobs": "Jobs"
     },
     "userMenu": {
-      "label": "My account",
       "trigger": "Open account menu",
       "accountSettings": "Account settings"
     }
@@ -556,6 +558,29 @@
           "caption": "among visitors"
         }
       }
+    }
+  },
+  "settings": {
+    "eyebrow": "Account",
+    "title": "Profile & settings",
+    "profile": {
+      "organization": {
+        "label": "Organization",
+        "editLabel": "Organization",
+        "placeholder": "Organization"
+      },
+      "name": {
+        "editLabel": "Full name",
+        "placeholder": "Full name"
+      },
+      "email": "Email",
+      "role": "Role",
+      "dataScope": "Data scope",
+      "scopeAll": "All institutions",
+      "scopeOneInstitution": "1 institution",
+      "scopeInstitutions": "{{count}} institutions",
+      "editProfile": "Edit profile",
+      "saveError": "Couldn't save your changes. Try again."
     }
   }
 }

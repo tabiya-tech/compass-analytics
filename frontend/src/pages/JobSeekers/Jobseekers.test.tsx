@@ -27,10 +27,7 @@ async function renderAndWaitForJobseekers(access?: AccessProviderProps) {
 }
 
 function jobseekerNames(): string[] {
-  return screen
-    .getAllByTestId(TABLE_TEST_ID.CELL)
-    .filter((cell) => cell.dataset.column === "name")
-    .map((cell) => cell.querySelector("span")?.textContent ?? "");
+  return screen.getAllByTestId(TABLE_TEST_ID.NAME).map((name) => name.textContent ?? "");
 }
 
 describe("Jobseekers", () => {

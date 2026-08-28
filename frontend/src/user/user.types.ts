@@ -14,6 +14,7 @@ export interface MeResponse {
   user_id: string;
   email: string | null;
   name: string | null;
+  organization: string | null;
   permissions: string[];
   scope: UserScope;
   active_modules: ModuleId[];

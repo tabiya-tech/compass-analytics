@@ -3,14 +3,18 @@ import userEvent from "@testing-library/user-event";
 import { render, screen } from "@/_test_utilities/test-utils";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { DATA_TEST_ID as USER_AVATAR_TEST_ID } from "@/components/shared/UserAvatar";
+import { AccessProvider } from "@/access/AccessContext";
+import { Role } from "@/access/roles";
 import { SidebarUserMenu } from "./SidebarUserMenu";
 
-function renderMenu() {
+function renderMenu(role: Role | null = null) {
   const onSignOut = vi.fn();
   render(
-    <SidebarProvider>
-      <SidebarUserMenu onSignOut={onSignOut} />
-    </SidebarProvider>
+    <AccessProvider role={role}>
+      <SidebarProvider>
+        <SidebarUserMenu onSignOut={onSignOut} />
+      </SidebarProvider>
+    </AccessProvider>
   );
   return { onSignOut };
 }
@@ -28,13 +32,13 @@ describe("SidebarUserMenu", () => {
     expect(screen.getByText("My account", { selector: ":not(.sr-only)" })).toBeInTheDocument();
   });
 
-  it("should fall back to a generic person icon, with no photo on the signed-in user's profile", () => {
-    // GIVEN the footer menu, for a user with no photoURL set
+  it("should take the avatar's initials from whatever name the menu is showing", () => {
+    // GIVEN a signed-in user with neither a photo nor a display name, so the menu shows "My account"
     // WHEN rendered
     renderMenu();
 
-    // THEN the avatar falls back to a person icon
-    expect(screen.getByTestId(USER_AVATAR_TEST_ID.FALLBACK).querySelector("svg")).toBeInTheDocument();
+    // THEN the avatar takes its initials from that same label rather than showing a photo
+    expect(screen.getByTestId(USER_AVATAR_TEST_ID.FALLBACK)).toHaveTextContent("MA");
   });
 
   it("should link Account settings to /settings and call onSignOut when Sign out is clicked", async () => {
@@ -50,5 +54,23 @@ describe("SidebarUserMenu", () => {
 
     // THEN the sign-out callback fires
     expect(onSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("should name the role beneath the person's name", () => {
+    // GIVEN a signed-in funder
+    // WHEN rendered
+    renderMenu(Role.Funder);
+
+    // THEN the role sits under the name, in the same words the account screen uses for it
+    expect(screen.getByText("Funder")).toBeInTheDocument();
+  });
+
+  it("should show a dash for the role when the caller's permissions add up to none this app knows", () => {
+    // GIVEN a caller whose grants don't add up to a known role
+    // WHEN rendered
+    renderMenu(null);
+
+    // THEN the role line says so rather than showing nothing
+    expect(screen.getByText("—")).toBeInTheDocument();
   });
 });

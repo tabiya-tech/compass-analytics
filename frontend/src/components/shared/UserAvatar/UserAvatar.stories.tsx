@@ -13,11 +13,19 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const IconFallback: Story = {
+export const InitialsFallback: Story = {
   play: async ({ canvas }) => {
     // GIVEN a jobseeker with no photo
     // WHEN rendered
-    // THEN a generic person icon stands in for the photo
+    // THEN their initials stand in for it
+    await expect(canvas.getByTestId(DATA_TEST_ID.FALLBACK)).toHaveTextContent("AM");
+  },
+};
+
+/** A name with no letters to take an initial from still gets an avatar, not an empty circle. */
+export const IconFallback: Story = {
+  args: { name: "—" },
+  play: async ({ canvas }) => {
     await expect(canvas.getByTestId(DATA_TEST_ID.FALLBACK).querySelector("svg")).toBeInTheDocument();
   },
 };

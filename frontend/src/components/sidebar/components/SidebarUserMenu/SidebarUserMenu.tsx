@@ -12,11 +12,15 @@ import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui
 import { routerPaths } from "@/app/routerPaths";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { useAuth } from "@/auth/AuthContext";
+import { useAccess } from "@/access/AccessContext";
+import { ROLE_LABEL_KEYS } from "@/access/roles";
 
 export function SidebarUserMenu({ onSignOut }: Readonly<{ onSignOut: () => void }>) {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const label = user?.displayName ?? t("nav.userMenu.label");
+  const { role, name: nameOnBackendRecord } = useAccess();
+  const displayedName = user?.displayName ?? nameOnBackendRecord ?? t("common.myAccount");
+  const displayedRoleLabel = role ? t(ROLE_LABEL_KEYS[role]) : t("common.unknown");
 
   return (
     <SidebarMenu>
@@ -24,8 +28,11 @@ export function SidebarUserMenu({ onSignOut }: Readonly<{ onSignOut: () => void 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton size="lg" aria-label={t("nav.userMenu.trigger")}>
-              <UserAvatar name={label} className="bg-tabiya-green text-tabiya-blue" />
-              <span className="flex-1 truncate text-left font-medium">{label}</span>
+              <UserAvatar name={displayedName} className="bg-tabiya-green text-tabiya-blue" />
+              <span className="grid min-w-0 flex-1 text-left">
+                <span className="truncate font-medium">{displayedName}</span>
+                <span className="truncate text-xs text-sidebar-foreground/60">{displayedRoleLabel}</span>
+              </span>
               <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>

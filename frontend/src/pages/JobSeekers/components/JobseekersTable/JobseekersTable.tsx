@@ -24,6 +24,7 @@ export const DATA_TEST_ID = {
   ROW: `jobseekers-table-row-${uniqueId}`,
   CELL: `jobseekers-table-cell-${uniqueId}`,
   SKILLS_BUTTON: `jobseekers-table-skills-button-${uniqueId}`,
+  NAME: `jobseekers-table-name-${uniqueId}`,
 };
 
 const TABLE_MAX_HEIGHT = "max-h-[70dvh]";
@@ -119,7 +120,9 @@ export function JobseekersTable({
           >
             <UserAvatar name={jobseeker.name} size="sm" />
             <span className="grid gap-0.5">
-              <span className="font-semibold">{jobseeker.name}</span>
+              <span data-testid={DATA_TEST_ID.NAME} className="font-semibold">
+                {jobseeker.name}
+              </span>
               <span className="font-mono text-xs font-normal text-muted-foreground">{jobseeker.id}</span>
             </span>
           </button>

@@ -14,6 +14,7 @@ const givenMe: MeResponse = {
   user_id: "u1",
   email: "u@example.com",
   name: "U",
+  organization: null,
   permissions: ["dashboard:view", "institutions:view", "account:view"],
   scope: { type: "all", institution_ids: [] },
   active_modules: ["build-your-profile", "job-readiness", "career-explorer", "jobs"],
