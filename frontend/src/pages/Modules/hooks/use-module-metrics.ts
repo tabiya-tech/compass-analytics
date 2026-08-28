@@ -172,7 +172,16 @@ export function useModuleMetrics({ enabled = true }: UseModuleMetricsOptions = {
     // Key omitted, not set to undefined, when the aggregate endpoint hasn't answered yet.
     const scope = state.metrics?.scope;
     return scope ? { scope, dateRange: request.dateRange, modules } : { dateRange: request.dateRange, modules };
-  }, [state.metrics, request, buildYourProfileEnabled, buildYourProfile, jobsEnabled, jobs]);
+  }, [
+    state.metrics,
+    request,
+    buildYourProfileEnabled,
+    buildYourProfile,
+    careerExplorerEnabled,
+    careerExplorer,
+    jobsEnabled,
+    jobs,
+  ]);
 
   // One entry per module with its own endpoint; everything else falls back to state.isLoading.
   const ownLoadingStateByModule: Partial<Record<ModuleId, boolean>> = {
