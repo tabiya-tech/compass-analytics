@@ -2,8 +2,6 @@ import logging
 
 from http import HTTPStatus
 
-from http import HTTPStatus
-
 from fastapi import Depends, FastAPI, HTTPException, status
 
 from app.auth.errors import InvalidTokenErrorResponse
@@ -14,7 +12,7 @@ from app.casbin.requires import CasbinAPIRouter, make_requires
 from app.users.dependencies import get_grant_repository, get_user_service
 from app.users.errors import GrantNotFoundError, UnknownRoleError, UserNotProvisionedError, UserNotProvisionedErrorResponse
 from app.users.service import IUserService
-from app.users.types import Action, MeResponse, Subject
+from app.users.types import Action, MeResponse, RegisterRequest, Subject
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +29,13 @@ def add_users_routes(app: FastAPI, auth: Authentication) -> None:
         HTTPStatus.UNAUTHORIZED: {"model": InvalidTokenErrorResponse, "description": "Missing or invalid authentication token."},
     })
     async def register(
+        body: RegisterRequest | None = None,
         user_info: UserInfo = Depends(get_user_info),
         service: IUserService = Depends(get_user_service),
     ) -> None:
         logger.info("register endpoint hit for user_id=%s", user_info.user_id)
-        await service.register(user_info)
+        # A plain login sends no body; treat that the same as an explicitly empty one.
+        await service.register(user_info, body or RegisterRequest())
         logger.info("register complete for user_id=%s", user_info.user_id)
 
     @router.get("/me", response_model=MeResponse, responses={

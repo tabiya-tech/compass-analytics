@@ -29,16 +29,15 @@ from app.version.types import VersionInfo
 _TEST_SECRET = "test-secret-key-long-enough-for-hs256"  # nosec B105
 
 
-def _make_token(user_id: str = "u1", email: str = "user@example.com") -> str:
-    return pyjwt.encode(
-        {"sub": user_id, "email": email, "name": "Test User", "firebase": {"sign_in_provider": "password"}},
-        key=_TEST_SECRET,
-        algorithm="HS256",
-    )
+def _make_token(user_id: str = "u1", email: str = "user@example.com", name: str | None = "Test User") -> str:
+    claims = {"sub": user_id, "email": email, "firebase": {"sign_in_provider": "password"}}
+    if name is not None:
+        claims["name"] = name
+    return pyjwt.encode(claims, key=_TEST_SECRET, algorithm="HS256")
 
 
-def _auth(user_id: str = "u1") -> dict:
-    return {"Authorization": f"Bearer {_make_token(user_id=user_id)}"}
+def _auth(user_id: str = "u1", name: str | None = "Test User") -> dict:
+    return {"Authorization": f"Bearer {_make_token(user_id=user_id, name=name)}"}
 
 
 async def _seed_user(db, user_id: str = "u1", **overrides) -> None:
@@ -138,6 +137,64 @@ class TestGetMe:
 
         assert body["scope"]["type"] == "institutions"
         assert body["scope"]["institution_ids"] == ["inst-a"]
+
+
+class TestRegister:
+    async def test_creates_a_profile_that_get_me_can_then_read(self, client):
+        response = await client.post("/api/users/register", headers=_auth())
+
+        assert response.status_code == 201
+        assert (await client.get("/api/me", headers=_auth())).status_code == 200
+
+    async def test_returns_401_without_auth(self, client):
+        assert (await client.post("/api/users/register")).status_code == 401
+
+    async def test_persists_the_organization_given_in_the_body(self, client):
+        # WHEN registering with an organization, as the registration form does
+        response = await client.post("/api/users/register", headers=_auth(), json={"organization": "Acme Corp"})
+        assert response.status_code == 201
+
+        # THEN it comes back from /api/me
+        body = (await client.get("/api/me", headers=_auth())).json()
+        assert body["organization"] == "Acme Corp"
+
+    async def test_a_later_login_does_not_erase_the_organization_set_at_registration(self, client):
+        # GIVEN a user who registered with an organization
+        await client.post("/api/users/register", headers=_auth(), json={"organization": "Acme Corp"})
+
+        # WHEN they log in again — the login flow re-registers with no body
+        response = await client.post("/api/users/register", headers=_auth())
+        assert response.status_code == 201
+
+        # THEN the organization is still there
+        body = (await client.get("/api/me", headers=_auth())).json()
+        assert body["organization"] == "Acme Corp"
+
+    async def test_persists_the_name_given_in_the_body_for_a_password_account_with_no_name_claim(self, client):
+        # GIVEN a password account whose token carries no name claim at all — the case a real
+        # account ends up in if it registered before this field existed
+        no_name_auth = _auth(name=None)
+
+        # WHEN registering with a name, the way the registration form (or a later name edit) does
+        response = await client.post("/api/users/register", headers=no_name_auth, json={"name": "Kunda Tembo"})
+        assert response.status_code == 201
+
+        # THEN it comes back from /api/me
+        body = (await client.get("/api/me", headers=no_name_auth)).json()
+        assert body["name"] == "Kunda Tembo"
+
+    async def test_a_later_login_does_not_erase_the_name_set_by_an_earlier_edit(self, client):
+        # GIVEN a password account that had its name set once, with no name claim on the token itself
+        no_name_auth = _auth(name=None)
+        await client.post("/api/users/register", headers=no_name_auth, json={"name": "Kunda Tembo"})
+
+        # WHEN they log in again — the login flow re-registers with no body
+        response = await client.post("/api/users/register", headers=no_name_auth)
+        assert response.status_code == 201
+
+        # THEN the name set earlier is still there
+        body = (await client.get("/api/me", headers=no_name_auth)).json()
+        assert body["name"] == "Kunda Tembo"
 
 
 class TestListUsers:

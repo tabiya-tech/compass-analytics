@@ -12,7 +12,7 @@ from app.grants.roles import ROLES
 from app.grants.types import GrantRecord, GrantRequest, GrantView, ManagedUser, RoleRequest
 from app.users.errors import ForbiddenInstitutionError, GrantNotFoundError, UnknownRoleError, UserNotProvisionedError
 from app.users.repository import IUserRepository
-from app.users.types import ALL_INSTITUTIONS, Action, MeResponse, ScopeType, Subject, UserRecord, UserScope
+from app.users.types import ALL_INSTITUTIONS, Action, MeResponse, RegisterRequest, ScopeType, Subject, UserRecord, UserScope
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class ScopeResolution(BaseModel):
 
 class IUserService(ABC):
     @abstractmethod
-    async def register(self, user_info: UserInfo) -> None: ...
+    async def register(self, user_info: UserInfo, profile: RegisterRequest) -> None: ...
 
     @abstractmethod
     async def get_me(self, user_info: UserInfo) -> MeResponse: ...
@@ -57,8 +57,15 @@ class UserService(IUserService):
         self._grants = grant_repository
         self._enforcer = enforcer
 
-    async def register(self, user_info: UserInfo) -> None:
-        record = UserRecord(user_id=user_info.user_id, email=user_info.email, name=user_info.name)
+    async def register(self, user_info: UserInfo, profile: RegisterRequest) -> None:
+        # profile.name wins when given; otherwise falls back to the JWT claim, usually empty for a
+        # password account. A field left out entirely is preserved by the exclude_none upsert below.
+        record = UserRecord(
+            user_id=user_info.user_id,
+            email=user_info.email,
+            name=profile.name or user_info.name,
+            organization=profile.organization,
+        )
         await self._repo.upsert(record)
         logger.info("register: upserted user_id=%s", user_info.user_id)
 
@@ -86,6 +93,7 @@ class UserService(IUserService):
             user_id=record.user_id,
             email=user_info.email or record.email,
             name=user_info.name or record.name,
+            organization=record.organization,
             permissions=self._permissions(grants),
             scope=self._scope(grants),
             active_modules=get_application_config().active_modules,

@@ -50,9 +50,22 @@ class UserRecord(BaseModel):
     user_id: str
     email: Optional[str] = None
     name: Optional[str] = None
+    organization: Optional[str] = None
     created_at: Optional[datetime] = None
 
     model_config = {"extra": "ignore"}
+
+
+class RegisterRequest(BaseModel):
+    """
+    Optional body for POST /users/register — the caller's own account details, as opposed to
+    UserInfo's token-derived identity. A field left out here leaves whatever was saved for it untouched.
+    """
+
+    name: Optional[str] = None
+    organization: Optional[str] = None
+
+    model_config = {"extra": "forbid"}
 
 
 class UserScope(BaseModel):
@@ -71,6 +84,7 @@ class MeResponse(BaseModel):
     user_id: str
     email: Optional[str] = None
     name: Optional[str] = None
+    organization: Optional[str] = None
     permissions: list[str] = Field(default_factory=list)
     scope: UserScope
     active_modules: list[str] = Field(default_factory=list)
