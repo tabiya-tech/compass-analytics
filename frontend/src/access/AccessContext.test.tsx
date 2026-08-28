@@ -29,11 +29,12 @@ function renderWithAuth(ui: React.ReactElement, auth = STUB_AUTH) {
 }
 
 function ScopeProbe() {
-  const { activeModules, isMultiInstitution } = useAccess();
+  const { activeModules, isMultiInstitution, name } = useAccess();
   return (
     <div>
       <span data-testid="active-modules">{activeModules.join(",")}</span>
       <span data-testid="is-multi-institution">{String(isMultiInstitution)}</span>
+      <span data-testid="name">{name ?? "null"}</span>
     </div>
   );
 }
@@ -112,6 +113,16 @@ describe("AccessProvider", () => {
 
     expect(screen.getByTestId("is-multi-institution")).toHaveTextContent("false");
   });
+
+  it("should default to no name when none is given", () => {
+    render(
+      <AccessProvider>
+        <ScopeProbe />
+      </AccessProvider>
+    );
+
+    expect(screen.getByTestId("name")).toHaveTextContent("null");
+  });
 });
 
 describe("AccessGate", () => {
@@ -119,6 +130,7 @@ describe("AccessGate", () => {
     user_id: "u1",
     email: "u@example.com",
     name: "U",
+    organization: "U Org",
     permissions: ["dashboard:view", "institutions:view"],
     scope: { type: "all", institution_ids: [] },
     active_modules: ["build-your-profile"],
@@ -149,6 +161,18 @@ describe("AccessGate", () => {
     await waitFor(() => expect(screen.getByTestId("can-institutions")).toBeInTheDocument());
     expect(screen.getByTestId("can-dashboard")).toBeInTheDocument();
     expect(screen.queryByTestId("can-access-management")).not.toBeInTheDocument();
+  });
+
+  it("should hydrate the backend's name from /api/me, for screens with no client-side copy to prefer", async () => {
+    server.use(http.get("/api/me", () => HttpResponse.json(givenMe)));
+
+    renderWithAuth(
+      <AccessGate>
+        <ScopeProbe />
+      </AccessGate>
+    );
+
+    await waitFor(() => expect(screen.getByTestId("name")).toHaveTextContent("U"));
   });
 
   it("should show the unprovisioned message on a 404", async () => {

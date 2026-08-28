@@ -32,11 +32,20 @@ export class UserService {
     return response;
   }
 
-  async register(token: string): Promise<void> {
+  async register(token: string, options?: { name?: string; organization?: string }): Promise<void> {
+    const body: Record<string, string> = {};
+    if (options?.name) body.name = options.name;
+    if (options?.organization) body.organization = options.organization;
+    const hasBody = Object.keys(body).length > 0;
+
     const url = new URL(`${USER_API_BASE}/users/register`, window.location.origin);
     const response = await fetch(url.toString(), {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(hasBody ? { "Content-Type": "application/json" } : {}),
+      },
+      body: hasBody ? JSON.stringify(body) : undefined,
     });
     if (!response.ok) {
       throw new UserApiError(response.status, `Register API error: ${response.status}`);

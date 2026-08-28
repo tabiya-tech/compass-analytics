@@ -1,6 +1,6 @@
 import { createHashRouter, Navigate, RouterProvider } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
-import ProtectedRoute, { PermissionRoute } from "@/app/ProtectedRoute/ProtectedRoute";
+import { PermissionRoute } from "@/app/ProtectedRoute/ProtectedRoute";
 import { Layout } from "@/app/Layout";
 import { routerPaths } from "@/app/routerPaths";
 import { Action, Subject } from "@/access/AccessContext";
@@ -11,6 +11,7 @@ import { Institutions } from "@/pages/Institutions";
 import { UserAccess } from "@/pages/UserAccess";
 import { Jobseekers } from "@/pages/JobSeekers";
 import { Modules } from "@/pages/Modules";
+import { Settings } from "@/pages/Settings";
 
 const router = createHashRouter([
   {
@@ -75,7 +76,11 @@ const router = createHashRouter([
       },
       {
         path: routerPaths.SETTINGS,
-        element: <ProtectedRoute>Settings</ProtectedRoute>,
+        element: (
+          <PermissionRoute action={Action.View} subject={Subject.Account}>
+            <Settings />
+          </PermissionRoute>
+        ),
       },
     ],
   },

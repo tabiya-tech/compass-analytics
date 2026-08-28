@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { useMe } from "@/user/useMe";
 import { Action, buildAbility, Subject, type AppAbility } from "@/access/ability";
 import { AccessErrorPage } from "@/access/AccessErrorPage";
+import { Role, roleFromPermissions } from "@/access/roles";
 import type { MeResponse, ModuleId } from "@/user/user.types";
 
 export { Can, useAbility, Subject, Action };
@@ -27,12 +28,25 @@ export interface AccessContextValue {
   scope: AccessScope;
   activeModules: readonly ModuleId[];
   isMultiInstitution: boolean;
+  /** null when the caller's permissions add up to no role we know — see roleFromPermissions. */
+  role: Role | null;
+  /**
+   * The backend's record of the caller's name — set at first login from the ID token's `name`
+   * claim, independent of the client's own copy. A screen should still prefer the live Firebase
+   * `user.displayName` and fall back to this, since this can lag a just-changed profile.
+   */
+  name: string | null;
+  /** From the backend record — organization isn't part of Firebase identity, so there is no other copy of it. */
+  organization: string | null;
 }
 
 export interface AccessProviderProps {
   ability?: AppAbility;
   scope?: AccessScope;
   activeModules?: readonly ModuleId[];
+  role?: Role | null;
+  name?: string | null;
+  organization?: string | null;
 }
 
 const DEFAULT_ABILITY: AppAbility = buildAbility([]);
@@ -57,6 +71,9 @@ export function AccessProvider({
   ability,
   scope,
   activeModules,
+  role = null,
+  name = null,
+  organization = null,
 }: Readonly<{ children: ReactNode } & AccessProviderProps>) {
   const resolvedAbility = ability ?? DEFAULT_ABILITY;
   const resolvedScope = scope ?? DEFAULT_SCOPE;
@@ -67,8 +84,11 @@ export function AccessProvider({
       scope: resolvedScope,
       activeModules: resolvedModules,
       isMultiInstitution: coversMultipleInstitutions(resolvedScope),
+      role,
+      name,
+      organization,
     }),
-    [resolvedScope, resolvedModules]
+    [resolvedScope, resolvedModules, role, name, organization]
   );
 
   return (
@@ -111,6 +131,9 @@ export function AccessGate({ children }: Readonly<{ children: ReactNode }>) {
       ability={buildAbility(me.data.permissions)}
       scope={_buildScope(me.data)}
       activeModules={me.data.active_modules}
+      role={roleFromPermissions(me.data.permissions)}
+      name={me.data.name}
+      organization={me.data.organization}
     >
       {children}
     </AccessProvider>

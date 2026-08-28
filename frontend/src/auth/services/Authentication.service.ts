@@ -5,6 +5,7 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
   signOut,
+  updateProfile,
   type UserCredential,
 } from "firebase/auth";
 import type { LoginRequest, RegisterRequest } from "@/auth/auth.types";
@@ -55,7 +56,10 @@ export class AuthenticationService {
 
   async register(request: RegisterRequest): Promise<UserCredential> {
     try {
-      return await createUserWithEmailAndPassword(this._auth, request.email, request.password);
+      const credential = await createUserWithEmailAndPassword(this._auth, request.email, request.password);
+      // Without this the form's name is dropped — nothing downstream of it ever gets one.
+      await updateProfile(credential.user, { displayName: request.name });
+      return credential;
     } catch (error) {
       throw mapFirebaseError(error);
     }

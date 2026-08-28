@@ -10,6 +10,7 @@ const givenMe: MeResponse = {
   user_id: "u1",
   email: "u@example.com",
   name: "U",
+  organization: null,
   permissions: ["dashboard:view", "institutions:view"],
   scope: { type: "all", institution_ids: [] },
   active_modules: ["build-your-profile"],
@@ -50,6 +51,65 @@ describe("UserService.getMe", () => {
       status: 404,
     });
     await expect(UserService.getInstance().getMe("token")).rejects.toBeInstanceOf(UserApiError);
+  });
+});
+
+describe("UserService.register", () => {
+  it("should post no body when called with nothing to give", async () => {
+    // GIVEN the endpoint records what it was sent — this is what Login fires on every sign-in
+    let actualBody: string | null = null;
+    let hadContentType = true;
+    server.use(
+      http.post("/api/users/register", async ({ request }) => {
+        actualBody = await request.text();
+        hadContentType = request.headers.has("content-type");
+        return new HttpResponse(null, { status: 201 });
+      })
+    );
+
+    // WHEN registering with no options
+    await UserService.getInstance().register("token");
+
+    // THEN no body is sent, matching the endpoint's "nothing to update" case
+    expect(actualBody).toBe("");
+    expect(hadContentType).toBe(false);
+  });
+
+  it("should post only the name when that's the only thing given", async () => {
+    let actualBody: unknown;
+    server.use(
+      http.post("/api/users/register", async ({ request }) => {
+        actualBody = await request.json();
+        return new HttpResponse(null, { status: 201 });
+      })
+    );
+
+    await UserService.getInstance().register("token", { name: "Kunda Tembo" });
+
+    expect(actualBody).toEqual({ name: "Kunda Tembo" });
+  });
+
+  it("should post both fields when both are given, as the registration form does", async () => {
+    let actualBody: unknown;
+    server.use(
+      http.post("/api/users/register", async ({ request }) => {
+        actualBody = await request.json();
+        return new HttpResponse(null, { status: 201 });
+      })
+    );
+
+    await UserService.getInstance().register("token", { name: "Kunda Tembo", organization: "Acme Corp" });
+
+    expect(actualBody).toEqual({ name: "Kunda Tembo", organization: "Acme Corp" });
+  });
+
+  it("should throw a UserApiError with the status on a non-2xx response", async () => {
+    server.use(http.post("/api/users/register", () => new HttpResponse(null, { status: 500 })));
+
+    await expect(UserService.getInstance().register("token")).rejects.toMatchObject({
+      name: "UserApiError",
+      status: 500,
+    });
   });
 });
 

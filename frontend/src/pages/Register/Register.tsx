@@ -29,7 +29,7 @@ export function Register() {
   const navigate = useNavigate();
   const authService = AuthenticationServiceFactory.getCurrentAuthenticationService();
 
-  const [fullName, setFullName] = useState("");
+  const [name, setName] = useState("");
   const [organization, setOrganization] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,7 +46,7 @@ export function Register() {
     confirmPassword.length > 0 && !passwordsMatch ? t("auth.validation.passwordsMismatch") : undefined;
 
   const isFormValid =
-    fullName.trim().length > 0 &&
+    name.trim().length > 0 &&
     organization.trim().length > 0 &&
     emailValid &&
     passwordValid &&
@@ -60,9 +60,9 @@ export function Register() {
     setFormError(null);
     setSubmitting(true);
     try {
-      const credential = await authService.register({ fullName, organization, email, password });
+      const credential = await authService.register({ name, organization, email, password });
       const token = await credential.user.getIdToken();
-      await UserService.getInstance().register(token);
+      await UserService.getInstance().register(token, { name: name.trim(), organization: organization.trim() });
       navigate(routerPaths.ROOT);
     } catch (error) {
       if (error instanceof AuthApiError && error.code === "email_taken") {
@@ -81,7 +81,10 @@ export function Register() {
     try {
       const credential = await authService.loginWithGoogle();
       const token = await credential.user.getIdToken();
-      await UserService.getInstance().register(token);
+      await UserService.getInstance().register(token, {
+        name: name.trim() || undefined,
+        organization: organization.trim() || undefined,
+      });
       navigate(routerPaths.ROOT);
     } catch {
       setFormError(t("auth.errors.generic"));
@@ -112,8 +115,8 @@ export function Register() {
               label={t("auth.fields.fullName.label")}
               placeholder={t("auth.fields.fullName.placeholder")}
               icon={<User />}
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
             />
             <Field
               id="register-organization"
