@@ -9,9 +9,15 @@ import {
   unavailableBuildYourProfileMetrics,
   useBuildYourProfile,
 } from "@/pages/Modules/hooks/use-build-your-profile";
+import {
+  toCareerExplorerMetrics,
+  unavailableCareerExplorerMetrics,
+  useCareerExplorer,
+} from "@/pages/Modules/hooks/use-career-explorer";
 import { toJobsMetrics, unavailableJobsMetrics, useJobs } from "@/pages/Modules/hooks/use-jobs";
 import type {
   BuildYourProfileMetrics,
+  CareerExplorerMetrics,
   JobsMetrics,
   ModuleMetrics,
   ModuleMetricsRequest,
@@ -120,6 +126,13 @@ export function useModuleMetrics({ enabled = true }: UseModuleMetricsOptions = {
     lastRealBuildYourProfile.current = toBuildYourProfileMetrics(buildYourProfile.data);
   }
 
+  const careerExplorerEnabled = enabled && activeModules.includes(MODULE_IDS.CAREER_EXPLORER);
+  const careerExplorer = useCareerExplorer({ enabled: careerExplorerEnabled, reloadToken: attempt });
+  const lastRealCareerExplorer = useRef<CareerExplorerMetrics | null>(null);
+  if (careerExplorer.status === "success") {
+    lastRealCareerExplorer.current = toCareerExplorerMetrics(careerExplorer.data);
+  }
+
   const jobsEnabled = enabled && activeModules.includes(MODULE_IDS.JOBS);
   const jobs = useJobs({ enabled: jobsEnabled, reloadToken: attempt });
   const lastRealJobs = useRef<JobsMetrics | null>(null);
@@ -140,6 +153,14 @@ export function useModuleMetrics({ enabled = true }: UseModuleMetricsOptions = {
             lastRealBuildYourProfile.current
           );
         }
+        if (moduleId === MODULE_IDS.CAREER_EXPLORER && careerExplorerEnabled) {
+          return resolveModuleMetrics(
+            careerExplorer,
+            toCareerExplorerMetrics,
+            unavailableCareerExplorerMetrics,
+            lastRealCareerExplorer.current
+          );
+        }
         if (moduleId === MODULE_IDS.JOBS && jobsEnabled) {
           return resolveModuleMetrics(jobs, toJobsMetrics, unavailableJobsMetrics, lastRealJobs.current);
         }
@@ -156,6 +177,7 @@ export function useModuleMetrics({ enabled = true }: UseModuleMetricsOptions = {
   // One entry per module with its own endpoint; everything else falls back to state.isLoading.
   const ownLoadingStateByModule: Partial<Record<ModuleId, boolean>> = {
     [MODULE_IDS.BUILD_YOUR_PROFILE]: buildYourProfileEnabled && buildYourProfile.status === "loading",
+    [MODULE_IDS.CAREER_EXPLORER]: careerExplorerEnabled && careerExplorer.status === "loading",
     [MODULE_IDS.JOBS]: jobsEnabled && jobs.status === "loading",
   };
   const isModuleLoading = (moduleId: ModuleId): boolean => ownLoadingStateByModule[moduleId] ?? state.isLoading;
