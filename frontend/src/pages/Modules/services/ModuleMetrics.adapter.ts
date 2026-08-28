@@ -45,7 +45,17 @@ export function unavailableJobReadiness(): JobReadinessMetrics {
 }
 
 export function unavailableCareerExplorer(): CareerExplorerMetrics {
-  return { moduleId: MODULE_IDS.CAREER_EXPLORER, startedPercentage: 0, topSectors: [] };
+  return {
+    moduleId: MODULE_IDS.CAREER_EXPLORER,
+    startedPercentage: 0,
+    exploredUsers: 0,
+    returnedUsers: 0,
+    returnedSharePercentage: 0,
+    prioritySectorUsers: 0,
+    nonPrioritySectorUsers: 0,
+    topSectors: [],
+    degraded: true,
+  };
 }
 
 export function unavailableJobs(): JobsMetrics {
