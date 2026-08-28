@@ -83,6 +83,39 @@ class TestMongoUserRepository:
         assert result is not None
         assert result.user_id == "u1"
 
+    async def test_should_leave_an_existing_field_untouched_when_upserting_a_record_without_it(
+        self, in_memory_analytics_database
+    ):
+        # GIVEN a user with an organization on record — set once at registration
+        repo = MongoUserRepository(in_memory_analytics_database)
+        await repo.upsert(UserRecord(user_id="u1", email="u1@example.com", name="Test User", organization="Acme Corp"))
+
+        # WHEN a later login upserts the same user with no organization to give (UserService.register
+        # builds a fresh UserRecord on every login; a plain login has no organization value to send)
+        await repo.upsert(UserRecord(user_id="u1", email="u1@example.com", name="Test User"))
+
+        # THEN the organization set at registration is still there — upsert $sets only the fields the
+        # incoming record actually has (exclude_none), rather than replacing the whole document
+        result = await repo.get_by_user_id("u1")
+        assert result is not None
+        assert result.organization == "Acme Corp"
+
+    async def test_should_leave_a_name_untouched_when_upserting_a_record_without_one(
+        self, in_memory_analytics_database
+    ):
+        # GIVEN a user whose name was captured once, e.g. at registration or a later name edit
+        repo = MongoUserRepository(in_memory_analytics_database)
+        await repo.upsert(UserRecord(user_id="u1", email="u1@example.com", name="Kunda Tembo"))
+
+        # WHEN a plain login upserts the same user with no name to give (a password account's JWT
+        # carries none, and UserService.register only passes one through when it's explicitly given)
+        await repo.upsert(UserRecord(user_id="u1", email="u1@example.com"))
+
+        # THEN the name is still there, for the same exclude_none reason organization survives above
+        result = await repo.get_by_user_id("u1")
+        assert result is not None
+        assert result.name == "Kunda Tembo"
+
 
 class TestMongoGrantRepository:
     async def test_should_create_and_list_a_grant(self, in_memory_analytics_database):

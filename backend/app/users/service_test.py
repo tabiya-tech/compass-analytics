@@ -15,7 +15,7 @@ from app.grants.types import GrantRecord, GrantRequest, RoleRequest
 from app.users.repository import IUserRepository
 from app.users.errors import ForbiddenInstitutionError, GrantNotFoundError, UnknownRoleError, UserNotProvisionedError
 from app.users.service import UserService
-from app.users.types import ALL_INSTITUTIONS, Action, ScopeType, Subject, UserRecord
+from app.users.types import ALL_INSTITUTIONS, Action, RegisterRequest, ScopeType, Subject, UserRecord
 
 
 class _FakeUserRepository(IUserRepository):
@@ -178,6 +178,23 @@ class TestGetMe:
         with pytest.raises(UserNotProvisionedError):
             await service.get_me(_user_info())
 
+    async def test_returns_the_organization_recorded_at_registration(self):
+        # GIVEN a record carrying an organization — the JWT itself has nothing to prefer, unlike
+        # name/email, since Firebase identity has no notion of it
+        record = UserRecord(user_id="u1", email="user@example.com", name="Test User", organization="Acme Corp")
+        service = await _service(records=[record])
+
+        result = await service.get_me(_user_info())
+
+        assert result.organization == "Acme Corp"
+
+    async def test_returns_no_organization_when_none_was_ever_recorded(self):
+        service = await _service(records=[_record()])
+
+        result = await service.get_me(_user_info())
+
+        assert result.organization is None
+
 
 class TestResolveScope:
     async def test_all_scope_with_no_drilldown_returns_none_filter(self):
@@ -328,3 +345,47 @@ class TestRevoke:
         service = await _service()
         with pytest.raises(UserNotProvisionedError):
             await service.revoke(_user_info(), "u2", "g1")
+
+
+class TestRegister:
+    async def test_persists_the_organization_given_at_registration(self):
+        service = await _service()
+
+        await service.register(_user_info(), RegisterRequest(organization="Acme Corp"))
+
+        stored = await service._repo.get_by_user_id("u1")  # pylint: disable=protected-access
+        assert stored.organization == "Acme Corp"
+
+    async def test_persists_the_name_given_at_registration(self):
+        # GIVEN a password account, whose JWT carries no name claim
+        service = await _service()
+        no_name_claim = UserInfo(
+            user_id="u1", name=None, email="user@example.com", token="tok", sign_in_provider=SignInProvider.PASSWORD  # nosec B106
+        )
+
+        await service.register(no_name_claim, RegisterRequest(name="Kunda Tembo"))
+
+        stored = await service._repo.get_by_user_id("u1")  # pylint: disable=protected-access
+        assert stored.name == "Kunda Tembo"
+
+    async def test_prefers_the_given_name_over_the_jwt_name_claim(self):
+        # GIVEN a JWT that itself carries a name claim
+        service = await _service()
+
+        # WHEN an explicit name is also given — e.g. the person edited their name
+        await service.register(_user_info(), RegisterRequest(name="Kunda Tembo"))
+
+        # THEN the deliberate value wins over whatever the token happens to say
+        stored = await service._repo.get_by_user_id("u1")  # pylint: disable=protected-access
+        assert stored.name == "Kunda Tembo"
+
+    async def test_falls_back_to_the_jwt_name_claim_when_no_name_is_given(self):
+        # GIVEN a Google sign-up, which never submits a name of its own
+        service = await _service()
+
+        await service.register(_user_info(), RegisterRequest())
+
+        # THEN the name still gets captured, from the identity provider's own claim
+        stored = await service._repo.get_by_user_id("u1")  # pylint: disable=protected-access
+        assert stored.name == "Test User"
+
