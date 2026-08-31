@@ -111,14 +111,17 @@ export function Jobseekers() {
     setSkillsSelection({ name: jobseeker.name, skills: jobseeker.skills });
 
   return (
-    <div className="flex min-w-0 flex-col gap-6 p-6" data-testid={DATA_TEST_ID.CONTAINER}>
+    <div className="flex h-svh min-w-0 flex-col gap-6 p-6 pb-8" data-testid={DATA_TEST_ID.CONTAINER}>
       <ScreenHead
+        className="shrink-0"
         eyebrow={t("jobseekers.eyebrow")}
         title={t("jobseekers.title")}
         description={t("jobseekers.description")}
       />
 
-      {state.status === "loading" && <JobseekersSkeleton columns={columns.length} />}
+      {state.status === "loading" && (
+        <JobseekersSkeleton columns={columns.length} className="min-h-64 overflow-hidden" />
+      )}
 
       {state.status === "error" && (
         <div data-testid={DATA_TEST_ID.ERROR}>
@@ -132,7 +135,7 @@ export function Jobseekers() {
 
       {state.status === "success" && (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-4">
             <div className="relative w-full max-w-sm">
               <Search
                 aria-hidden="true"
@@ -169,17 +172,20 @@ export function Jobseekers() {
             </div>
           </div>
 
-          <JobseekersTable
-            jobseekers={jobseekers}
-            columns={columns}
-            sort={sort}
-            onSortChange={setSort}
-            moduleStatusFilters={moduleStatusFilters}
-            onModuleStatusFiltersChange={setModuleStatusFilters}
-            onClearFilters={clearFilters}
-            onJobseekerSelect={(jobseeker) => setSelectedId(jobseeker.id)}
-            onSkillsSelect={openSkills}
-          />
+          <div className="flex min-h-64 min-w-0 flex-1 flex-col">
+            <JobseekersTable
+              className="min-h-0"
+              jobseekers={jobseekers}
+              columns={columns}
+              sort={sort}
+              onSortChange={setSort}
+              moduleStatusFilters={moduleStatusFilters}
+              onModuleStatusFiltersChange={setModuleStatusFilters}
+              onClearFilters={clearFilters}
+              onJobseekerSelect={(jobseeker) => setSelectedId(jobseeker.id)}
+              onSkillsSelect={openSkills}
+            />
+          </div>
         </>
       )}
 
