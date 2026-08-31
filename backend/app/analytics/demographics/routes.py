@@ -22,7 +22,7 @@ def add_demographics_routes(router: APIRouter, auth: Authentication) -> None:
     demographics_router = CasbinAPIRouter(requires_factory=requires)
 
     @demographics_router.get("/demographics", response_model=DemographicsResponse)
-    @requires(Subject.DASHBOARD, Action.VIEW)
+    @requires(Subject.DASHBOARD, Action.VIEW, resolves_scope=True)
     async def get_demographics(
         filters: DemographicsFiltersDep,
         user_info: UserInfo = Depends(get_user_info),

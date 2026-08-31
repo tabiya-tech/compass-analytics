@@ -157,30 +157,46 @@ class UserService(IUserService):
             institution_id=record.institution_id,
         )
 
+    async def _revoke_all(self, target_user_id: str) -> None:
+        for record in await self._grants.list_for_user(target_user_id):
+            perm = f"{record.subject.value}:{record.action.value}"
+            removed = await self._enforcer.remove_policy(target_user_id, record.institution_id, perm)
+            if not removed:
+                # No in-memory rule to write through the adapter, so drop the row itself.
+                logger.warning(
+                    "assign_role: enforcer had no in-memory rule for user_id=%s perm=%s institution_id=%s — deleting the grant directly",
+                    target_user_id, perm, record.institution_id,
+                )
+                await self._grants.delete_by_tuple(target_user_id, record.subject, record.action, record.institution_id)
+
     async def assign_role(self, user_info: UserInfo, target_user_id: str, request: RoleRequest) -> list[GrantView]:
         await self._require_record(user_info)
         if request.role not in ROLES:
             raise UnknownRoleError(request.role)
+
+        await self._revoke_all(target_user_id)
+
         views = []
         for subject, action in ROLES[request.role]:
-            existing = await self._grants.get_by_tuple(
+            perm = f"{subject.value}:{action.value}"
+            # The adapter writes the row through, so this one call updates the enforcer and the DB.
+            await self._enforcer.add_policy(target_user_id, request.institution_id, perm)
+            await self._grants.set_granted_by(target_user_id, subject, action, request.institution_id, user_info.user_id)
+            record = await self._grants.get_by_tuple(
                 user_id=target_user_id,
                 subject=subject,
                 action=action,
                 institution_id=request.institution_id,
             )
-            perm = f"{subject.value}:{action.value}"
-            await self._enforcer.add_policy(target_user_id, request.institution_id, perm)
-            if existing is None:
-                await self._grants.set_granted_by(target_user_id, subject, action, request.institution_id, user_info.user_id)
-                record = await self._grants.get_by_tuple(
+            if record is None:
+                # The enforcer already held the rule, so the adapter never wrote it through.
+                record = await self._grants.create(
                     user_id=target_user_id,
                     subject=subject,
                     action=action,
                     institution_id=request.institution_id,
+                    granted_by=user_info.user_id,
                 )
-            else:
-                record = existing
             views.append(GrantView(
                 grant_id=record.grant_id,
                 subject=record.subject,

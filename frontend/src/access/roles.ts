@@ -14,6 +14,15 @@ export const ASSIGNABLE_ROLES: readonly Role[] = [Role.Implementer, Role.Funder]
 // The role the grant dialog opens on.
 export const DEFAULT_ASSIGNABLE_ROLE: Role = Role.Funder;
 
+// Roles that belong to a single institution rather than the whole deployment. An implementer runs
+// Compass at one institution, so their grants are scoped to it; the rest oversee the deployment.
+export const INSTITUTION_SCOPED_ROLES: readonly Role[] = [Role.Implementer];
+
+/** Whether granting `role` needs an institution picked for it, rather than covering them all. */
+export function isInstitutionScoped(role: Role): boolean {
+  return INSTITUTION_SCOPED_ROLES.includes(role);
+}
+
 export type Permission = `${Subject}:${Action}`;
 
 function permission(subject: Subject, action: Action): Permission {

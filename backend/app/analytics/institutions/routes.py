@@ -32,7 +32,7 @@ def add_institutions_routes(router: APIRouter, auth: Authentication) -> None:
             "description": "User has not been provisioned with dashboard access, or does not have access to the requested institution.",
         },
     })
-    @requires(Subject.DASHBOARD, Action.VIEW)
+    @requires(Subject.DASHBOARD, Action.VIEW, resolves_scope=True)
     async def get_institutions(
         institution_id: Optional[str] = Query(default=None, description="Drill down to a single institution."),
         user_info: UserInfo = Depends(get_user_info),
@@ -59,7 +59,7 @@ def add_institutions_routes(router: APIRouter, auth: Authentication) -> None:
             "description": "User has not been provisioned with dashboard access.",
         },
     })
-    @requires(Subject.DASHBOARD, Action.VIEW)
+    @requires(Subject.DASHBOARD, Action.VIEW, resolves_scope=True)
     async def get_institution(
         inst_id: str,
         user_info: UserInfo = Depends(get_user_info),

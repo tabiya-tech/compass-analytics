@@ -146,6 +146,13 @@ class TestRequiresDependency:
         async def protected():
             return {"ok": True}
 
+        # Stands in for an analytics route: it narrows its own results with resolve_scope, so an
+        # unscoped request only has to show the caller holds the permission somewhere.
+        @router.get("/scoped")
+        @requires(Subject.DASHBOARD, Action.VIEW, resolves_scope=True)
+        async def scoped():
+            return {"ok": True}
+
         app.include_router(router)
         return app
 
@@ -175,6 +182,75 @@ class TestRequiresDependency:
             response = await client.get("/protected?institution_id=inst-a")
 
         assert response.status_code == 200
+
+    async def test_allows_scope_resolving_route_for_an_institution_scoped_caller(self, in_memory_analytics_database):
+        # GIVEN an implementer whose only grant is scoped to one institution
+        repo = MongoGrantRepository(in_memory_analytics_database)
+        await repo.create("u1", Subject.DASHBOARD, Action.VIEW, "inst-a", granted_by=None)
+
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=self._build_app(in_memory_analytics_database, "u1")),
+            base_url="http://test",
+        ) as client:
+            # WHEN they call a route that scopes its own results, naming no institution
+            response = await client.get("/scoped")
+
+        # THEN they are let through — resolve_scope narrows the answer to their institution
+        assert response.status_code == 200
+
+    async def test_denies_unscoped_route_for_an_institution_scoped_caller(self, in_memory_analytics_database):
+        # GIVEN the same institution-scoped grant
+        repo = MongoGrantRepository(in_memory_analytics_database)
+        await repo.create("u1", Subject.DASHBOARD, Action.VIEW, "inst-a", granted_by=None)
+
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=self._build_app(in_memory_analytics_database, "u1")),
+            base_url="http://test",
+        ) as client:
+            # WHEN they call a route that does no narrowing, naming no institution
+            response = await client.get("/protected")
+
+        # THEN they are refused: omitting the parameter must not read across the deployment
+        assert response.status_code == 403
+
+    async def test_denies_scope_resolving_route_for_a_caller_with_no_grants(self, in_memory_analytics_database):
+        # GIVEN a caller holding nothing at all
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=self._build_app(in_memory_analytics_database, "nobody")),
+            base_url="http://test",
+        ) as client:
+            response = await client.get("/scoped")
+
+        # THEN having no institutions is not the same as being allowed at any of them
+        assert response.status_code == 403
+
+    async def test_allows_scope_resolving_route_for_a_deployment_wide_caller(self, in_memory_analytics_database):
+        # GIVEN a funder holding a wildcard grant
+        repo = MongoGrantRepository(in_memory_analytics_database)
+        await repo.create("u1", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS, granted_by=None)
+
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=self._build_app(in_memory_analytics_database, "u1")),
+            base_url="http://test",
+        ) as client:
+            response = await client.get("/scoped")
+
+        assert response.status_code == 200
+
+    async def test_denies_scope_resolving_route_for_a_foreign_institution(self, in_memory_analytics_database):
+        # GIVEN a grant scoped to inst-a only
+        repo = MongoGrantRepository(in_memory_analytics_database)
+        await repo.create("u1", Subject.DASHBOARD, Action.VIEW, "inst-a", granted_by=None)
+
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=self._build_app(in_memory_analytics_database, "u1")),
+            base_url="http://test",
+        ) as client:
+            # WHEN they name an institution they do not hold
+            response = await client.get("/scoped?institution_id=inst-b")
+
+        # THEN naming one is still checked against their grants
+        assert response.status_code == 403
 
     async def test_denies_institution_scoped_grant_for_foreign_institution(self, in_memory_analytics_database):
         # GIVEN a grant scoped to inst-a only

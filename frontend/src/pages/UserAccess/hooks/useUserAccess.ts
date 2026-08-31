@@ -3,7 +3,7 @@ import * as Sentry from "@sentry/react";
 import { useAuth } from "@/auth/AuthContext";
 import { roleFromPermissions, type Role } from "@/access/roles";
 import { UserService } from "@/user/User.service";
-import { ALL_INSTITUTIONS, type ManagedUser } from "@/user/user.types";
+import type { ManagedUser } from "@/user/user.types";
 
 export interface UserAccessEntry {
   user: ManagedUser;
@@ -26,7 +26,8 @@ export interface UserAccessController {
   state: UserAccessState;
   pendingUserIds: ReadonlySet<string>;
   failure: UserAccessFailure | null;
-  grantRole: (entry: UserAccessEntry, role: Role) => Promise<void>;
+  /** `institutionId` is the institution the role is scoped to, or ALL_INSTITUTIONS for the deployment. */
+  grantRole: (entry: UserAccessEntry, role: Role, institutionId: string) => Promise<void>;
   revokeAccess: (entry: UserAccessEntry) => Promise<void>;
 }
 
@@ -116,10 +117,10 @@ export function useUserAccess(): UserAccessController {
   );
 
   const grantRole = useCallback(
-    (entry: UserAccessEntry, role: Role) =>
+    (entry: UserAccessEntry, role: Role, institutionId: string) =>
       applyChange(entry, "grant", (token) =>
-        // No per-institution view yet, so a role covers every institution.
-        UserService.getInstance().assignRole(entry.user.user_id, { role, institution_id: ALL_INSTITUTIONS }, token)
+        // The server replaces whatever the user held, so this one call is the whole role change.
+        UserService.getInstance().assignRole(entry.user.user_id, { role, institution_id: institutionId }, token)
       ),
     [applyChange]
   );

@@ -213,7 +213,7 @@
     "roles": {
       "implementer": {
         "label": "Implementer",
-        "description": "Sees every page except Institutions. Cannot grant access to other users."
+        "description": "Sees every page except Institutions, for one institution only. Cannot grant access to other users."
       },
       "funder": {
         "label": "Funder",
@@ -235,7 +235,12 @@
         "title": "Grant access",
         "description": "Choose a role for <0>{{user}}</0>. It determines which pages they can access.",
         "roleLabel": "Role",
-        "action": "Grant access"
+        "action": "Grant access",
+        "institutionLabel": "Institution",
+        "institutionPlaceholder": "Select an institution",
+        "institutionLoading": "Loading institutions…",
+        "institutionHint": "An implementer only sees data for the institution you choose here.",
+        "institutionError": "Institutions could not be loaded, so this role cannot be scoped yet."
       },
       "revoke": {
         "title": "Remove access",

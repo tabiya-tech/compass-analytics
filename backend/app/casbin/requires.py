@@ -1,5 +1,5 @@
 from collections.abc import Callable, Coroutine
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -33,28 +33,40 @@ class _RequiresFactory:
         self._get_user_info = get_user_info
         self._get_grant_repository = get_grant_repository
 
-    def __call__(self, subject: Subject, action: Action) -> Callable:
-        """Stamp the permission requirement on the decorated function."""
+    def __call__(self, subject: Subject, action: Action, *, resolves_scope: bool = False) -> Callable:
         def decorator(func: Callable) -> Callable:
-            reqs: list[tuple[Subject, Action]] = getattr(func, _REQUIRES_ATTR, [])
-            reqs.append((subject, action))
+            reqs: list[tuple[Subject, Action, bool]] = getattr(func, _REQUIRES_ATTR, [])
+            reqs.append((subject, action, resolves_scope))
             setattr(func, _REQUIRES_ATTR, reqs)
             return func
         return decorator
 
-    def build_dep(self, subject: Subject, action: Action) -> Callable:
+    def build_dep(self, subject: Subject, action: Action, resolves_scope: bool = False) -> Callable:
         """Build the FastAPI dependency callable for a given subject+action."""
         get_user_info = self._get_user_info
         get_grant_repository = self._get_grant_repository
 
         async def _check(
-            institution_id: str = Query(ALL_INSTITUTIONS),
+            institution_id: Optional[str] = Query(None),
             user_info: UserInfo = Depends(get_user_info),
             grant_repo: IGrantRepository = Depends(get_grant_repository),
         ) -> None:
             enforcer = await get_enforcer(GrantsAdapter(grant_repo))
             perm = f"{subject.value}:{action.value}"
-            if not enforcer.enforce(user_info.user_id, institution_id, perm):
+
+            if institution_id is not None:
+                allowed = enforcer.enforce(user_info.user_id, institution_id, perm)
+            elif resolves_scope:
+                # No institution named on a route that scopes itself: holding the permission at
+                # any one of the caller's own institutions is enough to ask the question. Without
+                # this an institution-scoped caller — an implementer — is refused outright, since
+                # only a grant at ALL_INSTITUTIONS satisfies a wildcard request.
+                domains = {g.institution_id for g in await grant_repo.list_for_user(user_info.user_id)}
+                allowed = any(enforcer.enforce(user_info.user_id, domain, perm) for domain in domains)
+            else:
+                allowed = enforcer.enforce(user_info.user_id, ALL_INSTITUTIONS, perm)
+
+            if not allowed:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
         _check.__name__ = f"requires_{subject.value}_{action.value}"
@@ -92,9 +104,9 @@ class CasbinAPIRouter(APIRouter):
         self._requires_factory = requires_factory
 
     def add_api_route(self, path: str, endpoint: Callable, *, dependencies: Any = None, **kwargs: Any) -> None:
-        reqs: list[tuple[Subject, Action]] = getattr(endpoint, _REQUIRES_ATTR, [])
+        reqs: list[tuple[Subject, Action, bool]] = getattr(endpoint, _REQUIRES_ATTR, [])
         extra: list[Any] = []
         if reqs and self._requires_factory is not None:
-            extra = [Depends(self._requires_factory.build_dep(s, a)) for s, a in reqs]
+            extra = [Depends(self._requires_factory.build_dep(s, a, scoped)) for s, a, scoped in reqs]
         merged = list(dependencies or []) + extra
         super().add_api_route(path, endpoint, dependencies=merged, **kwargs)
