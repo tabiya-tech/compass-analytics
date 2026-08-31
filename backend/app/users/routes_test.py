@@ -19,6 +19,7 @@ from app.auth.firebase import Authentication
 from app.casbin.adapter import GrantsAdapter
 from app.casbin.enforcer import clear_enforcer_cache, get_enforcer
 from app.grants.repository import MongoGrantRepository
+from app.grants.roles import ROLES
 from app.users.dependencies import get_grant_repository, get_user_service
 from app.users.repository import USERS_COLLECTION, MongoUserRepository
 from app.users.routes import add_users_routes
@@ -289,6 +290,45 @@ class TestAssignRole:
         assert isinstance(body, list)
         assert len(body) > 0
         assert all(g["institution_id"] == "inst-a" for g in body)
+
+    async def test_replaces_a_previously_assigned_role(self, client):
+        await _seed_user(client.db, "u1")
+        await _seed_user(client.db, "u2")
+        await _seed_grant(client.db, "u1", Subject.ACCESS_MANAGEMENT, Action.MANAGE, ALL_INSTITUTIONS)
+        # u2 already holds the funder role across every institution.
+        await client.post(
+            "/api/users/u2/roles?institution_id=inst-a",
+            json={"role": "funder", "institution_id": ALL_INSTITUTIONS},
+            headers=_auth(),
+        )
+
+        response = await client.post(
+            "/api/users/u2/roles?institution_id=inst-a",
+            json={"role": "implementer", "institution_id": "inst-a"},
+            headers=_auth(),
+        )
+
+        assert response.status_code == 201
+        # The old role's grants are gone from the collection, not merely absent from the response.
+        stored = await MongoGrantRepository(client.db).list_for_user("u2")
+        assert all(g.institution_id == "inst-a" for g in stored)
+        assert {(g.subject, g.action) for g in stored} == set(ROLES["implementer"])
+
+    async def test_scopes_the_assigned_role_to_the_named_institution(self, client):
+        await _seed_user(client.db, "u1")
+        await _seed_user(client.db, "u2")
+        await _seed_grant(client.db, "u1", Subject.ACCESS_MANAGEMENT, Action.MANAGE, ALL_INSTITUTIONS)
+
+        await client.post(
+            "/api/users/u2/roles?institution_id=inst-a",
+            json={"role": "implementer", "institution_id": "inst-a"},
+            headers=_auth(),
+        )
+
+        # The payoff: the user the role was given to now reads as scoped to that institution alone.
+        me = await client.get("/api/me", headers=_auth(user_id="u2"))
+        assert me.status_code == 200
+        assert me.json()["scope"] == {"type": "institutions", "institution_ids": ["inst-a"]}
 
     async def test_returns_422_for_unknown_role(self, client):
         await _seed_user(client.db, "u1")

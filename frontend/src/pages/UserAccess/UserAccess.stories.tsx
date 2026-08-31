@@ -162,6 +162,14 @@ export const GrantingTheImplementerRole: Story = {
     await userEvent.click(await body.findByRole("option", { name: "Implementer" }));
     await pause();
 
+    // An implementer runs Compass at one institution, so the grant waits for the funder to say which.
+    const institution = await within(dialog).findByRole("combobox", { name: "Institution" });
+    await waitFor(async () => expect(institution).toBeEnabled());
+    await expect(within(dialog).getByRole("button", { name: "Grant access" })).toBeDisabled();
+    await userEvent.click(institution);
+    await userEvent.click(await body.findByRole("option", { name: "Lusaka Skills Hub" }));
+    await pause();
+
     await confirm(canvasElement);
 
     // The role that was picked is the one the row reports once the change lands.

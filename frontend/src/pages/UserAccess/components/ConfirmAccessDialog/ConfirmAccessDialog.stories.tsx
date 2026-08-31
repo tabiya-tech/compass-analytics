@@ -3,8 +3,18 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { DEFAULT_ASSIGNABLE_ROLE, Role } from "@/access/roles";
 import { grantsForRole } from "@/_test_utilities/role-grants";
+import type { InstitutionChoicesState } from "@/pages/UserAccess/hooks/useInstitutionChoices";
 import type { UserAccessEntry } from "@/pages/UserAccess/hooks/useUserAccess";
 import { ConfirmAccessDialog, type ConfirmAccessDialogProps } from "./ConfirmAccessDialog";
+
+const institutions: InstitutionChoicesState = {
+  status: "success",
+  items: [
+    { id: "inst-1", name: "Lusaka Skills Hub" },
+    { id: "inst-2", name: "Ndola Livelihoods Trust" },
+    { id: "inst-3", name: "Chipata Vocational Centre" },
+  ],
+};
 
 const user = { user_id: "user-7", email: "vaani.mumba@example.com", name: "Vaani Mumba" };
 
@@ -16,16 +26,24 @@ const grantedEntry: UserAccessEntry = {
   hasAccess: true,
 };
 
-/** The screen owns the chosen role; hold it here so the control responds to a pick. */
+/** The screen owns the role and institution; hold them here so the controls respond to a pick. */
 function Controlled(props: Readonly<ConfirmAccessDialogProps>) {
   const [role, setRole] = useState<Role>(props.role);
+  const [institutionId, setInstitutionId] = useState<string | null>(props.institutionId);
   return (
     <ConfirmAccessDialog
       {...props}
       role={role}
       onRoleChange={(picked) => {
         setRole(picked);
+        // The institution belonged to the previous role, so it does not carry across the change.
+        setInstitutionId(null);
         props.onRoleChange(picked);
+      }}
+      institutionId={institutionId}
+      onInstitutionChange={(picked) => {
+        setInstitutionId(picked);
+        props.onInstitutionChange(picked);
       }}
     />
   );
@@ -34,7 +52,15 @@ function Controlled(props: Readonly<ConfirmAccessDialogProps>) {
 const meta = {
   component: ConfirmAccessDialog,
   tags: ["autodocs"],
-  args: { role: DEFAULT_ASSIGNABLE_ROLE, onRoleChange: fn(), onConfirm: fn(), onOpenChange: fn() },
+  args: {
+    role: DEFAULT_ASSIGNABLE_ROLE,
+    onRoleChange: fn(),
+    institutions,
+    institutionId: null,
+    onInstitutionChange: fn(),
+    onConfirm: fn(),
+    onOpenChange: fn(),
+  },
   render: (args) => <Controlled {...args} />,
 } satisfies Meta<typeof ConfirmAccessDialog>;
 
@@ -72,7 +98,46 @@ export const PickingTheImplementerRole: Story = {
     await expect(args.onRoleChange).toHaveBeenCalledWith(Role.Implementer);
     // The open listbox hides the dialog from the a11y tree, so wait for it to come back.
     await expect(await within(dialog).findByRole("combobox", { name: "Role" })).toHaveTextContent("Implementer");
-    await expect(dialog).toHaveTextContent("Sees every page except Institutions. Cannot grant access to other users.");
+    await expect(dialog).toHaveTextContent(
+      "Sees every page except Institutions, for one institution only. Cannot grant access to other users."
+    );
+    // The role belongs to one institution, so picking it asks which — and holds the grant until then.
+    await expect(within(dialog).getByRole("combobox", { name: "Institution" })).toBeVisible();
+    await expect(within(dialog).getByRole("button", { name: "Grant access" })).toBeDisabled();
+  },
+};
+
+/** The implementer role covers one institution, so the grant waits for the funder to say which. */
+export const ScopingTheImplementerRoleToAnInstitution: Story = {
+  args: { entry: ungrantedEntry, role: Role.Implementer },
+  play: async ({ args, canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const dialog = await body.findByRole("dialog", { name: "Grant access" });
+
+    await expect(within(dialog).getByRole("button", { name: "Grant access" })).toBeDisabled();
+
+    await userEvent.click(within(dialog).getByRole("combobox", { name: "Institution" }));
+    await userEvent.click(await body.findByRole("option", { name: "Ndola Livelihoods Trust" }));
+
+    // The id is what the grant is scoped to; the name is only what the funder reads.
+    await expect(args.onInstitutionChange).toHaveBeenCalledWith("inst-2");
+    await expect(await within(dialog).findByRole("combobox", { name: "Institution" })).toHaveTextContent(
+      "Ndola Livelihoods Trust"
+    );
+    await expect(within(dialog).getByRole("button", { name: "Grant access" })).toBeEnabled();
+  },
+};
+
+/** Without the institution list there is no scope to grant at, so the grant cannot go through. */
+export const InstitutionsUnavailable: Story = {
+  args: { entry: ungrantedEntry, role: Role.Implementer, institutions: { status: "error", retry: fn() } },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const dialog = await body.findByRole("dialog", { name: "Grant access" });
+
+    await expect(dialog).toHaveTextContent("Institutions could not be loaded, so this role cannot be scoped yet.");
+    await expect(within(dialog).getByRole("combobox", { name: "Institution" })).toBeDisabled();
+    await expect(within(dialog).getByRole("button", { name: "Grant access" })).toBeDisabled();
   },
 };
 

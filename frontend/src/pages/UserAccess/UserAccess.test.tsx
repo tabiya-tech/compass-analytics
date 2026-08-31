@@ -72,6 +72,13 @@ async function pickRole(row: HTMLElement, roleLabel: string) {
   await userEvent.click(await screen.findByRole("option", { name: roleLabel }));
 }
 
+/** Picks an institution for a role that is scoped to one. The picker waits on its own fetch. */
+async function pickInstitution(institutionName: string) {
+  await waitFor(() => expect(screen.getByTestId(DIALOG_TEST_ID.INSTITUTION_SELECT)).toBeEnabled());
+  await userEvent.click(screen.getByTestId(DIALOG_TEST_ID.INSTITUTION_SELECT));
+  await userEvent.click(await screen.findByRole("option", { name: institutionName }));
+}
+
 describe("UserAccess", () => {
   it("should show the screen heading while the user list is still being fetched", () => {
     // GIVEN the users endpoint has not answered yet
@@ -191,7 +198,7 @@ describe("UserAccess", () => {
     expect(actualBody).toEqual({ role: Role.Funder, institution_id: ALL_INSTITUTIONS });
   });
 
-  it("should post the implementer role when that is the one picked", async () => {
+  it("should post the implementer role scoped to the institution picked for it", async () => {
     // GIVEN a user with no access
     const state = givenUsersEndpoint();
     let actualBody: RoleRequest | undefined;
@@ -200,13 +207,71 @@ describe("UserAccess", () => {
     });
     const rows = await renderAndWaitForRows();
 
-    // WHEN the funder picks the implementer role and confirms
+    // WHEN the funder picks the implementer role and an institution for it, and confirms
     await pickRole(rows[0], "Implementer");
+    await pickInstitution("Lusaka Skills Hub");
     await userEvent.click(screen.getByTestId(DIALOG_TEST_ID.CONFIRM));
 
-    // THEN that is the role written, not the one the dialog opened on
+    // THEN that role is written against that institution, not across the whole deployment
     await waitFor(() => expect(actualBody).toBeDefined());
-    expect(actualBody).toEqual({ role: Role.Implementer, institution_id: ALL_INSTITUTIONS });
+    expect(actualBody).toEqual({ role: Role.Implementer, institution_id: "inst-7" });
+  });
+
+  it("should ask which institution an implementer is for, and grant nothing until it is picked", async () => {
+    // GIVEN a user with no access
+    const state = givenUsersEndpoint();
+    let granted = false;
+    givenRoleEndpoint(state, () => {
+      granted = true;
+    });
+    const rows = await renderAndWaitForRows();
+
+    // WHEN the funder picks the implementer role, which belongs to a single institution
+    await pickRole(rows[0], "Implementer");
+
+    // THEN an institution is asked for, and the grant is held until one is chosen
+    expect(screen.getByTestId(DIALOG_TEST_ID.INSTITUTION_FIELD)).toBeInTheDocument();
+    expect(screen.getByTestId(DIALOG_TEST_ID.CONFIRM)).toBeDisabled();
+    expect(granted).toBe(false);
+  });
+
+  it("should drop the institution when the funder switches back to a deployment-wide role", async () => {
+    // GIVEN an institution picked for the implementer role
+    const state = givenUsersEndpoint();
+    let actualBody: RoleRequest | undefined;
+    givenRoleEndpoint(state, (_url, body) => {
+      actualBody = body;
+    });
+    const rows = await renderAndWaitForRows();
+    await pickRole(rows[0], "Implementer");
+    await pickInstitution("Lusaka Skills Hub");
+
+    // WHEN the funder switches to the funder role and confirms
+    await userEvent.click(screen.getByTestId(DIALOG_TEST_ID.ROLE_SELECT));
+    await userEvent.click(await screen.findByRole("option", { name: "Funder" }));
+    await userEvent.click(screen.getByTestId(DIALOG_TEST_ID.CONFIRM));
+
+    // THEN the institution does not follow the role that was not scoped to it
+    await waitFor(() => expect(actualBody).toBeDefined());
+    expect(actualBody).toEqual({ role: Role.Funder, institution_id: ALL_INSTITUTIONS });
+  });
+
+  it("should not carry an institution picked for one user over to the next", async () => {
+    // GIVEN an institution was picked for one user, and the dialog then cancelled
+    const state = givenUsersEndpoint();
+    givenRoleEndpoint(state);
+    const rows = await renderAndWaitForRows();
+    await pickRole(rows[0], "Implementer");
+    await pickInstitution("Lusaka Skills Hub");
+    await userEvent.click(screen.getByTestId(DIALOG_TEST_ID.CANCEL));
+    await waitFor(() => expect(screen.queryByTestId(DIALOG_TEST_ID.CONTAINER)).not.toBeInTheDocument());
+
+    // WHEN the funder opens the same row again and picks the implementer role
+    await pickRole(rows[0], "Implementer");
+
+    // THEN the institution starts unchosen, rather than the previous one being granted unnoticed
+    expect(screen.getByTestId(DIALOG_TEST_ID.INSTITUTION_SELECT)).toHaveTextContent("Select an institution");
+    expect(screen.getByTestId(DIALOG_TEST_ID.CONFIRM)).toBeDisabled();
   });
 
   it("should offer to remove the whole role from a user who already holds one", async () => {
@@ -230,8 +295,9 @@ describe("UserAccess", () => {
     givenRoleEndpoint(state);
     const rows = await renderAndWaitForRows();
 
-    // WHEN the funder grants them the implementer role
+    // WHEN the funder grants them the implementer role at one institution
     await pickRole(rows[0], "Implementer");
+    await pickInstitution("Lusaka Skills Hub");
     await userEvent.click(screen.getByTestId(DIALOG_TEST_ID.CONFIRM));
 
     // THEN the row re-reads from the server and names the role they now hold

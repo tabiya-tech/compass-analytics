@@ -5,12 +5,14 @@ import { toast } from "sonner";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ScreenHead } from "@/components/shared/ScreenHead";
-import { DEFAULT_ASSIGNABLE_ROLE, type Role } from "@/access/roles";
+import { DEFAULT_ASSIGNABLE_ROLE, isInstitutionScoped, type Role } from "@/access/roles";
 import { AccessRow } from "@/pages/UserAccess/components/AccessRow";
 import { displayName } from "@/pages/UserAccess/components/AccessRow/AccessRow";
 import { ConfirmAccessDialog } from "@/pages/UserAccess/components/ConfirmAccessDialog";
 import { UserAccessSkeleton } from "@/pages/UserAccess/components/UserAccessSkeleton";
+import { useInstitutionChoices } from "@/pages/UserAccess/hooks/useInstitutionChoices";
 import { useUserAccess, type UserAccessEntry, type UserAccessFailure } from "@/pages/UserAccess/hooks/useUserAccess";
+import { ALL_INSTITUTIONS } from "@/user/user.types";
 
 const uniqueId = "e7c04a19-3b58-42df-90ac-6d1f8b25e743";
 
@@ -34,17 +36,32 @@ function failureMessage(t: Translate, reported: UserAccessFailure): string {
 export function UserAccess() {
   const { t } = useTranslation();
   const { state, pendingUserIds, failure, grantRole, revokeAccess } = useUserAccess();
+  const institutions = useInstitutionChoices();
   const [confirming, setConfirming] = useState<UserAccessEntry | null>(null);
   const [role, setRole] = useState<Role>(DEFAULT_ASSIGNABLE_ROLE);
+  const [institutionId, setInstitutionId] = useState<string | null>(null);
+
+  // A role that is not institution-scoped covers the deployment; one that is waits for a pick.
+  const scope = isInstitutionScoped(role) ? institutionId : ALL_INSTITUTIONS;
 
   const startConfirming = (entry: UserAccessEntry) => {
     // Reset, so a role picked for one user is not carried to the next.
     setRole(DEFAULT_ASSIGNABLE_ROLE);
+    setInstitutionId(null);
     setConfirming(entry);
   };
 
+  const changeRole = (picked: Role) => {
+    setRole(picked);
+    // The institution was chosen for the previous role, so don't carry it across the change.
+    setInstitutionId(null);
+  };
+
   const confirmChange = () => {
-    if (confirming) void (confirming.hasAccess ? revokeAccess(confirming) : grantRole(confirming, role));
+    if (!confirming) return;
+    if (confirming.hasAccess) void revokeAccess(confirming);
+    // The dialog holds the confirmation until an institution-scoped role has one, so `scope` is set.
+    else if (scope) void grantRole(confirming, role, scope);
     setConfirming(null);
   };
 
@@ -100,7 +117,10 @@ export function UserAccess() {
       <ConfirmAccessDialog
         entry={confirming}
         role={role}
-        onRoleChange={setRole}
+        onRoleChange={changeRole}
+        institutions={institutions}
+        institutionId={institutionId}
+        onInstitutionChange={setInstitutionId}
         onConfirm={confirmChange}
         onOpenChange={(open) => !open && setConfirming(null)}
       />

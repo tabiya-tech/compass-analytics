@@ -11,6 +11,7 @@ from app.auth.firebase import SignInProvider, UserInfo
 from app.casbin.adapter import GrantsAdapter
 from app.casbin.model import build_model
 from app.grants.repository import IGrantRepository
+from app.grants.roles import ROLES
 from app.grants.types import GrantRecord, GrantRequest, RoleRequest
 from app.users.repository import IUserRepository
 from app.users.errors import ForbiddenInstitutionError, GrantNotFoundError, UnknownRoleError, UserNotProvisionedError
@@ -115,18 +116,28 @@ def _grant(user_id: str, subject: Subject, action: Action, institution_id: str, 
     return GrantRecord(grant_id=grant_id, user_id=user_id, subject=subject, action=action, institution_id=institution_id)
 
 
-async def _service(
+async def _service_with_grants(
     records: list[UserRecord] | None = None,
     grants: list[GrantRecord] | None = None,
-) -> UserService:
+) -> tuple[UserService, _FakeGrantRepository]:
+    """Same as _service, but hands back the grant repo so a test can read what was actually stored."""
     grant_repo = _FakeGrantRepository(grants or [])
     enforcer = casbin.AsyncEnforcer(build_model(), GrantsAdapter(grant_repo))
     await enforcer.load_policy()
-    return UserService(
+    service = UserService(
         repository=_FakeUserRepository(records or []),
         grant_repository=grant_repo,
         enforcer=enforcer,
     )
+    return service, grant_repo
+
+
+async def _service(
+    records: list[UserRecord] | None = None,
+    grants: list[GrantRecord] | None = None,
+) -> UserService:
+    service, _ = await _service_with_grants(records, grants)
+    return service
 
 
 @pytest.mark.usefixtures("setup_application_config")
@@ -318,10 +329,64 @@ class TestAssignRole:
         assert Subject.INSTITUTIONS in subjects
         assert Subject.ACCESS_MANAGEMENT in subjects
 
+    async def test_replaces_the_grants_of_a_previously_assigned_role(self):
+        # GIVEN a user holding the funder role across every institution
+        held = [
+            _grant("u2", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS, "g1"),
+            _grant("u2", Subject.INSTITUTIONS, Action.VIEW, ALL_INSTITUTIONS, "g2"),
+            _grant("u2", Subject.ACCESS_MANAGEMENT, Action.MANAGE, ALL_INSTITUTIONS, "g3"),
+            _grant("u2", Subject.ACCOUNT, Action.VIEW, ALL_INSTITUTIONS, "g4"),
+        ]
+        service, grant_repo = await _service_with_grants(records=[_record()], grants=held)
+
+        # WHEN they are given the implementer role at one institution instead
+        await service.assign_role(_user_info(), "u2", RoleRequest(role="implementer", institution_id="inst-a"))
+
+        # THEN nothing of the old role is left — not its permissions, and not its wider scope
+        stored = await grant_repo.list_for_user("u2")
+        assert {(g.subject, g.action) for g in stored} == set(ROLES["implementer"])
+        assert all(g.institution_id == "inst-a" for g in stored)
+
+    async def test_rescopes_a_role_when_it_is_reassigned_to_another_institution(self):
+        # GIVEN an implementer scoped to one institution
+        service, grant_repo = await _service_with_grants(records=[_record()])
+        await service.assign_role(_user_info(), "u2", RoleRequest(role="implementer", institution_id="inst-a"))
+
+        # WHEN the same role is assigned against a different institution
+        await service.assign_role(_user_info(), "u2", RoleRequest(role="implementer", institution_id="inst-b"))
+
+        # THEN they hold that role at the new institution only, not at both
+        stored = await grant_repo.list_for_user("u2")
+        assert {g.institution_id for g in stored} == {"inst-b"}
+        assert len(stored) == len(ROLES["implementer"])
+
+    async def test_leaves_other_users_grants_untouched(self):
+        # GIVEN another user who already holds access
+        other = [_grant("u3", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS, "g9")]
+        service, grant_repo = await _service_with_grants(records=[_record()], grants=other)
+
+        # WHEN a role is assigned to a different user
+        await service.assign_role(_user_info(), "u2", RoleRequest(role="implementer", institution_id="inst-a"))
+
+        # THEN only the target's access is replaced
+        assert [g.grant_id for g in await grant_repo.list_for_user("u3")] == ["g9"]
+
     async def test_raises_unknown_role_for_invalid_role_name(self):
         service = await _service(records=[_record()])
         with pytest.raises(UnknownRoleError):
             await service.assign_role(_user_info(), "u2", RoleRequest(role="superadmin", institution_id="inst-a"))
+
+    async def test_leaves_existing_grants_alone_when_the_role_is_unknown(self):
+        # GIVEN a user holding access
+        held = [_grant("u2", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS, "g1")]
+        service, grant_repo = await _service_with_grants(records=[_record()], grants=held)
+
+        # WHEN a role that does not exist is assigned
+        with pytest.raises(UnknownRoleError):
+            await service.assign_role(_user_info(), "u2", RoleRequest(role="superadmin", institution_id="inst-a"))
+
+        # THEN the access they had is not dropped on the way to the failure
+        assert [g.grant_id for g in await grant_repo.list_for_user("u2")] == ["g1"]
 
     async def test_raises_not_provisioned_when_caller_has_no_record(self):
         service = await _service()
