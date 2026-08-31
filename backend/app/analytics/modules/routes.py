@@ -55,7 +55,7 @@ def add_modules_routes(router: APIRouter, auth: Authentication) -> None:
         },
         HTTPStatus.NOT_FOUND: {"model": UnknownModuleErrorResponse, "description": "The requested module key does not exist."},
     })
-    @requires(Subject.DASHBOARD, Action.VIEW)
+    @requires(Subject.DASHBOARD, Action.VIEW, resolves_scope=True)
     async def get_module(
         module_key: str = Path(..., description="Which module's analytics to fetch, e.g. 'build-your-profile'."),
         user_info: UserInfo = Depends(get_user_info),

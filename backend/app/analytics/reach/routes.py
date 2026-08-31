@@ -33,7 +33,7 @@ def add_reach_routes(router: APIRouter, auth: Authentication) -> None:
             "description": "User has not been provisioned with dashboard access, or does not have access to the requested institution.",
         },
     })
-    @requires(Subject.DASHBOARD, Action.VIEW)
+    @requires(Subject.DASHBOARD, Action.VIEW, resolves_scope=True)
     async def get_reach(
         filters: AnalyticsFiltersDep,
         user_info: UserInfo = Depends(get_user_info),
