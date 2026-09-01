@@ -22,7 +22,7 @@ export const DATA_TEST_ID = {
   STALE_WARNING: `modules-stale-warning-${uniqueId}`,
 };
 
-const PADDING = "px-6 md:px-10";
+const PADDING = "px-8";
 
 function ModulesSkeleton() {
   return (
@@ -55,8 +55,8 @@ export function Modules() {
 
   return (
     // The shell's SidebarInset is the page's <main>, so this is a section of it.
-    <div data-testid={DATA_TEST_ID.CONTAINER} className="grid content-start gap-8 pb-10">
-      <div className={`pt-8 md:pt-10 ${PADDING}`}>
+    <div data-testid={DATA_TEST_ID.CONTAINER} className="grid content-start gap-8 pb-20">
+      <div className={`pt-8 ${PADDING}`}>
         <ScreenHead
           eyebrow={t("modules.eyebrow")}
           title={t("modules.title")}

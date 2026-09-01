@@ -38,7 +38,7 @@ export type FiltersPatch = Partial<Pick<FiltersState, "dateRange" | ChipFilterKe
 
 const DAY_MAX_SPAN_DAYS = 45;
 const WEEK_MAX_SPAN_DAYS = 200;
-const DEFAULT_RANGE_SPAN_DAYS = 30;
+const DEFAULT_RANGE_SPAN_DAYS = 365;
 const MODULES_FIXED_RANGE_SPAN_DAYS = 365;
 
 function toUtcDayIndex(isoDate: string): number {
@@ -65,7 +65,7 @@ function toIsoDate(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-/** Last 30 days ending `today`. `today` is injectable for tests. */
+/** Last 365 days ending `today`. `today` is injectable for tests. */
 export function createInitialFilters(today: Date = new Date()): FiltersState {
   const startDate = new Date(today);
   startDate.setDate(startDate.getDate() - DEFAULT_RANGE_SPAN_DAYS);

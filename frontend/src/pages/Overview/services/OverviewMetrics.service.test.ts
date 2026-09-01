@@ -120,6 +120,57 @@ describe("mapReachToOverviewMetrics", () => {
 
     expect(actual.loginMethods).toEqual([]);
   });
+
+  it("should bucket a raw daily response into monthly totals when the request asked for month granularity", () => {
+    // GIVEN a response with one row per calendar day (the upstream bug: granularity is ignored),
+    // spanning two months
+    const givenDailyReach: ReachResponse = {
+      ...GIVEN_REACH,
+      series: [
+        { label: "2026-01-01", cumulative: 100, added: 100, new_users: 10, returning: 90, logins: 50 },
+        { label: "2026-01-15", cumulative: 150, added: 50, new_users: 5, returning: 45, logins: 20 },
+        { label: "2026-02-01", cumulative: 200, added: 50, new_users: 20, returning: 30, logins: 25 },
+      ],
+    };
+    const givenRequest: OverviewMetricsRequest = {
+      ...GIVEN_REQUEST,
+      dateRange: { start: "2026-01-01", end: "2026-02-28" },
+    };
+
+    // WHEN mapped
+    const actual = mapReachToOverviewMetrics(givenDailyReach, givenRequest);
+
+    // THEN the two January rows are summed into one "2026-01" bucket, alongside "2026-02"
+    expect(actual.reachSeries).toEqual([
+      { period: "2026-01", newUsers: 15, returningUsers: 135 },
+      { period: "2026-02", newUsers: 20, returningUsers: 30 },
+    ]);
+  });
+
+  it("should leave a raw daily response unbucketed when day granularity was requested", () => {
+    // GIVEN a genuinely daily response and a day-granularity request
+    const givenDailyReach: ReachResponse = {
+      ...GIVEN_REACH,
+      series: [
+        { label: "2026-01-01", cumulative: 100, added: 100, new_users: 10, returning: 90, logins: 50 },
+        { label: "2026-01-02", cumulative: 150, added: 50, new_users: 5, returning: 45, logins: 20 },
+      ],
+    };
+    const givenRequest: OverviewMetricsRequest = {
+      ...GIVEN_REQUEST,
+      dateRange: { start: "2026-01-01", end: "2026-01-02" },
+      granularity: "day",
+    };
+
+    // WHEN mapped
+    const actual = mapReachToOverviewMetrics(givenDailyReach, givenRequest);
+
+    // THEN each day passes through as its own point
+    expect(actual.reachSeries).toEqual([
+      { period: "2026-01-01", newUsers: 10, returningUsers: 90 },
+      { period: "2026-01-02", newUsers: 5, returningUsers: 45 },
+    ]);
+  });
 });
 
 describe("OverviewMetricsService.getOverviewMetrics", () => {

@@ -63,7 +63,7 @@ export function BarChart({
         role={isLoading ? "img" : undefined}
         aria-label={isLoading ? t("common.loading") : undefined}
         className={cn(
-          "grid w-full place-items-center rounded-md bg-muted-foreground/15",
+          "grid w-full place-items-center rounded-md bg-surface-wash",
           isLoading && "animate-pulse",
           className
         )}
@@ -119,7 +119,7 @@ export function BarChart({
           <CartesianGrid vertical={false} />
           <XAxis dataKey="category" tickLine={false} axisLine={false} tickMargin={8} />
           <YAxis tickLine={false} axisLine={false} tickMargin={8} width={44} tickFormatter={valueFormatter} />
-          <ChartTooltip content={<ChartTooltipContent />} />
+          <ChartTooltip cursor={{ fill: "var(--surface-wash)" }} content={<ChartTooltipContent />} />
           {series.length > 1 && <ChartLegend content={<ChartLegendContent />} />}
           {series.map((line, index) => (
             <Bar

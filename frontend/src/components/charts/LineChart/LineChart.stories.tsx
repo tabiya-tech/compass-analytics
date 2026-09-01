@@ -108,7 +108,7 @@ export const HoverShowsTooltip: Story = {
       if (!node) throw new Error("tooltip not shown yet");
       return node as HTMLElement;
     });
-    await expect(within(tooltip).getByText("Series A")).toBeInTheDocument();
-    await expect(within(tooltip).getByText("Series B")).toBeInTheDocument();
+    await expect(tooltip).toHaveTextContent(/series a/i);
+    await expect(tooltip).toHaveTextContent(/series b/i);
   },
 };

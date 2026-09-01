@@ -21,6 +21,7 @@ export const DATA_TEST_ID = {
   CONTAINER: `settings-container-${uniqueId}`,
   PROFILE_CARD: `settings-profile-card-${uniqueId}`,
   PROFILE_NAME: `settings-profile-name-${uniqueId}`,
+  PROFILE_ROLE_SUBTITLE: `settings-profile-role-subtitle-${uniqueId}`,
   PROFILE_DETAIL: `settings-profile-detail-${uniqueId}`,
   NAME_INPUT: `settings-name-input-${uniqueId}`,
   ORGANIZATION_INPUT: `settings-organization-input-${uniqueId}`,
@@ -46,7 +47,7 @@ function ProfileDetail({ label, value }: Readonly<{ label: string; value: string
       className="flex min-w-0 items-baseline justify-between gap-6 border-b border-border py-4 last:border-b-0"
     >
       <dt className="shrink-0 text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 text-right font-medium wrap-anywhere text-foreground">{value}</dd>
+      <dd className="min-w-0 text-right wrap-anywhere text-foreground">{value}</dd>
     </div>
   );
 }
@@ -85,7 +86,7 @@ function NameField({
       placeholder={t("settings.profile.name.placeholder")}
       autoFocus
       disabled={isSavingProfile}
-      className={cn("min-w-0 flex-1 text-xl font-bold", EDITABLE_FIELD_HIGHLIGHT)}
+      className={cn("min-w-0 text-xl font-bold", EDITABLE_FIELD_HIGHLIGHT)}
     />
   );
 }
@@ -125,7 +126,7 @@ function OrganizationRow({
             className={cn("ml-auto h-8 max-w-56", EDITABLE_FIELD_HIGHLIGHT)}
           />
         ) : (
-          <span className="block text-right font-medium wrap-anywhere text-foreground">{currentOrganization}</span>
+          <span className="block text-right wrap-anywhere text-foreground">{currentOrganization}</span>
         )}
       </dd>
     </div>
@@ -195,21 +196,28 @@ export function Settings() {
   };
 
   return (
-    <div data-testid={DATA_TEST_ID.CONTAINER} className="grid content-start gap-8 px-6 py-8 md:px-10 md:py-10">
+    <div data-testid={DATA_TEST_ID.CONTAINER} className="grid content-start gap-8 px-8 pt-8 pb-20">
       <ScreenHead eyebrow={t("settings.eyebrow")} title={t("settings.title")} />
 
       <Card data-testid={DATA_TEST_ID.PROFILE_CARD} className="max-w-md rounded-card py-6">
         <form onSubmit={saveProfile}>
           <CardContent className="grid gap-6">
             <div className="flex min-w-0 items-center gap-4">
-              <UserAvatar name={currentName} size="lg" className="bg-tabiya-blue text-white" />
-              <NameField
-                currentName={currentName}
-                isEditingProfile={isEditingProfile}
-                draftName={draftName}
-                onDraftNameChange={setDraftName}
-                isSavingProfile={isSavingProfile}
-              />
+              <UserAvatar name={currentName} size="xl" />
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <NameField
+                  currentName={currentName}
+                  isEditingProfile={isEditingProfile}
+                  draftName={draftName}
+                  onDraftNameChange={setDraftName}
+                  isSavingProfile={isSavingProfile}
+                />
+                {!isEditingProfile && (
+                  <p data-testid={DATA_TEST_ID.PROFILE_ROLE_SUBTITLE} className="text-sm text-muted-foreground">
+                    {role ? t(ROLE_LABEL_KEYS[role]) : unknownValuePlaceholder}
+                  </p>
+                )}
+              </div>
             </div>
 
             <dl className="grid min-w-0 text-sm">
@@ -256,7 +264,7 @@ export function Settings() {
               <Button
                 type="button"
                 variant="outline"
-                className="w-full rounded-pill"
+                className="w-full rounded-pill border-tabiya-blue font-bold text-tabiya-blue hover:bg-surface-wash hover:text-tabiya-blue"
                 data-testid={DATA_TEST_ID.EDIT_PROFILE_BUTTON}
                 onClick={startEditingProfile}
               >

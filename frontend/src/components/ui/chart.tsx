@@ -163,15 +163,10 @@ function ChartTooltipContent({
         ? (config[label as keyof typeof config]?.label ?? label)
         : itemConfig?.label;
 
-    if (labelFormatter) {
-      return <div className={cn("font-medium", labelClassName)}>{labelFormatter(value, payload)}</div>;
-    }
+    const resolved = labelFormatter ? labelFormatter(value, payload) : value;
+    if (!resolved) return null;
 
-    if (!value) {
-      return null;
-    }
-
-    return <div className={cn("font-medium", labelClassName)}>{value}</div>;
+    return <div className={cn("text-primary-foreground/70", labelClassName)}>{resolved}</div>;
   }, [label, labelFormatter, payload, hideLabel, labelClassName, config, labelKey]);
 
   if (!active || !payload?.length) {
@@ -180,67 +175,72 @@ function ChartTooltipContent({
 
   const nestLabel = payload.length === 1 && indicator !== "dot";
 
+  const hasCustomFormatter = Boolean(formatter);
+  if (!hasCustomFormatter) {
+    const totalAcrossAllSeries = payload.reduce((sum, item) => sum + (typeof item.value === "number" ? item.value : 0), 0);
+
+    return (
+      <div
+        data-slot="chart-tooltip-content"
+        className={cn("grid min-w-32 gap-1 rounded-lg bg-primary px-3 py-2.5 text-xs text-primary-foreground shadow-md", className)}
+      >
+        {tooltipLabel}
+        <p className="text-2xl font-bold tabular-nums">{totalAcrossAllSeries.toLocaleString()}</p>
+        {payload.length > 1 && (
+          <p className="text-tabiya-green">
+            {payload.map((item, index) => {
+              const key = nameKey ?? item.name ?? item.dataKey ?? "value";
+              const itemConfig = getPayloadConfigFromPayload(config, item, key);
+              const name = itemConfig?.label ?? item.name;
+              const value = typeof item.value === "number" ? item.value.toLocaleString() : item.value;
+              return (
+                <React.Fragment key={item.dataKey ?? index}>
+                  {index > 0 && " · "}
+                  {value} {typeof name === "string" ? name.toLowerCase() : name}
+                </React.Fragment>
+              );
+            })}
+          </p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
       data-slot="chart-tooltip-content"
       className={cn(
-        "grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-popover px-2.5 py-1.5 text-xs text-popover-foreground shadow-md",
+        "grid min-w-32 items-start gap-1.5 rounded-lg bg-primary px-2.5 py-1.5 text-xs text-primary-foreground shadow-md",
         className
       )}
     >
       {!nestLabel ? tooltipLabel : null}
       <div className="grid gap-1.5">
         {payload.map((item, index) => {
-          const key = nameKey ?? item.name ?? item.dataKey ?? "value";
-          const itemConfig = getPayloadConfigFromPayload(config, item, key);
           const indicatorColor = color ?? (item.payload?.fill as string | undefined) ?? item.color;
 
           return (
             <div
               key={item.dataKey ?? index}
               className={cn(
-                "flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-muted-foreground",
+                "flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-primary-foreground/70",
                 indicator === "dot" && "items-center"
               )}
             >
-              {formatter && item.value !== undefined && item.name ? (
+              {item.value !== undefined && item.name ? (
                 formatter(item.value, item.name, item, index, item.payload)
               ) : (
-                <>
-                  {itemConfig?.icon ? (
-                    <itemConfig.icon />
-                  ) : (
-                    !hideIndicator && (
-                      <div
-                        className={cn("shrink-0 rounded-[2px] border-(--color-border) bg-(--color-bg)", {
-                          "h-2.5 w-2.5": indicator === "dot",
-                          "w-1": indicator === "line",
-                          "w-0 border-[1.5px] border-dashed bg-transparent": indicator === "dashed",
-                          "my-0.5": nestLabel && indicator === "dashed",
-                        })}
-                        style={
-                          {
-                            "--color-bg": indicatorColor,
-                            "--color-border": indicatorColor,
-                          } as React.CSSProperties
-                        }
-                      />
-                    )
-                  )}
+                !hideIndicator && (
                   <div
-                    className={cn("flex flex-1 justify-between leading-none", nestLabel ? "items-end" : "items-center")}
-                  >
-                    <div className="grid gap-1.5">
-                      {nestLabel ? tooltipLabel : null}
-                      <span className="text-muted-foreground">{itemConfig?.label ?? item.name}</span>
-                    </div>
-                    {item.value !== undefined && (
-                      <span className="font-mono font-medium tabular-nums text-foreground">
-                        {typeof item.value === "number" ? item.value.toLocaleString() : item.value}
-                      </span>
-                    )}
-                  </div>
-                </>
+                    className={cn("shrink-0 rounded-xs border-(--color-border) bg-(--color-bg)", {
+                      "h-2.5 w-2.5": indicator === "dot",
+                      "w-1": indicator === "line",
+                      "w-0 border-[1.5px] border-dashed bg-transparent": indicator === "dashed",
+                      "my-0.5": nestLabel && indicator === "dashed",
+                    })}
+                    style={{ "--color-bg": indicatorColor, "--color-border": indicatorColor } as React.CSSProperties}
+                  />
+                )
               )}
             </div>
           );

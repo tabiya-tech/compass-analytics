@@ -107,8 +107,8 @@ export function Histogram({
                 hideLabel
                 formatter={(value, _name, item) => (
                   <div className="flex w-full items-center justify-between gap-3">
-                    <span className="text-muted-foreground">{item.payload?.rangeLabel as string}</span>
-                    <span className="font-mono font-medium tabular-nums text-foreground">
+                    <span className="text-primary-foreground/70">{item.payload?.rangeLabel as string}</span>
+                    <span className="font-mono font-medium tabular-nums text-primary-foreground">
                       {countFormatter(Number(value))}
                     </span>
                   </div>

@@ -38,7 +38,7 @@ export const FunderAcrossTheDeployment: Story = {
   ],
   play: async ({ canvas }) => {
     await expect(canvas.getByRole("heading", { name: "Profile & settings" })).toBeVisible();
-    await expect(canvas.getByText("Funder")).toBeVisible();
+    await expect(canvas.getByTestId(DATA_TEST_ID.PROFILE_ROLE_SUBTITLE)).toHaveTextContent("Funder");
     await expect(canvas.getByText("All institutions")).toBeVisible();
   },
 };
@@ -53,7 +53,7 @@ export const ImplementerAtOneInstitution: Story = {
     ),
   ],
   play: async ({ canvas }) => {
-    await expect(canvas.getByText("Implementer")).toBeVisible();
+    await expect(canvas.getByTestId(DATA_TEST_ID.PROFILE_ROLE_SUBTITLE)).toHaveTextContent("Implementer");
     await expect(canvas.getByText("1 institution")).toBeVisible();
   },
 };

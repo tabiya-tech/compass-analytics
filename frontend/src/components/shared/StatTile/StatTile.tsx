@@ -111,10 +111,10 @@ export function StatTile({
       data-slot="stat-tile"
       data-testid={DATA_TEST_ID.CONTAINER}
       data-tone={tone}
-      className={cn("gap-4 py-5", toneStyles.card, className)}
+      className={cn("gap-2.5 py-5", toneStyles.card, className)}
     >
       {(label || icon) && (
-        <CardHeader className="px-5">
+        <CardHeader className="px-[22px]">
           <CardDescription
             data-testid={DATA_TEST_ID.LABEL}
             className={cn("font-mono text-xs tracking-[2px] uppercase", toneStyles.label)}
@@ -133,7 +133,7 @@ export function StatTile({
           )}
         </CardHeader>
       )}
-      <CardContent className="grid gap-1.5 px-5">
+      <CardContent className="grid gap-1.5 px-[22px]">
         <div className="flex items-center justify-between gap-4">
           <p
             data-slot="stat-tile-value"

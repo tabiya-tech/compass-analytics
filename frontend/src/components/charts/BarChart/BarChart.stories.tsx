@@ -97,7 +97,7 @@ export const HoverShowsTooltip: Story = {
       return node as HTMLElement;
     });
     await expect(within(tooltip).getByText("Mar")).toBeInTheDocument();
-    await expect(within(tooltip).getByText("Series A")).toBeInTheDocument();
-    await expect(within(tooltip).getByText("Series B")).toBeInTheDocument();
+    await expect(tooltip).toHaveTextContent(/series a/i);
+    await expect(tooltip).toHaveTextContent(/series b/i);
   },
 };

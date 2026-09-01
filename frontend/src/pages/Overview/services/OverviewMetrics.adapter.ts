@@ -1,4 +1,6 @@
 import type { ReachResponse } from "@/analytics/analytics.types";
+import type { DateRange, Granularity } from "@/filters/filters";
+import { listPeriods } from "@/pages/Overview/utils";
 import type {
   CumulativeUsersMetric,
   DailyPoint,
@@ -24,12 +26,47 @@ function toCumulativeUsers(reach: ReachResponse): CumulativeUsersMetric {
   };
 }
 
-function toReachSeries(reach: ReachResponse): ReachPoint[] {
-  return reach.series.map((point) => ({
-    period: point.label,
-    newUsers: point.new_users,
-    returningUsers: point.returning,
-  }));
+const RAW_DAILY_LABEL_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** The upstream reach endpoint currently always returns one row per calendar day, ignoring the requested granularity. */
+function toReachSeries(reach: ReachResponse, dateRange: DateRange, granularity: Granularity): ReachPoint[] {
+  const upstreamIgnoredRequestedGranularity =
+    granularity !== "day" && reach.series.every((point) => RAW_DAILY_LABEL_PATTERN.test(point.label));
+  if (!upstreamIgnoredRequestedGranularity) {
+    return reach.series.map((point) => ({
+      period: point.label,
+      newUsers: point.new_users,
+      returningUsers: point.returning,
+    }));
+  }
+
+  const periodsAscending = listPeriods(dateRange, granularity);
+  const periodsDescending = [...periodsAscending].reverse();
+  const totalsByPeriod = new Map<string, { newUsers: number; returningUsers: number }>(
+    periodsAscending.map((period) => [period, { newUsers: 0, returningUsers: 0 }])
+  );
+
+  for (const dailyPoint of reach.series) {
+    const containingPeriod = latestPeriodStartingOnOrBefore(dailyPoint.label, periodsDescending, granularity);
+    const totalsForPeriod = totalsByPeriod.get(containingPeriod ?? periodsAscending[0]);
+    if (!totalsForPeriod) continue;
+    totalsForPeriod.newUsers += dailyPoint.new_users;
+    totalsForPeriod.returningUsers += dailyPoint.returning;
+  }
+
+  return periodsAscending.map((period) => ({ period, ...totalsByPeriod.get(period)! }));
+}
+
+function latestPeriodStartingOnOrBefore(
+  isoDay: string,
+  periodsDescending: readonly string[],
+  granularity: Granularity
+): string | undefined {
+  return periodsDescending.find((period) => periodStartAsIsoDate(period, granularity) <= isoDay);
+}
+
+function periodStartAsIsoDate(period: string, granularity: Granularity): string {
+  return granularity === "month" ? `${period}-01` : period;
 }
 
 /** The cumulative series from the reach response doubles as the sparkline data. */
@@ -70,7 +107,7 @@ export function mapReachToOverviewMetrics(
       windowDays: 30,
     },
     averageSessionMinutes: reach.summary.avg_session_minutes,
-    reachSeries: toReachSeries(reach),
+    reachSeries: toReachSeries(reach, request.dateRange, request.granularity),
     dailySeries: toDailySeries(reach),
     loginMethods: [],
     averageLoginsPerUser: reach.summary.avg_logins_per_user,
