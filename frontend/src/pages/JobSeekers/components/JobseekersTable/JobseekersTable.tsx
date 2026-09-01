@@ -27,8 +27,6 @@ export const DATA_TEST_ID = {
   NAME: `jobseekers-table-name-${uniqueId}`,
 };
 
-const TABLE_MAX_HEIGHT = "max-h-[70dvh]";
-
 const SORT_ICONS = { asc: ChevronUp, desc: ChevronDown } as const;
 
 export interface JobseekersTableProps {
@@ -163,7 +161,7 @@ export function JobseekersTable({
     // min-w-0 keeps the table scrolling inside its box instead of widening the screen.
     <Table
       data-testid={DATA_TEST_ID.CONTAINER}
-      containerClassName={cn(TABLE_MAX_HEIGHT, "w-full min-w-0 rounded-card border bg-card", className)}
+      containerClassName={cn("w-full min-w-0 rounded-card border bg-card", className)}
     >
       <TableCaption className="sr-only">{t("jobseekers.table.caption")}</TableCaption>
       <TableHeader>
