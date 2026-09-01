@@ -51,7 +51,7 @@ export const BareDatesForCard: Story = {
   args: { showLabels: false, showGranularity: false },
   decorators: [withRange("2025-07-08", "2026-07-07")],
   play: async ({ canvas }) => {
-    await expect(canvas.getByLabelText("Start date")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Date range" })).toBeVisible();
     await expect(canvas.queryByText(/Grouped by/)).not.toBeInTheDocument();
   },
 };

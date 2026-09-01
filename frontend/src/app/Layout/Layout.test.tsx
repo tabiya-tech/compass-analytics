@@ -80,7 +80,7 @@ describe("Layout", () => {
     renderLayout();
 
     // THEN a screen reads the shared filters without mounting its own provider
-    await waitFor(() => expect(screen.getByTestId("granularity")).toHaveTextContent("day"));
+    await waitFor(() => expect(screen.getByTestId("granularity")).toHaveTextContent("month"));
   });
 
   it("should render the sidebar navigation with the current route marked active", async () => {

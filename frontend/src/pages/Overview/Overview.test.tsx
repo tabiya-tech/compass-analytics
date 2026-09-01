@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw";
 import userEvent from "@testing-library/user-event";
-import { fireEvent, render, screen, within } from "@/_test_utilities/test-utils";
+import { render, screen, within } from "@/_test_utilities/test-utils";
 import { server } from "@/mocks/server";
 import { handlers } from "@/mocks/handlers";
 import { AccessProvider, MODULE_IDS, type AccessScope, type ModuleId } from "@/access/AccessContext";
@@ -152,13 +152,18 @@ describe("Overview screen panels", () => {
   });
 
   it("should refetch against the new window when the reach panel's time filter moves", async () => {
-    // GIVEN the screen loaded over the default window
+    // GIVEN the screen loaded over the default window (start Jul 8 2025, defaultMonth for the calendar)
     renderOverview(ONE_INSTITUTION);
     const actualPanel = within(await screen.findByTestId(REACH_PANEL_TEST_ID.CONTAINER));
     expect(actualPanel.getByText("New and returning users, by month")).toBeInTheDocument();
+    const user = userEvent.setup();
 
-    // WHEN the window is narrowed to a fortnight
-    fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2026-06-25" } });
+    // WHEN the window is narrowed to a fortnight, picked from the panel's own calendar
+    await user.click(screen.getByRole("button", { name: "Date range" }));
+    const newStart = new Date(2025, 6, 8);
+    const newEnd = new Date(2025, 6, 22);
+    await user.click(document.querySelector<HTMLButtonElement>(`[data-day="${newStart.toLocaleDateString()}"]`)!);
+    await user.click(document.querySelector<HTMLButtonElement>(`[data-day="${newEnd.toLocaleDateString()}"]`)!);
 
     // THEN the granularity re-derives, and the panel is bucketed by day
     expect(await screen.findByText("New and returning users, by day")).toBeInTheDocument();

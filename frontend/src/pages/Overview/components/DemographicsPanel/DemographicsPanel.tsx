@@ -105,8 +105,10 @@ function DemographicsSkeleton() {
 export function DemographicsPanel({ charts, degraded = false, isLoading = false }: Readonly<DemographicsPanelProps>) {
   const { t } = useTranslation();
 
-  // hasOwn, not `in` — `in` also matches inherited keys like "constructor".
-  const chartsToRender = charts.filter((chart) => Object.hasOwn(CHART_DIMENSIONS, chart.name));
+  // Only show charts that have data.
+  const chartsToRender = charts.filter(
+    (chart) => Object.hasOwn(CHART_DIMENSIONS, chart.name) && chart.items.some((item) => item.value > 0)
+  );
 
   return (
     <Panel

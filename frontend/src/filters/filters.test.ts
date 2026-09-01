@@ -65,14 +65,14 @@ describe("spanInDays", () => {
 });
 
 describe("createInitialFilters", () => {
-  it("should default to a 30-day range ending today with 'day' granularity and no chip filters", () => {
+  it("should default to a 365-day range ending today with 'month' granularity and no chip filters", () => {
     // GIVEN a fixed "today"
     // WHEN creating the initial filters
     const actual = createInitialFilters(GIVEN_TODAY);
 
-    // THEN the range spans the last 30 days, granularity is "day", and no chips are set
-    expect(actual.dateRange).toEqual({ start: "2026-05-16", end: "2026-06-15" });
-    expect(actual.granularity).toBe("day");
+    // THEN the range spans the last year, granularity is "month", and no chips are set
+    expect(actual.dateRange).toEqual({ start: "2025-06-15", end: "2026-06-15" });
+    expect(actual.granularity).toBe("month");
     expect(actual.audienceSegment).toBeNull();
     expect(actual.loginMethod).toBeNull();
     expect(actual.institutionDrillDownId).toBeNull();

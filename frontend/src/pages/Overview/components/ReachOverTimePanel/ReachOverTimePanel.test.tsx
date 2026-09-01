@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fireEvent, render, screen, within } from "@/_test_utilities/test-utils";
+import { render, screen, userEvent, within } from "@/_test_utilities/test-utils";
 import { FiltersProvider } from "@/filters/FiltersContext";
 import { createInitialFilters, type FiltersState, type Granularity } from "@/filters/filters";
 import { DATA_TEST_ID as BAR_CHART_TEST_ID } from "@/components/charts/BarChart";
@@ -82,17 +82,21 @@ describe("ReachOverTimePanel", () => {
     expect(actualTable.getByRole("rowheader", { name: "1 Jun" })).toBeInTheDocument();
   });
 
-  it("should let the reader change the window from inside the panel", () => {
-    // GIVEN the panel is showing the default window
+  it("should let the reader change the window from inside the panel", async () => {
+    // GIVEN the panel is showing the default window (Jul 7 2025 – Jul 7 2026)
     renderPanel();
+    const user = userEvent.setup();
+    const actualTrigger = screen.getByRole("button", { name: "Date range" });
+    await user.click(actualTrigger);
 
-    // WHEN a new start date is picked in the panel's own time filter
-    // (fireEvent, not userEvent.type — typing into <input type="date"> is locale/segment dependent)
-    const actualStartInput = screen.getByLabelText("Start date");
-    fireEvent.change(actualStartInput, { target: { value: "2026-06-01" } });
+    // WHEN a new range is picked in the panel's own time filter, within the visible month
+    const newStart = new Date(2025, 6, 1);
+    const newEnd = new Date(2025, 6, 20);
+    await user.click(document.querySelector<HTMLButtonElement>(`[data-day="${newStart.toLocaleDateString()}"]`)!);
+    await user.click(document.querySelector<HTMLButtonElement>(`[data-day="${newEnd.toLocaleDateString()}"]`)!);
 
     // THEN the shared filter state has moved with it
-    expect(actualStartInput).toHaveValue("2026-06-01");
+    expect(actualTrigger).toHaveTextContent("1 Jul 2025 – 20 Jul 2025");
   });
 
   it("should mark the placeholder as loading rather than claim there is no data, while the first response is in flight", () => {

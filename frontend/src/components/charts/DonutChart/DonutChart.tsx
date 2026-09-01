@@ -76,7 +76,7 @@ export function DonutChart({
                 stroke="none"
                 isAnimationActive={false}
               >
-                <Cell fill="var(--muted)" />
+                <Cell fill="var(--surface-wash)" />
               </Pie>
             </PieChart>
           </ChartContainer>
@@ -163,7 +163,7 @@ export function DonutChart({
         }))}
         onSelect={onSelect}
         selectedId={selectedId}
-        className="min-w-0 flex-1"
+        className="min-w-0 flex-auto"
       />
 
       <ChartDataTable table={table} />

@@ -18,6 +18,7 @@ function FiltersProbe() {
       <span data-testid="active-count">{activeFilters.length}</span>
       <button onClick={() => patchFilters({ audienceSegment: "youth", loginMethod: "email" })}>set two</button>
       <button onClick={() => setDateRange({ start: "2026-01-01", end: "2026-10-28" })}>set long range</button>
+      <button onClick={() => setDateRange({ start: "2026-06-01", end: "2026-06-10" })}>set short range</button>
       <button onClick={() => clearFilter("audienceSegment")}>clear segment</button>
       <button onClick={clearAll}>clear all</button>
     </div>
@@ -39,8 +40,8 @@ describe("FiltersProvider", () => {
     renderProbe();
 
     // THEN the probe reflects that state, with no active chip filters
-    expect(screen.getByTestId("date-range")).toHaveTextContent("2026-05-16..2026-06-15");
-    expect(screen.getByTestId("granularity")).toHaveTextContent("day");
+    expect(screen.getByTestId("date-range")).toHaveTextContent("2025-06-15..2026-06-15");
+    expect(screen.getByTestId("granularity")).toHaveTextContent("month");
     expect(screen.getByTestId("active-count")).toHaveTextContent("0");
   });
 
@@ -58,16 +59,16 @@ describe("FiltersProvider", () => {
   });
 
   it("should re-derive granularity when the date range changes", async () => {
-    // GIVEN the initial 30-day range at "day" granularity
+    // GIVEN the initial 365-day range at "month" granularity
     renderProbe();
-    expect(screen.getByTestId("granularity")).toHaveTextContent("day");
+    expect(screen.getByTestId("granularity")).toHaveTextContent("month");
 
-    // WHEN setting a range spanning 300 days
-    await userEvent.click(screen.getByRole("button", { name: "set long range" }));
+    // WHEN setting a range spanning 9 days
+    await userEvent.click(screen.getByRole("button", { name: "set short range" }));
 
     // THEN granularity follows the span
-    expect(screen.getByTestId("date-range")).toHaveTextContent("2026-01-01..2026-10-28");
-    expect(screen.getByTestId("granularity")).toHaveTextContent("month");
+    expect(screen.getByTestId("date-range")).toHaveTextContent("2026-06-01..2026-06-10");
+    expect(screen.getByTestId("granularity")).toHaveTextContent("day");
   });
 
   it("should clear exactly one filter via clearFilter", async () => {

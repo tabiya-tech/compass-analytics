@@ -22,7 +22,7 @@ export function initialsOf(name: string): string {
 export interface UserAvatarProps {
   name: string;
   src?: string;
-  size?: "sm" | "default" | "lg";
+  size?: "sm" | "default" | "lg" | "xl";
   className?: string;
 }
 
@@ -35,7 +35,10 @@ export function UserAvatar({ name, src, size = "default", className }: Readonly<
       <AvatarFallback
         aria-hidden="true"
         data-testid={DATA_TEST_ID.FALLBACK}
-        className={cn("bg-tabiya-blue font-medium text-white group-data-[size=lg]/avatar:text-base", className)}
+        className={cn(
+          "bg-tabiya-blue font-medium text-white group-data-[size=lg]/avatar:text-base group-data-[size=xl]/avatar:text-xl",
+          className
+        )}
       >
         {initials || <User className="size-1/2" />}
       </AvatarFallback>

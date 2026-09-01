@@ -31,11 +31,12 @@
   --text-inverse: var(--white);
   --text-eyebrow: var(--green-3);
 
-  --surface-page: var(--white);
+  --surface-page: #fbfaf7;
   --surface-card: var(--tabiya-grey);
   --surface-info: var(--light-green);
   --surface-feature: var(--green-3);
   --surface-dark: var(--tabiya-blue);
+  --surface-wash: rgba(0, 33, 71, 0.06);
 
   --accent: var(--tabiya-green);
   --accent-on: var(--tabiya-blue);
@@ -235,6 +236,8 @@
   --color-tabiya-grey: var(--tabiya-grey);
   --color-green-2: var(--green-2);
   --color-green-3: var(--green-3);
+  --color-surface-page: var(--surface-page);
+  --color-surface-wash: var(--surface-wash);
 
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
@@ -255,6 +258,9 @@
   --font-sans: var(--font-primary);
   --font-mono: var(--font-mono);
 
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
   --shadow-color-sm: var(--shadow-sm);
   --shadow-color-md: var(--shadow-md);
   --shadow-color-lg: var(--shadow-lg);

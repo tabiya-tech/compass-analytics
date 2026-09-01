@@ -88,7 +88,7 @@ export function Overview() {
 
   return (
     // The shell's SidebarInset is the page's <main>, so this is a section of it.
-    <div data-testid={DATA_TEST_ID.CONTAINER} className="grid content-start gap-8 px-6 py-8 md:px-10 md:py-10">
+    <div data-testid={DATA_TEST_ID.CONTAINER} className="grid content-start gap-8 px-8 pt-8 pb-20">
       <ScreenHead
         eyebrow={t(isPortfolio ? "overview.eyebrow.portfolio" : "overview.eyebrow.institution")}
         title={t("overview.title")}

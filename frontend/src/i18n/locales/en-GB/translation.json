@@ -359,8 +359,7 @@
       "anonymous": "Anonymous"
     },
     "time": {
-      "startLabel": "Start date",
-      "endLabel": "End date",
+      "rangeLabel": "Date range",
       "granularityLabel": "Grouped by {{granularity}}"
     },
     "granularity": {

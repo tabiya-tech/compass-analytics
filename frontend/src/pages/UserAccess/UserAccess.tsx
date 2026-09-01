@@ -75,7 +75,7 @@ export function UserAccess() {
   }, [failure, t]);
 
   return (
-    <div className="flex h-svh min-w-0 flex-col gap-6 p-6 pb-8" data-testid={DATA_TEST_ID.CONTAINER}>
+    <div className="flex h-svh min-w-0 flex-col gap-6 px-8 py-6 pb-8" data-testid={DATA_TEST_ID.CONTAINER}>
       <ScreenHead
         eyebrow={t("userAccess.eyebrow")}
         title={t("userAccess.title")}
