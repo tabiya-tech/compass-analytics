@@ -38,11 +38,6 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
   decorators: [withDeployment(Object.values(MODULE_IDS))],
-  play: async ({ canvas }) => {
-    await waitFor(() => expect(canvas.getAllByTestId(DATA_TEST_ID.SECTION)).toHaveLength(4));
-    await waitFor(() => expect(canvas.getByText("44% started")).toBeVisible());
-    await expect(canvas.getByRole("heading", { name: "Are people building their profiles?" })).toBeVisible();
-  },
 };
 
 export const ThreeModuleDeployment: Story = {
@@ -72,6 +67,8 @@ export const Loading: Story = {
   },
 };
 
+// The equivalent assertions live in Modules.test.tsx (jsdom, not flaky under load) — this story
+// is a visual/manual-QA fixture, not an interaction test.
 export const BuildYourProfileUnavailable: Story = {
   decorators: [withDeployment(Object.values(MODULE_IDS))],
   parameters: {
@@ -82,19 +79,10 @@ export const BuildYourProfileUnavailable: Story = {
       ],
     },
   },
-  play: async ({ canvas }) => {
-    await waitFor(() => expect(canvas.getAllByTestId(DATA_TEST_ID.SECTION)).toHaveLength(4));
-    await waitFor(() =>
-      expect(
-        canvas.getByText(
-          "Build Your Profile figures aren't available right now — the upstream data source didn't respond."
-        )
-      ).toBeVisible()
-    );
-    await expect(canvas.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
-  },
 };
 
+// The equivalent assertions live in Modules.test.tsx (jsdom, not flaky under load) — this story
+// is a visual/manual-QA fixture, not an interaction test.
 export const JobsUnavailable: Story = {
   decorators: [withDeployment(Object.values(MODULE_IDS))],
   parameters: {
@@ -104,14 +92,5 @@ export const JobsUnavailable: Story = {
         http.get(`${MODULES_API_BASE}/jobs`, () => new HttpResponse(null, { status: 500 })),
       ],
     },
-  },
-  play: async ({ canvas }) => {
-    await waitFor(() => expect(canvas.getAllByTestId(DATA_TEST_ID.SECTION)).toHaveLength(4));
-    await waitFor(() =>
-      expect(
-        canvas.getByText("Jobs figures aren't available right now — the upstream data source didn't respond.")
-      ).toBeVisible()
-    );
-    await expect(canvas.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   },
 };

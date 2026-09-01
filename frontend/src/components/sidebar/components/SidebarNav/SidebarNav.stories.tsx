@@ -12,7 +12,9 @@ const meta = {
   decorators: [
     (Story) => (
       <SidebarProvider>
-        <Story />
+        <div className="w-(--sidebar-width) bg-sidebar text-sidebar-foreground">
+          <Story />
+        </div>
       </SidebarProvider>
     ),
   ],

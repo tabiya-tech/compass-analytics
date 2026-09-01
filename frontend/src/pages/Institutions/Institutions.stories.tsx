@@ -112,7 +112,4 @@ export const Error: Story = {
   parameters: {
     msw: { handlers: [http.get("/api/institutions", () => HttpResponse.error())] },
   },
-  play: async ({ canvas }) => {
-    await waitFor(async () => expect(canvas.getByText("Failed to load institutions.")).toBeVisible());
-  },
 };

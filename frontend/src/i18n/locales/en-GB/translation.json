@@ -111,6 +111,10 @@
       "careerExplorer": "Career Explorer",
       "jobs": "Jobs"
     },
+    "sidebar": {
+      "expand": "Expand sidebar",
+      "collapse": "Collapse sidebar"
+    },
     "userMenu": {
       "trigger": "Open account menu",
       "accountSettings": "Account settings"
