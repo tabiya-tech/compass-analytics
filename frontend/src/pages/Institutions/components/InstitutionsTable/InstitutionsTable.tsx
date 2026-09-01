@@ -18,9 +18,6 @@ export const DATA_TEST_ID = {
 
 const NO_VALUE = "—";
 
-/** The wrapped header (~78px) plus ten 53px rows — the rest of the portfolio scrolls into view. */
-const TABLE_MAX_HEIGHT = "max-h-[610px]";
-
 export interface InstitutionsTableProps {
   institutions: readonly InstitutionSummary[];
   columns: readonly InstitutionColumn[];
@@ -80,7 +77,7 @@ export function InstitutionsTable({
     // min-w-0 keeps the table scrolling inside its box instead of widening the screen.
     <Table
       data-testid={DATA_TEST_ID.CONTAINER}
-      containerClassName={cn(TABLE_MAX_HEIGHT, "w-full min-w-0 rounded-card border bg-card", className)}
+      containerClassName={cn("w-full min-w-0 rounded-card border bg-card", className)}
     >
       <TableCaption className="sr-only">{t("institutions.table.caption")}</TableCaption>
       <TableHeader>

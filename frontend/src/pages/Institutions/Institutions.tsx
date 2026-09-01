@@ -63,14 +63,17 @@ export function Institutions() {
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-6 p-6" data-testid={DATA_TEST_ID.CONTAINER}>
+    <div className="flex h-svh min-w-0 flex-col gap-6 p-6 pb-8" data-testid={DATA_TEST_ID.CONTAINER}>
       <ScreenHead
+        className="shrink-0"
         eyebrow={t("institutions.eyebrow")}
         title={t("institutions.title")}
         description={t("institutions.description")}
       />
 
-      {state.status === "loading" && <InstitutionsSkeleton columns={columns.length} />}
+      {state.status === "loading" && (
+        <InstitutionsSkeleton columns={columns.length} className="min-h-64 overflow-hidden" />
+      )}
 
       {state.status === "error" && (
         <div data-testid={DATA_TEST_ID.ERROR}>
@@ -85,7 +88,7 @@ export function Institutions() {
       {state.status === "success" && (
         <>
           {/* Portfolio-wide figures — the search and filters below don't move them. */}
-          <div className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid={DATA_TEST_ID.STATS}>
+          <div className="grid min-w-0 shrink-0 gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid={DATA_TEST_ID.STATS}>
             <StatTile
               tone="inverse"
               className="min-w-0"
@@ -106,7 +109,7 @@ export function Institutions() {
             />
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-4">
             <div className="relative w-full max-w-sm">
               <Search
                 aria-hidden="true"
@@ -133,17 +136,20 @@ export function Institutions() {
             </p>
           </div>
 
-          <InstitutionsTable
-            institutions={state.data.items}
-            columns={columns}
-            sort={sort}
-            onSortChange={setSort}
-            regionOptions={regionOptions}
-            selectedRegions={regions}
-            onSelectedRegionsChange={setRegions}
-            onClearFilters={clearFilters}
-            onInstitutionSelect={(institution) => setSelectedId(institution.id)}
-          />
+          <div className="flex min-h-64 min-w-0 flex-1 flex-col">
+            <InstitutionsTable
+              className="min-h-0"
+              institutions={state.data.items}
+              columns={columns}
+              sort={sort}
+              onSortChange={setSort}
+              regionOptions={regionOptions}
+              selectedRegions={regions}
+              onSelectedRegionsChange={setRegions}
+              onClearFilters={clearFilters}
+              onInstitutionSelect={(institution) => setSelectedId(institution.id)}
+            />
+          </div>
         </>
       )}
 
