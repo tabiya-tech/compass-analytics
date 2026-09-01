@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { http, HttpResponse } from "msw";
 import { server } from "@/mocks/server";
@@ -58,7 +58,8 @@ describe("Layout", () => {
 
     // THEN the outlet content and the sidebar brand mark are both present
     await waitFor(() => expect(screen.getByTestId("screen")).toBeInTheDocument());
-    expect(screen.getByAltText("Compass Analytics")).toBeInTheDocument();
+    const sidebar = document.querySelector('[data-slot="sidebar"]') as HTMLElement;
+    expect(within(sidebar).getByAltText("Compass Analytics")).toBeInTheDocument();
   });
 
   it("should provide the access context to routed screens", async () => {

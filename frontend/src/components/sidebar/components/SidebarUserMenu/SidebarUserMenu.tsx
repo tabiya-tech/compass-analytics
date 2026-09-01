@@ -27,7 +27,7 @@ export function SidebarUserMenu({ onSignOut }: Readonly<{ onSignOut: () => void 
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <SidebarMenuButton size="lg" aria-label={t("nav.userMenu.trigger")}>
+            <SidebarMenuButton size="lg" aria-label={t("nav.userMenu.trigger")} className="px-3">
               <UserAvatar name={displayedName} className="bg-tabiya-green text-tabiya-blue" />
               <span className="grid min-w-0 flex-1 text-left">
                 <span className="truncate font-medium">{displayedName}</span>

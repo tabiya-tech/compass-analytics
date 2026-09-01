@@ -177,12 +177,18 @@ function ChartTooltipContent({
 
   const hasCustomFormatter = Boolean(formatter);
   if (!hasCustomFormatter) {
-    const totalAcrossAllSeries = payload.reduce((sum, item) => sum + (typeof item.value === "number" ? item.value : 0), 0);
+    const totalAcrossAllSeries = payload.reduce(
+      (sum, item) => sum + (typeof item.value === "number" ? item.value : 0),
+      0
+    );
 
     return (
       <div
         data-slot="chart-tooltip-content"
-        className={cn("grid min-w-32 gap-1 rounded-lg bg-primary px-3 py-2.5 text-xs text-primary-foreground shadow-md", className)}
+        className={cn(
+          "grid min-w-32 gap-1 rounded-lg bg-primary px-3 py-2.5 text-xs text-primary-foreground shadow-md",
+          className
+        )}
       >
         {tooltipLabel}
         <p className="text-2xl font-bold tabular-nums">{totalAcrossAllSeries.toLocaleString()}</p>
@@ -227,21 +233,19 @@ function ChartTooltipContent({
                 indicator === "dot" && "items-center"
               )}
             >
-              {item.value !== undefined && item.name ? (
-                formatter(item.value, item.name, item, index, item.payload)
-              ) : (
-                !hideIndicator && (
-                  <div
-                    className={cn("shrink-0 rounded-xs border-(--color-border) bg-(--color-bg)", {
-                      "h-2.5 w-2.5": indicator === "dot",
-                      "w-1": indicator === "line",
-                      "w-0 border-[1.5px] border-dashed bg-transparent": indicator === "dashed",
-                      "my-0.5": nestLabel && indicator === "dashed",
-                    })}
-                    style={{ "--color-bg": indicatorColor, "--color-border": indicatorColor } as React.CSSProperties}
-                  />
-                )
-              )}
+              {formatter && item.value !== undefined && item.name
+                ? formatter(item.value, item.name, item, index, item.payload)
+                : !hideIndicator && (
+                    <div
+                      className={cn("shrink-0 rounded-xs border-(--color-border) bg-(--color-bg)", {
+                        "h-2.5 w-2.5": indicator === "dot",
+                        "w-1": indicator === "line",
+                        "w-0 border-[1.5px] border-dashed bg-transparent": indicator === "dashed",
+                        "my-0.5": nestLabel && indicator === "dashed",
+                      })}
+                      style={{ "--color-bg": indicatorColor, "--color-border": indicatorColor } as React.CSSProperties}
+                    />
+                  )}
             </div>
           );
         })}

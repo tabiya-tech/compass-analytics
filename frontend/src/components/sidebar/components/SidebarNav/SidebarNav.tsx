@@ -130,7 +130,7 @@ export function SidebarNav() {
 
   return (
     <SidebarGroup>
-      <SidebarMenu>
+      <SidebarMenu className="group-data-[collapsible=icon]:gap-3">
         {visibleItems.map((item) => {
           const Icon = item.icon;
           const isModules = item.id === "modules";
@@ -143,7 +143,7 @@ export function SidebarNav() {
                 asChild
                 isActive={isActive}
                 tooltip={t(item.labelKey)}
-                className="h-11 gap-3 px-3 text-sm font-medium text-sidebar-foreground/70 [&>svg]:size-5"
+                className="gap-3 rounded-sm px-3 py-5 text-sm font-medium text-sidebar-foreground/70 [&>svg]:size-5 group-data-[collapsible=icon]:p-1.5!"
               >
                 <NavLink to={item.path} end={item.path === routerPaths.ROOT}>
                   <Icon />
@@ -152,7 +152,7 @@ export function SidebarNav() {
               </SidebarMenuButton>
 
               {isModules && moduleSubItems.length > 0 && (
-                <SidebarMenuSub className="mx-0 border-l-0 px-0 pl-8">
+                <SidebarMenuSub className="mx-0 border-l-0 px-0 pl-8 pt-1">
                   {moduleSubItems.map((subItem) => {
                     const SubIcon = subItem.icon;
                     return (
@@ -160,7 +160,7 @@ export function SidebarNav() {
                         <SidebarMenuSubButton
                           asChild
                           isActive={location.pathname === subItem.path}
-                          className="h-10 gap-2.5 px-2 text-sm text-sidebar-foreground/70 [&>svg]:text-current"
+                          className="gap-3 rounded-sm px-3.5 py-4 text-sm text-sidebar-foreground/70"
                         >
                           <NavLink to={subItem.path}>
                             <SubIcon />

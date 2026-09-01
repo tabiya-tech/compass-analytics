@@ -8,7 +8,7 @@ import { FiltersProvider } from "@/filters/FiltersContext";
 export const Layout = () => {
   return (
     <AccessGate>
-      <SidebarProvider className="bg-surface-page">
+      <SidebarProvider>
         <AppSidebar />
         <SidebarInset className="min-w-0">
           <FiltersProvider>
