@@ -44,9 +44,9 @@ function ProfileDetail({ label, value }: Readonly<{ label: string; value: string
   return (
     <div
       data-testid={DATA_TEST_ID.PROFILE_DETAIL}
-      className="flex min-w-0 items-baseline justify-between gap-6 border-b border-border py-4 last:border-b-0"
+      className="flex min-w-0 items-baseline justify-between gap-6 border-b border-border py-3.5 last:border-b-0"
     >
-      <dt className="shrink-0 text-muted-foreground">{label}</dt>
+      <dt className="shrink-0 text-grey-text">{label}</dt>
       <dd className="min-w-0 text-right wrap-anywhere text-foreground">{value}</dd>
     </div>
   );
@@ -111,7 +111,7 @@ function OrganizationRow({
   return (
     <div
       data-testid={DATA_TEST_ID.PROFILE_DETAIL}
-      className="flex min-w-0 items-center justify-between gap-6 border-b border-border py-4 last:border-b-0"
+      className="flex min-w-0 items-center justify-between gap-6 border-b border-border py-[13px] last:border-b-0"
     >
       <dt className="shrink-0 text-muted-foreground">{t("settings.profile.organization.label")}</dt>
       <dd className="min-w-0 flex-1">
@@ -201,10 +201,10 @@ export function Settings() {
 
       <Card data-testid={DATA_TEST_ID.PROFILE_CARD} className="max-w-md rounded-card py-6">
         <form onSubmit={saveProfile}>
-          <CardContent className="grid gap-6">
+          <CardContent className="grid gap-2">
             <div className="flex min-w-0 items-center gap-4">
               <UserAvatar name={currentName} size="xl" />
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <div className="flex min-w-0 flex-1 flex-col">
                 <NameField
                   currentName={currentName}
                   isEditingProfile={isEditingProfile}
@@ -213,7 +213,7 @@ export function Settings() {
                   isSavingProfile={isSavingProfile}
                 />
                 {!isEditingProfile && (
-                  <p data-testid={DATA_TEST_ID.PROFILE_ROLE_SUBTITLE} className="text-sm text-muted-foreground">
+                  <p data-testid={DATA_TEST_ID.PROFILE_ROLE_SUBTITLE} className="text-sm text-grey-text">
                     {role ? t(ROLE_LABEL_KEYS[role]) : unknownValuePlaceholder}
                   </p>
                 )}
@@ -264,7 +264,7 @@ export function Settings() {
               <Button
                 type="button"
                 variant="outline"
-                className="w-full rounded-pill border-tabiya-blue font-bold text-tabiya-blue hover:bg-surface-wash hover:text-tabiya-blue"
+                className="w-full rounded-pill border-tabiya-blue font-bold text-tabiya-blue py-5 hover:bg-surface-wash hover:text-tabiya-blue"
                 data-testid={DATA_TEST_ID.EDIT_PROFILE_BUTTON}
                 onClick={startEditingProfile}
               >

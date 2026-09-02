@@ -58,13 +58,13 @@ export function ModuleHeader({ moduleId, className }: Readonly<ModuleHeaderProps
       >
         <Icon className="size-6" />
       </span>
-      <div className="grid min-w-0 gap-1.5">
+      <div className="grid min-w-0 gap-1">
         <p data-testid={DATA_TEST_ID.EYEBROW} className="font-mono text-xs tracking-[2px] text-green-3 uppercase">
           {t(copy.eyebrow)}
         </p>
         <h2
           data-testid={DATA_TEST_ID.HEADLINE}
-          className="text-3xl font-bold tracking-tight text-balance text-foreground"
+          className="text-[1.688rem] font-semibold tracking-tight text-balance text-foreground"
         >
           {t(copy.headline)}
         </h2>

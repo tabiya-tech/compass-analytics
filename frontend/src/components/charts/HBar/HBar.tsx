@@ -55,7 +55,7 @@ export function HBar({
   const scaleMax = max ?? Math.max(0, ...items.map((item) => item.value));
 
   return (
-    <ul data-slot="h-bar" aria-label={label} className={cn("grid gap-4", className)}>
+    <ul data-slot="h-bar" aria-label={label} className={cn("grid gap-3.5", className)}>
       {items.map((item) => {
         const percentage = scaleMax > 0 ? (item.value / scaleMax) * 100 : 0;
         const isSelected = selectedId === item.id;
@@ -64,8 +64,8 @@ export function HBar({
         const row = (
           <>
             <span className="flex items-baseline justify-between gap-4">
-              <span className="truncate text-foreground">{item.label}</span>
-              <span className="shrink-0 text-muted-foreground tabular-nums">{valueFormatter(item.value)}</span>
+              <span className="truncate text-foreground text-[13px]">{item.label}</span>
+              <span className="shrink-0 text-grey-text tabular-nums text-[13px]">{valueFormatter(item.value)}</span>
             </span>
             <Progress
               data-testid={DATA_TEST_ID.BAR}

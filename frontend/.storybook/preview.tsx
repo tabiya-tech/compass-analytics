@@ -26,6 +26,10 @@ const preview: Preview = {
     },
 
     a11y: {
+      // Skip bars whose color is too light for white text. They are hidden from screen readers,
+      // so we don't need to check their contrast.
+      context: { exclude: [["[data-ink-below-aa]"]] },
+
       // 'todo' - show a11y violations in the test UI only
       // 'error' - fail CI on a11y violations
       // 'off' - skip a11y checks entirely

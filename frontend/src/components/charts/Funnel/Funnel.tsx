@@ -108,25 +108,26 @@ export function Funnel({
       className={cn("w-full transition-opacity duration-(--duration-base)", isLoading && "opacity-60", className)}
     >
       {/* The bars carry their own figures as text, so the plot is hidden from assistive tech in favour of the table below. */}
-      <div aria-hidden="true" className="grid gap-2.5">
-        {rows.map((row) => (
+      <div aria-hidden="true" className="grid gap-2">
+        {rows.map((row, index) => (
           <div key={row.id} data-testid={DATA_TEST_ID.STAGE} data-stage={row.id} className={cn(GRID, "items-center")}>
-            <span className="truncate text-right font-mono text-xs tracking-[2px] text-muted-foreground uppercase">
+            <span className="truncate text-right font-mono text-[11px] tracking-[2px] text-grey-text uppercase">
               {row.label}
             </span>
             <span className="flex justify-center">
               <span
                 data-testid={DATA_TEST_ID.BAR}
+                data-ink-below-aa={index === 0 || undefined}
                 style={{ width: `${row.widthPercentage}%`, backgroundColor: row.stop.fill, color: row.stop.ink }}
-                className="flex h-13 items-baseline justify-center gap-2 rounded-md px-3 py-4"
+                className="flex h-[46px] items-center justify-center gap-2 rounded-sm"
               >
                 <span className="truncate font-bold tabular-nums">{valueFormatter(row.value)}</span>
-                <span className="shrink-0 text-sm tabular-nums">{row.share}%</span>
+                <span className="shrink-0 text-[11.5px] tabular-nums">{row.share}%</span>
               </span>
             </span>
             <span
               data-testid={DATA_TEST_ID.DROP_OFF}
-              className="hidden text-right text-sm text-destructive tabular-nums sm:block"
+              className="hidden text-right text-[11.5px] text-destructive tabular-nums sm:block"
             >
               {row.dropOff == null ? "" : formatDropOff(row.dropOff, valueFormatter)}
             </span>
@@ -139,8 +140,8 @@ export function Funnel({
             className={cn(GRID, "mt-2 items-center font-mono text-xs tracking-[2px] text-muted-foreground uppercase")}
           >
             <span />
-            <span className="text-center">{valueCaption}</span>
-            <span className="hidden text-right sm:block">{dropOffCaption}</span>
+            <span className="text-center text-grey-text text-[10.5px]">{valueCaption}</span>
+            <span className="hidden text-grey-text text-[10.5px] text-right sm:block">{dropOffCaption}</span>
           </div>
         )}
       </div>

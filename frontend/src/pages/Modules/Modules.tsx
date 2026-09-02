@@ -5,6 +5,7 @@ import { routerPaths } from "@/app/routerPaths";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ScreenHead } from "@/components/shared/ScreenHead";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { ModuleBody } from "@/pages/Modules/components/ModuleBody";
 import { ModuleHeader } from "@/pages/Modules/components/ModuleHeader";
 import { ModuleTimeline } from "@/pages/Modules/components/ModuleTimeline";
@@ -53,10 +54,12 @@ export function Modules() {
 
   if (rendersModulesInline(activeModules)) return <Navigate to={routerPaths.ROOT} replace />;
 
+  const hasTimeline = Boolean(metrics && metrics.modules.length > 0);
+
   return (
     // The shell's SidebarInset is the page's <main>, so this is a section of it.
-    <div data-testid={DATA_TEST_ID.CONTAINER} className="grid content-start gap-8 pb-20">
-      <div className={`pt-8 ${PADDING}`}>
+    <div data-testid={DATA_TEST_ID.CONTAINER} className="grid content-start gap-5 pb-20">
+      <div className={`grid gap-2 pt-8 ${PADDING}`}>
         <ScreenHead
           eyebrow={t("modules.eyebrow")}
           title={t("modules.title")}
@@ -64,9 +67,10 @@ export function Modules() {
             metrics ? t("modules.description", { range: formatDateRangeLabel(metrics.dateRange) }) : undefined
           }
         />
+        {hasTimeline && <p className="text-muted-foreground text-[15px]">{t("modules.timelineHint")}</p>}
       </div>
 
-      {metrics && metrics.modules.length > 0 && (
+      {hasTimeline && metrics && (
         <ModuleTimeline
           className={PADDING}
           modules={metrics.modules.map((module) => ({
@@ -91,20 +95,19 @@ export function Modules() {
 
       {!metrics && !error && <ModulesSkeleton />}
 
-      {metrics &&
-        metrics.modules.map((module) => (
-          <section
-            key={module.moduleId}
-            id={moduleSectionElementId(module.moduleId)}
-            data-testid={DATA_TEST_ID.SECTION}
-            data-module={module.moduleId}
-            // Jumped-to sections stop below the sticky timeline rather than under it.
-            className={`grid scroll-mt-36 content-start gap-6 pt-6 ${PADDING}`}
-          >
-            <ModuleHeader moduleId={module.moduleId} />
-            <ModuleBody metrics={module} isLoading={isModuleLoading(module.moduleId)} />
-          </section>
-        ))}
+      {metrics?.modules.map((module, index) => (
+        <section
+          key={module.moduleId}
+          id={moduleSectionElementId(module.moduleId)}
+          data-testid={DATA_TEST_ID.SECTION}
+          data-module={module.moduleId}
+          // Jumped-to sections stop below the sticky timeline rather than under it.
+          className={cn("grid scroll-mt-36 content-start gap-6", index > 0 && "pt-6", PADDING)}
+        >
+          <ModuleHeader moduleId={module.moduleId} />
+          <ModuleBody metrics={module} isLoading={isModuleLoading(module.moduleId)} />
+        </section>
+      ))}
     </div>
   );
 }

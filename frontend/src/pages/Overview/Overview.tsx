@@ -88,7 +88,7 @@ export function Overview() {
 
   return (
     // The shell's SidebarInset is the page's <main>, so this is a section of it.
-    <div data-testid={DATA_TEST_ID.CONTAINER} className="grid content-start gap-8 px-8 pt-8 pb-20">
+    <div data-testid={DATA_TEST_ID.CONTAINER} className="grid content-start gap-5 px-8 pt-8 pb-20">
       <ScreenHead
         eyebrow={t(isPortfolio ? "overview.eyebrow.portfolio" : "overview.eyebrow.institution")}
         title={t("overview.title")}
@@ -112,9 +112,10 @@ export function Overview() {
 
       {metrics && (
         <>
-          <div data-testid={DATA_TEST_ID.TILES} className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div data-testid={DATA_TEST_ID.TILES} className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 pt-2">
             <div data-testid={DATA_TEST_ID.CUMULATIVE_USERS_TILE}>
               <StatTile
+                className="h-full"
                 label={t("overview.tiles.cumulativeUsers.label")}
                 value={formatNumber(metrics.cumulativeUsers.total)}
                 icon={<Users />}
@@ -142,6 +143,7 @@ export function Overview() {
 
             <div data-testid={DATA_TEST_ID.ACTIVE_USERS_TILE}>
               <StatTile
+                className="h-full"
                 label={t("overview.tiles.activeUsers.label")}
                 value={formatNumber(metrics.activeUsers.count)}
                 icon={<Activity />}
@@ -154,6 +156,7 @@ export function Overview() {
 
             <div data-testid={DATA_TEST_ID.SESSION_LENGTH_TILE}>
               <StatTile
+                className="h-full"
                 label={t("overview.tiles.avgSession.label")}
                 value={t("overview.tiles.avgSession.value", { minutes: metrics.averageSessionMinutes })}
                 icon={<Clock />}
@@ -162,7 +165,7 @@ export function Overview() {
             </div>
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-3">
+          <div className="grid gap-5 xl:grid-cols-3">
             <ReachOverTimePanel
               reachSeries={metrics.reachSeries}
               granularity={metrics.granularity}

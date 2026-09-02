@@ -8,6 +8,7 @@ import { ChartLegend } from "@/components/charts/DonutChart/components/ChartLege
 import {
   CHART_PROGRESS_ACTIVE_COLOR,
   CHART_PROGRESS_DONE_COLOR,
+  CHART_TRACK_COLOR,
   seriesColorAt,
 } from "@/components/charts/chart-palette";
 import { formatMinutesDuration, formatNumber } from "@/components/charts/chart-scale";
@@ -126,6 +127,8 @@ function JobReadinessBody({ metrics, isLoading }: Readonly<{ metrics: JobReadine
   const busiest = Math.max(0, ...metrics.subModules.map((subModule) => subModule.started));
   const completedLabel = t("modules.jobReadiness.progress.legend.completed");
   const startedLabel = t("modules.jobReadiness.progress.legend.started");
+  const inProgressLabel = t("modules.jobReadiness.progress.legend.inProgress");
+  const notStartedLabel = t("modules.jobReadiness.progress.legend.notStarted");
 
   return (
     <Panel
@@ -133,35 +136,34 @@ function JobReadinessBody({ metrics, isLoading }: Readonly<{ metrics: JobReadine
       title={t("modules.jobReadiness.progress.title")}
       description={t("modules.jobReadiness.progress.description")}
       isLoading={isLoading}
-      action={
-        metrics.subModules.length > 0 ? (
-          <ChartLegend
-            className="pt-0"
-            items={[
-              { id: "completed", label: completedLabel, color: CHART_PROGRESS_DONE_COLOR },
-              { id: "started", label: startedLabel, color: CHART_PROGRESS_ACTIVE_COLOR },
-            ]}
-          />
-        ) : undefined
-      }
     >
       {metrics.subModules.length === 0 ? (
         <EmptyState message={t("modules.jobReadiness.progress.empty")} />
       ) : (
-        <ul className="grid gap-6">
-          {metrics.subModules.map((subModule) => (
-            <li key={subModule.id} data-testid={DATA_TEST_ID.SUB_MODULE} data-sub-module={subModule.id}>
-              <GaugeBar
-                label={subModule.name}
-                value={subModule.completed}
-                valueLabel={completedLabel.toLowerCase()}
-                secondaryValue={subModule.started}
-                secondaryValueLabel={startedLabel.toLowerCase()}
-                max={busiest}
-              />
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="grid gap-4.5">
+            {metrics.subModules.map((subModule) => (
+              <li key={subModule.id} data-testid={DATA_TEST_ID.SUB_MODULE} data-sub-module={subModule.id}>
+                <GaugeBar
+                  label={subModule.name}
+                  value={subModule.completed}
+                  valueLabel={completedLabel.toLowerCase()}
+                  secondaryValue={subModule.started}
+                  secondaryValueLabel={startedLabel.toLowerCase()}
+                  max={busiest}
+                />
+              </li>
+            ))}
+          </ul>
+          <ChartLegend
+            className="pt-3"
+            items={[
+              { id: "completed", label: completedLabel, color: CHART_PROGRESS_DONE_COLOR },
+              { id: "in-progress", label: inProgressLabel, color: CHART_PROGRESS_ACTIVE_COLOR },
+              { id: "not-started", label: notStartedLabel, color: CHART_TRACK_COLOR },
+            ]}
+          />
+        </>
       )}
     </Panel>
   );

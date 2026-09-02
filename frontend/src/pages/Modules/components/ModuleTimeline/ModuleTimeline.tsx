@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { ModuleId } from "@/access/AccessContext";
@@ -17,8 +17,18 @@ export const DATA_TEST_ID = {
   CONNECTOR: `module-timeline-connector-${uniqueId}`,
 };
 
-/** The band a section reaches into to count as the one being read: under the sticky bar, above mid-viewport. */
 const SPY_ROOT_MARGIN = "-140px 0px -55% 0px";
+
+const CONNECTOR_SQUARE_DOTS =
+  "linear-gradient(to right, var(--color-green-2) var(--connector-thickness), transparent var(--connector-thickness))";
+const CONNECTOR_SQUARE_DOT_AND_GAP = "var(--connector-pitch) var(--connector-thickness)";
+
+const TIMELINE_GEOMETRY = {
+  "--marker-size": "48px",
+  "--connector-thickness": "2px",
+  "--connector-pitch": "10px",
+  "--connector-inset": "26px",
+} as CSSProperties;
 
 export interface ModuleTimelineItem {
   id: ModuleId;
@@ -108,9 +118,9 @@ export function ModuleTimeline({ modules, className }: Readonly<ModuleTimelinePr
       data-slot="module-timeline"
       data-testid={DATA_TEST_ID.CONTAINER}
       aria-label={t("modules.timeline.label")}
-      className={cn("sticky top-0 z-20 border-b bg-background/95 backdrop-blur-sm", className)}
+      className={cn("sticky top-0 z-[5] bg-surface-page", className)}
     >
-      <ol className="flex items-start justify-between gap-1 px-2 py-6">
+      <ol className="flex items-start border-b py-5" style={TIMELINE_GEOMETRY}>
         {modules.map((module, index) => {
           const Icon = MODULE_ICONS[module.id];
           const isActive = module.id === activeModuleId;
@@ -122,50 +132,56 @@ export function ModuleTimeline({ modules, className }: Readonly<ModuleTimelinePr
               data-testid={DATA_TEST_ID.STEP}
               data-module={module.id}
               data-active={isActive || undefined}
-              className="flex min-w-0 flex-1 items-start last:flex-none"
+              className="relative flex min-w-0 flex-1 flex-col items-center"
             >
+              {/* Spans this step's centre to the next one's, stopping clear of both markers. */}
+              {index < modules.length - 1 && (
+                <span
+                  data-testid={DATA_TEST_ID.CONNECTOR}
+                  aria-hidden="true"
+                  className="absolute top-[calc((var(--marker-size)_-_var(--connector-thickness))_/_2)] left-[calc(50%_+_var(--connector-inset))] right-[calc(var(--connector-inset)_-_50%)] h-(--connector-thickness)"
+                  style={{
+                    backgroundImage: CONNECTOR_SQUARE_DOTS,
+                    backgroundSize: CONNECTOR_SQUARE_DOT_AND_GAP,
+                    backgroundRepeat: "repeat-x",
+                  }}
+                />
+              )}
+
               <button
                 type="button"
                 onClick={() => jumpToModule(module.id)}
                 aria-current={isActive ? "true" : undefined}
                 aria-label={t("modules.timeline.jump", { module: label })}
-                className="grid cursor-pointer justify-items-center gap-2 rounded-md px-2 py-1 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+                className="flex cursor-pointer flex-col items-center gap-2 rounded-md px-3 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
               >
                 <span
                   aria-hidden="true"
                   className={cn(
-                    "flex size-11 items-center justify-center rounded-full transition-colors duration-(--duration-base)",
+                    "flex size-(--marker-size) shrink-0 items-center justify-center rounded-full",
+                    "border-[3px] border-surface-page transition-all duration-200 ease-(--ease-out)",
                     isActive
-                      ? "bg-tabiya-green text-tabiya-blue shadow-[0_0_0_6px_rgba(0,255,145,0.25)]"
-                      : "bg-tabiya-blue text-tabiya-green"
+                      ? "bg-tabiya-green text-tabiya-blue shadow-[0_4px_14px_rgba(0,255,145,0.35)]"
+                      : "bg-tabiya-blue text-tabiya-green shadow-sm"
                   )}
                 >
                   <Icon className="size-5" />
                 </span>
-                <span
-                  data-testid={DATA_TEST_ID.STEP_LABEL}
-                  className={cn(
-                    "max-w-40 truncate text-sm font-semibold",
-                    isActive ? "text-foreground" : "text-foreground/80"
-                  )}
-                >
-                  {label}
-                </span>
-                <span
-                  data-testid={DATA_TEST_ID.STEP_STARTED}
-                  className="font-mono text-xs tracking-[1px] text-muted-foreground"
-                >
-                  {t("modules.timeline.started", { value: module.startedPercentage })}
+                <span className="grid justify-items-center gap-0.5 text-center">
+                  <span
+                    data-testid={DATA_TEST_ID.STEP_LABEL}
+                    className="max-w-40 truncate text-[13px] font-semibold text-foreground"
+                  >
+                    {label}
+                  </span>
+                  <span
+                    data-testid={DATA_TEST_ID.STEP_STARTED}
+                    className="font-mono text-[10.5px] tracking-[1px] text-green-3"
+                  >
+                    {t("modules.timeline.started", { value: module.startedPercentage })}
+                  </span>
                 </span>
               </button>
-
-              {index < modules.length - 1 && (
-                <span
-                  data-testid={DATA_TEST_ID.CONNECTOR}
-                  aria-hidden="true"
-                  className="mt-5.5 h-px min-w-4 flex-1 border-t-2 border-dotted border-green-2"
-                />
-              )}
             </li>
           );
         })}

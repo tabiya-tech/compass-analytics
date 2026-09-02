@@ -171,13 +171,12 @@
   --chart-warning: #b8761a;
 
   --chart-progress-done: var(--green-3);
-  --chart-progress-active: #a5d9bf;
+  --chart-progress-active: color-mix(in oklab, var(--green-2) 50%, transparent);
 
-  --chart-funnel-1: #5fb37f;
-  --chart-funnel-2: #4f9f79;
-  --chart-funnel-3: #3a7a6b;
-  --chart-funnel-4: #2b5c4e;
-  --chart-funnel-5: var(--tabiya-blue);
+  --chart-funnel-1: #2ba676;
+  --chart-funnel-2: var(--green-3);
+  --chart-funnel-3: #1f6157;
+  --chart-funnel-4: var(--tabiya-blue);
   --chart-funnel-ink-on-light: var(--tabiya-blue);
   --chart-funnel-ink-on-dark: var(--white);
 
@@ -236,6 +235,7 @@
   --color-tabiya-grey: var(--tabiya-grey);
   --color-green-2: var(--green-2);
   --color-green-3: var(--green-3);
+  --color-grey-text: var(--grey-text);
   --color-surface-page: var(--surface-page);
   --color-surface-wash: var(--surface-wash);
 
@@ -269,6 +269,10 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply bg-surface-page;
   }
 
   body {

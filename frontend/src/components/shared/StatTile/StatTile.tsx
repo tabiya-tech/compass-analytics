@@ -38,9 +38,9 @@ export interface StatTileProps {
 const TONE_STYLES = {
   default: {
     card: "",
-    label: "text-foreground/70",
+    label: "text-grey-text",
     value: "text-foreground",
-    caption: "text-muted-foreground",
+    caption: "text-grey-text",
   },
   inverse: {
     card: "border-transparent bg-tabiya-blue",
@@ -53,7 +53,7 @@ const TONE_STYLES = {
 const TREND_STYLES = {
   up: { Icon: TrendingUp, className: "text-green-3" },
   down: { Icon: TrendingDown, className: "text-destructive" },
-  flat: { Icon: Minus, className: "text-muted-foreground" },
+  flat: { Icon: Minus, className: "text-grey-text" },
 } as const;
 
 // trendFlat has no {{value}} placeholder, so passing it along is harmless.
@@ -82,14 +82,14 @@ function TrendIndicator({ value, label }: Readonly<StatTileTrend>) {
       data-slot="stat-tile-trend"
       data-testid={DATA_TEST_ID.TREND}
       data-direction={direction}
-      className="flex items-center gap-1.5 text-sm"
+      className="flex items-center gap-1.5 text-[12.5px]"
     >
       <span className={cn("flex items-center gap-1 font-medium", className)}>
         <Icon aria-hidden="true" className="size-3.5" />
         <span aria-hidden="true">{magnitude}%</span>
         <span className="sr-only">{srLabel}</span>
       </span>
-      {label && <span className="text-muted-foreground">{label}</span>}
+      {label && <span className="text-grey-text">{label}</span>}
     </p>
   );
 }
@@ -111,34 +111,29 @@ export function StatTile({
       data-slot="stat-tile"
       data-testid={DATA_TEST_ID.CONTAINER}
       data-tone={tone}
-      className={cn("gap-2.5 py-5", toneStyles.card, className)}
+      className={cn("gap-2.5 px-[22px] py-5", toneStyles.card, className)}
     >
       {(label || icon) && (
-        <CardHeader className="px-[22px]">
+        <CardHeader className="gap-0 px-0">
           <CardDescription
             data-testid={DATA_TEST_ID.LABEL}
-            className={cn("font-mono text-xs tracking-[2px] uppercase", toneStyles.label)}
+            className={cn("font-mono text-[12.5px] tracking-[2px] uppercase", toneStyles.label)}
           >
             {label}
           </CardDescription>
           {icon && (
-            <CardAction
-              data-slot="stat-tile-icon"
-              data-testid={DATA_TEST_ID.ICON}
-              aria-hidden="true"
-              className="text-muted-foreground [&_svg]:size-4"
-            >
+            <CardAction data-testid={DATA_TEST_ID.ICON} aria-hidden="true" className="text-green-3 [&_svg]:size-4">
               {icon}
             </CardAction>
           )}
         </CardHeader>
       )}
-      <CardContent className="grid gap-1.5 px-[22px]">
+      <CardContent className="grid gap-2.5 px-0">
         <div className="flex items-center justify-between gap-4">
           <p
             data-slot="stat-tile-value"
             data-testid={DATA_TEST_ID.VALUE}
-            className={cn("text-4xl font-bold tracking-tight", toneStyles.value)}
+            className={cn("text-3xl font-bold tracking-tight", toneStyles.value)}
           >
             {value}
           </p>
@@ -153,7 +148,7 @@ export function StatTile({
           <p
             data-slot="stat-tile-caption"
             data-testid={DATA_TEST_ID.CAPTION}
-            className={cn("text-sm", toneStyles.caption)}
+            className={cn("text-[12.5px]", toneStyles.caption)}
           >
             {caption}
           </p>
