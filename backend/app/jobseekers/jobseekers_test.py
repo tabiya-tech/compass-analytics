@@ -8,15 +8,16 @@ import pytest
 from fastapi import FastAPI
 
 from app.auth.firebase import Authentication
-from app.grants.repository import IGrantRepository
-from app.grants.types import GrantRecord
-from app.jobseekers.access import GrantsAccessResolver
-from app.jobseekers.dependencies import get_jobseeker_access_resolver, get_jobseekers_service
+from app.casbin.enforcer import clear_enforcer_cache
+from app.jobseekers.dependencies import get_jobseekers_service
 from app.jobseekers.institution_ids import encode_institution_id
 from app.jobseekers.repositories import CompassStudentsRepository
 from app.jobseekers.routes import add_jobseekers_routes
 from app.jobseekers.services import JobseekersService
-from app.users.types import ALL_INSTITUTIONS, Action, Subject
+from app.roles.repository import IRoleRepository, IUserRoleRepository
+from app.roles.types import RoleRecord, UserRoleRecord
+from app.users.dependencies import get_role_repository, get_user_role_repository
+from app.users.types import Action, Subject
 from common_libs.http_client.base import AsyncHttpClient
 
 _TEST_SECRET = "test-secret-key-long-enough-for-hs256"  # nosec B105 — HS256 signing key for forged test JWTs, not a credential
@@ -41,16 +42,6 @@ def _headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def _grant(user_id: str, subject: Subject, action: Action, institution_id: str) -> GrantRecord:
-    return GrantRecord(
-        grant_id=f"{user_id}-{subject.value}-{action.value}-{institution_id}",
-        user_id=user_id,
-        subject=subject,
-        action=action,
-        institution_id=institution_id,
-    )
-
-
 _USER_A = "user-granted-a"
 _USER_B = "user-granted-b"
 _USER_ALL = "user-granted-everything"
@@ -59,48 +50,89 @@ _USER_DASHBOARD_ONLY = "user-dashboard-only"
 _USER_MANAGE_ONLY = "user-jobseekers-manage-only"
 _USER_UNPROVISIONED = "user-with-no-grants"
 
-#: What the `grants` collection holds for each caller in this suite.
-_GRANTS: dict[str, list[GrantRecord]] = {
-    _USER_A: [_grant(_USER_A, Subject.JOBSEEKERS, Action.VIEW, _INSTITUTION_A)],
-    _USER_B: [_grant(_USER_B, Subject.JOBSEEKERS, Action.VIEW, _INSTITUTION_B)],
-    _USER_ALL: [_grant(_USER_ALL, Subject.JOBSEEKERS, Action.VIEW, ALL_INSTITUTIONS)],
-    _USER_BOTH: [
-        _grant(_USER_BOTH, Subject.JOBSEEKERS, Action.VIEW, _INSTITUTION_A),
-        _grant(_USER_BOTH, Subject.JOBSEEKERS, Action.VIEW, _INSTITUTION_B),
-    ],
-    _USER_DASHBOARD_ONLY: [_grant(_USER_DASHBOARD_ONLY, Subject.DASHBOARD, Action.VIEW, _INSTITUTION_A)],
-    # Managing jobseekers is not viewing them: the model implies nothing between actions.
-    _USER_MANAGE_ONLY: [_grant(_USER_MANAGE_ONLY, Subject.JOBSEEKERS, Action.MANAGE, _INSTITUTION_A)],
-    _USER_UNPROVISIONED: [],
-}
+_INSTITUTION_ROLE_ID = "000000000000000000000010"
+_DEPLOYMENT_ROLE_ID = "000000000000000000000011"
+
+_INSTITUTION_SCOPED_ROLE = RoleRecord(**{
+    "_id": _INSTITUTION_ROLE_ID,
+    "name": "jobseekers-viewer-institution",
+    "label": "Jobseekers Viewer (institution)",
+    "description": "",
+    "permissions": [{"subject": Subject.JOBSEEKERS, "action": Action.VIEW}],
+    "assignable": True,
+})
+
+_DEPLOYMENT_WIDE_ROLE = RoleRecord(**{
+    "_id": _DEPLOYMENT_ROLE_ID,
+    "name": "jobseekers-viewer-deployment",
+    "label": "Jobseekers Viewer (deployment)",
+    "description": "",
+    "permissions": [{"subject": Subject.JOBSEEKERS, "action": Action.VIEW}],
+    "assignable": True,
+})
 
 
-class _StubGrantRepository(IGrantRepository):
-    async def list_all(self) -> list[GrantRecord]:
-        return [grant for grants in _GRANTS.values() for grant in grants]
+class _TestRoleRepository(IRoleRepository):
+    async def list_all(self) -> list[RoleRecord]:
+        return [_INSTITUTION_SCOPED_ROLE, _DEPLOYMENT_WIDE_ROLE]
 
-    async def list_for_user(self, user_id: str) -> list[GrantRecord]:
-        return list(_GRANTS.get(user_id, []))
+    async def get_by_id(self, role_id: str) -> RoleRecord | None:
+        return {_INSTITUTION_ROLE_ID: _INSTITUTION_SCOPED_ROLE, _DEPLOYMENT_ROLE_ID: _DEPLOYMENT_WIDE_ROLE}.get(role_id)
 
-    async def list_for_users(self, user_ids: list[str]) -> list[GrantRecord]:
-        return [grant for user_id in user_ids for grant in _GRANTS.get(user_id, [])]
+    async def get_by_name(self, name: str) -> RoleRecord | None:
+        return None
 
-    async def create(self, user_id, subject, action, institution_id, granted_by):
+
+def _institution_user_role(user_id: str, institution_id: str, idx: int) -> UserRoleRecord:
+    return UserRoleRecord(**{
+        "_id": f"0000000000000000000000{idx:02d}",
+        "user_id": user_id,
+        "role_id": _INSTITUTION_ROLE_ID,
+        "institution_id": institution_id,
+        "granted_by": None,
+        "granted_at": None,
+    })
+
+
+def _deployment_user_role(user_id: str, idx: int) -> UserRoleRecord:
+    return UserRoleRecord(**{
+        "_id": f"0000000000000000000000{idx:02d}",
+        "user_id": user_id,
+        "role_id": _DEPLOYMENT_ROLE_ID,
+        "institution_id": None,
+        "granted_by": None,
+        "granted_at": None,
+    })
+
+
+_ALL_USER_ROLES: list[UserRoleRecord] = [
+    _institution_user_role(_USER_A, _INSTITUTION_A, 1),
+    _institution_user_role(_USER_B, _INSTITUTION_B, 2),
+    _deployment_user_role(_USER_ALL, 3),
+    _institution_user_role(_USER_BOTH, _INSTITUTION_A, 4),
+    _institution_user_role(_USER_BOTH, _INSTITUTION_B, 5),
+]
+
+
+class _TestUserRoleRepository(IUserRoleRepository):
+    """Per-user role assignments matching the access expectations in these tests."""
+
+    async def list_all(self) -> list[UserRoleRecord]:
+        return _ALL_USER_ROLES
+
+    async def list_for_user(self, user_id: str) -> list[UserRoleRecord]:
+        return [r for r in _ALL_USER_ROLES if r.user_id == user_id]
+
+    async def list_for_users(self, user_ids: list[str]) -> list[UserRoleRecord]:
+        return [r for r in _ALL_USER_ROLES if r.user_id in user_ids]
+
+    async def assign(self, user_id, role_id, institution_id, granted_by):
         raise NotImplementedError
 
-    async def get_by_tuple(self, user_id, subject, action, institution_id):
+    async def revoke(self, user_role_id):
         raise NotImplementedError
 
-    async def get_by_grant_id(self, user_id, grant_id):
-        raise NotImplementedError
-
-    async def delete(self, user_id, grant_id):
-        raise NotImplementedError
-
-    async def set_granted_by(self, user_id, subject, action, institution_id, granted_by):
-        raise NotImplementedError
-
-    async def delete_by_tuple(self, user_id, subject, action, institution_id):
+    async def revoke_all_for_user(self, user_id):
         raise NotImplementedError
 
 
@@ -113,7 +145,7 @@ _GRANTED_B = _headers(_make_token(_USER_B))
 _UNGRANTED = _headers(_make_token(_USER_DASHBOARD_ONLY))
 #: Granted jobseekers:manage, which is not jobseekers:view.
 _MANAGE_ONLY = _headers(_make_token(_USER_MANAGE_ONLY))
-#: Authenticated, but with no grants at all — the default for any new account.
+#: Authenticated, but with no roles at all — the default for any new account.
 _NO_GRANTS = _headers(_make_token(_USER_UNPROVISIONED))
 #: A deployment-wide grant.
 _GRANTED_ALL = _headers(_make_token(_USER_ALL))
@@ -240,12 +272,16 @@ def _make_app(handler) -> FastAPI:
     http_client = AsyncHttpClient.__new__(AsyncHttpClient)
     http_client._client = httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="http://compass-mock")
 
+    role_repo = _TestRoleRepository()
+    user_role_repo = _TestUserRoleRepository()
+
     app = FastAPI()
     add_jobseekers_routes(app, Authentication())
     app.dependency_overrides[get_jobseekers_service] = lambda: JobseekersService(
         repository=CompassStudentsRepository(http_client)
     )
-    app.dependency_overrides[get_jobseeker_access_resolver] = lambda: GrantsAccessResolver(_StubGrantRepository())
+    app.dependency_overrides[get_role_repository] = lambda: role_repo
+    app.dependency_overrides[get_user_role_repository] = lambda: user_role_repo
     return app
 
 
@@ -258,27 +294,33 @@ def compass() -> _CompassStub:
 async def client(monkeypatch, compass):
     # GIVEN the server runs in local mode (no Firebase signature verification)
     monkeypatch.setenv("TARGET_ENVIRONMENT_TYPE", "local")
+    clear_enforcer_cache()
     app = _make_app(compass)
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
         yield c
+    clear_enforcer_cache()
 
 
 @pytest.fixture()
 async def client_leaky_api(monkeypatch):
     # GIVEN the server runs in local mode and Compass answers wider than it was asked
     monkeypatch.setenv("TARGET_ENVIRONMENT_TYPE", "local")
+    clear_enforcer_cache()
     app = _make_app(_leaky_handler)
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
         yield c
+    clear_enforcer_cache()
 
 
 @pytest.fixture()
 async def client_no_api(monkeypatch):
     # GIVEN the server runs in local mode and Compass is unreachable
     monkeypatch.setenv("TARGET_ENVIRONMENT_TYPE", "local")
+    clear_enforcer_cache()
     app = _make_app(_unavailable_handler)
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
         yield c
+    clear_enforcer_cache()
 
 
 def _roster_url(**params) -> str:
@@ -332,8 +374,8 @@ class TestJobseekersAccessControl:
         # THEN expect the request to be refused
         assert actual_response.status_code == 403
 
-    async def test_should_refuse_a_caller_with_no_grants_at_all(self, client):
-        # GIVEN a caller with no rows in the grants collection — the default for any new account
+    async def test_should_refuse_a_caller_with_no_roles_at_all(self, client):
+        # GIVEN a caller with no role assignments — the default for any new account
 
         # WHEN they request the roster
         actual_response = await client.get(_roster_url(institution_id=_INSTITUTION_A), headers=_NO_GRANTS)
@@ -350,14 +392,14 @@ class TestJobseekersAccessControl:
         # THEN expect the request to be refused rather than read as permission to look
         assert actual_response.status_code == 403
 
-    async def test_should_read_the_grant_from_the_grants_collection_not_the_token(self, client):
+    async def test_should_read_access_from_roles_not_the_token(self, client):
         # GIVEN a caller whose token carries no permission claim at all, only their identity
-        # AND a jobseekers:view grant recorded against that identity
+        # AND a jobseekers:view role assigned to that identity
 
         # WHEN they request the roster
         actual_response = await client.get(_roster_url(institution_id=_INSTITUTION_A), headers=_GRANTED_A)
 
-        # THEN expect it to be served — the grants collection is the authoritative source
+        # THEN expect it to be served — the roles/user_roles collections are the authoritative source
         assert actual_response.status_code == 200
         assert "permissions" not in pyjwt.decode(_TOKEN_A, options={"verify_signature": False})
 

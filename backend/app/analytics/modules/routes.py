@@ -15,7 +15,7 @@ from app.auth.firebase import Authentication, UserInfo
 from app.casbin.requires import CasbinAPIRouter, make_requires
 from app.errors import ForbiddenInstitutionErrorResponse
 from app.shared.filters import AnalyticsFilters, AudienceSegment, Granularity, LoginMethod, verify_basic_filters
-from app.users.dependencies import get_grant_repository
+from app.users.dependencies import get_role_repository, get_user_role_repository
 from app.users.errors import ForbiddenInstitutionError, NotProvisionedForbiddenErrorResponse, UserNotProvisionedError
 from app.users.types import Action, Subject
 
@@ -42,9 +42,9 @@ def _filters(
 
 def add_modules_routes(router: APIRouter, auth: Authentication) -> None:
     get_user_info = auth.get_user_info()
-    requires = make_requires(get_user_info, get_grant_repository)
+    requires = make_requires(get_user_info, get_role_repository, get_user_role_repository)
 
-    modules_router = CasbinAPIRouter(requires_factory=requires)
+    modules_router = CasbinAPIRouter(requires_factory=requires, )
 
     # str, not a Literal, so an unknown key reaches the service layer and gets a 404, not a 422.
     @modules_router.get("/modules/{module_key}", response_model=ModulesResponse, responses={

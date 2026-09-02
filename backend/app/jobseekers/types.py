@@ -1,7 +1,10 @@
 from datetime import date
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from app.casbin.requires import ResolvedScope
 
 # ---- Vocabulary shared with the frontend ----
 
@@ -14,7 +17,6 @@ SortDirection = Literal["asc", "desc"]
 JobseekerSortKey = Literal["name", "profile_score_pct", "registered_at", "last_login_at"]
 
 MODULE_IDS: tuple[ModuleId, ...] = ("build-your-profile", "job-readiness", "career-explorer", "jobs")
-
 
 # ---- Access ----
 
@@ -29,12 +31,11 @@ class AccessScope(BaseModel):
             return True
         return institution_id is not None and institution_id in self.institution_ids
 
-
-class JobseekerGrant(BaseModel):
-    can_view: bool = False
-    scope: AccessScope = AccessScope(type="institutions", institution_ids=[])
-
-    model_config = {"extra": "forbid"}
+    @classmethod
+    def from_resolved_scope(cls, resolved: "ResolvedScope") -> "AccessScope":
+        if not resolved.institution_ids:
+            return cls(type="all")
+        return cls(type="institutions", institution_ids=resolved.institution_ids)
 
 
 # ---- Query ----
