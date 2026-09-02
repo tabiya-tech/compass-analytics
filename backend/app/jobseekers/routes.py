@@ -1,14 +1,14 @@
 import logging
 from http import HTTPStatus
+from typing import get_args
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Path, Query
+from fastapi import Depends, FastAPI, HTTPException, Path, Query
 
 from app.auth.firebase import Authentication, UserInfo
-from app.jobseekers.access import IJobseekerAccessResolver
-from app.jobseekers.dependencies import get_jobseeker_access_resolver, get_jobseekers_service
+from app.casbin.requires import CasbinAPIRouter, ResolvedScope, make_requires
+from app.jobseekers.dependencies import get_jobseekers_service
 from app.jobseekers.services import IJobseekersService, JobseekersAccessDenied
 from app.jobseekers.types import (
-    MODULE_IDS,
     AccessScope,
     JobseekerDetail,
     JobseekerSortKey,
@@ -18,26 +18,22 @@ from app.jobseekers.types import (
     ModuleStatus,
     SortDirection,
 )
+from app.users.dependencies import get_role_repository, get_user_role_repository
+from app.users.types import Action, Subject
 
 logger = logging.getLogger(__name__)
 
 _API_PREFIX = "/api"
 
-_VALID_STATUSES: tuple[ModuleStatus, ...] = ("not_started", "in_progress", "completed")
-
-
-def _parse_scope(scope: str | None, institution_ids: list[str]) -> AccessScope:
-    if scope == "all":
-        return AccessScope(type="all")
-    return AccessScope(type="institutions", institution_ids=institution_ids)
-
 
 def _parse_module_status(values: list[str]) -> dict[ModuleId, list[ModuleStatus]]:
     """`module_status=build-your-profile:completed`, repeated — regrouped into one entry per module."""
+    valid_modules = get_args(ModuleId)
+    valid_statuses = get_args(ModuleStatus)
     filters: dict[ModuleId, list[ModuleStatus]] = {}
     for value in values:
         module_id, separator, status = value.partition(":")
-        if not separator or module_id not in MODULE_IDS or status not in _VALID_STATUSES:
+        if not separator or module_id not in valid_modules or status not in valid_statuses:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail=f"module_status must read '<module>:<status>', got {value!r}",
@@ -47,7 +43,7 @@ def _parse_module_status(values: list[str]) -> dict[ModuleId, list[ModuleStatus]
 
 
 def _query(
-    scope: str | None = Query(None, description="'all' to ask for every institution the grant covers"),
+    scope: str | None = Query(None, description="'all' to ask for every institution the role covers"),
     institution_id: list[str] = Query(default_factory=list, description="Institution to scope the roster to; repeatable"),
     search: str | None = Query(None, description="Keeps the jobseekers on the requested page whose name or id matches"),
     module_status: list[str] = Query(
@@ -60,7 +56,7 @@ def _query(
     page_size: int = Query(50, ge=1, le=200),
 ) -> JobseekersQuery:
     return JobseekersQuery(
-        scope=_parse_scope(scope, institution_id),
+        scope=AccessScope(type="all") if scope == "all" else AccessScope(type="institutions", institution_ids=institution_id),
         search=search,
         module_status=_parse_module_status(module_status),
         sort_by=sort_by,
@@ -70,48 +66,39 @@ def _query(
     )
 
 
-class NotAllowedToViewJobSeekers(HTTPException):
-    def __init__(self):
-        super().__init__(status_code=HTTPStatus.FORBIDDEN, detail="Not allowed to view these jobseekers.")
-
 def add_jobseekers_routes(app: FastAPI, auth: Authentication) -> None:
     get_user_info = auth.get_user_info()
+    requires = make_requires(get_user_info, get_role_repository, get_user_role_repository)
 
-    router = APIRouter(prefix=_API_PREFIX, tags=["Jobseekers"])
+    router = CasbinAPIRouter(requires_factory=requires, prefix=_API_PREFIX, tags=["Jobseekers"])
 
-    @router.get(
-        "/jobseekers",
-        response_model=JobseekersResponse
-    )
+    @router.get("/jobseekers", response_model=JobseekersResponse)
+    @requires(Subject.JOBSEEKERS, Action.VIEW, resolves_scope=True)
     async def get_jobseekers(
         query: JobseekersQuery = Depends(_query),
         service: IJobseekersService = Depends(get_jobseekers_service),
-        access: IJobseekerAccessResolver = Depends(get_jobseeker_access_resolver),
         user_info: UserInfo = Depends(get_user_info),
+        resolved: ResolvedScope = Depends(requires.dep(Subject.JOBSEEKERS, Action.VIEW, resolves_scope=True)),
     ) -> JobseekersResponse:
-        grant = await access.resolve(user_info)
         try:
-            return await service.get_jobseekers(query, grant, user_info.token)
+            return await service.get_jobseekers(query, AccessScope.from_resolved_scope(resolved), user_info.token)
         except JobseekersAccessDenied as exc:
             logger.info("Refused a roster request from user %s: %s", user_info.user_id, exc)
-            raise NotAllowedToViewJobSeekers() from exc
+            raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not allowed to view these jobseekers.") from exc
 
-    @router.get(
-        "/jobseekers/{jobseeker_id}",
-        response_model=JobseekerDetail
-    )
+    @router.get("/jobseekers/{jobseeker_id}", response_model=JobseekerDetail)
+    @requires(Subject.JOBSEEKERS, Action.VIEW, resolves_scope=True)
     async def get_jobseeker(
         jobseeker_id: str = Path(..., min_length=1),
         service: IJobseekersService = Depends(get_jobseekers_service),
-        access: IJobseekerAccessResolver = Depends(get_jobseeker_access_resolver),
         user_info: UserInfo = Depends(get_user_info),
+        resolved: ResolvedScope = Depends(requires.dep(Subject.JOBSEEKERS, Action.VIEW, resolves_scope=True)),
     ) -> JobseekerDetail:
-        grant = await access.resolve(user_info)
         try:
-            detail = await service.get_jobseeker(jobseeker_id, grant, user_info.token)
+            detail = await service.get_jobseeker(jobseeker_id, AccessScope.from_resolved_scope(resolved), user_info.token)
         except JobseekersAccessDenied as exc:
             logger.info("Refused a profile request from user %s: %s", user_info.user_id, exc)
-            raise NotAllowedToViewJobSeekers() from exc
+            raise HTTPException(status_code=HTTPStatus.FORBIDDEN, detail="Not allowed to view these jobseekers.") from exc
 
         if detail is None:
             raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail="No such jobseeker.")

@@ -12,7 +12,7 @@ from app.auth.errors import InvalidTokenErrorResponse
 from app.auth.firebase import Authentication, UserInfo
 from app.casbin.requires import CasbinAPIRouter, make_requires
 from app.errors import ForbiddenInstitutionErrorResponse
-from app.users.dependencies import get_grant_repository
+from app.users.dependencies import get_role_repository, get_user_role_repository
 from app.users.errors import ForbiddenInstitutionError, NotProvisionedForbiddenErrorResponse, UserNotProvisionedError
 from app.users.types import Action, Subject
 
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 def add_institutions_routes(router: APIRouter, auth: Authentication) -> None:
     get_user_info = auth.get_user_info()
-    requires = make_requires(get_user_info, get_grant_repository)
+    requires = make_requires(get_user_info, get_role_repository, get_user_role_repository)
 
     institutions_router = CasbinAPIRouter(requires_factory=requires)
 
