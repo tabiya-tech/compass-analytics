@@ -27,7 +27,7 @@ class IUserRepository(ABC):
 class MongoUserRepository(IUserRepository):
     """
     Reads user identity records from the `users` collection.
-    Access control lives in the `grants` collection — see app.grants.repository.
+    Access control lives in the `roles` and `user_roles` collections.
     """
 
     def __init__(self, db: AsyncIOMotorDatabase):
