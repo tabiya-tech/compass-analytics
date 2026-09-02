@@ -8,7 +8,7 @@ from app.analytics.dependencies import get_demographics_service
 from app.auth.firebase import Authentication, UserInfo
 from app.casbin.requires import CasbinAPIRouter, make_requires
 from app.shared.filters import verify_basic_filters
-from app.users.dependencies import get_grant_repository
+from app.users.dependencies import get_role_repository, get_user_role_repository
 from app.users.service import ForbiddenInstitutionError, UserNotProvisionedError
 from app.users.types import Action, Subject
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def add_demographics_routes(router: APIRouter, auth: Authentication) -> None:
     get_user_info = auth.get_user_info()
-    requires = make_requires(get_user_info, get_grant_repository)
+    requires = make_requires(get_user_info, get_role_repository, get_user_role_repository)
 
     demographics_router = CasbinAPIRouter(requires_factory=requires)
 

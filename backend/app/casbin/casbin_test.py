@@ -1,26 +1,64 @@
-"""
-Tests for the Casbin package: model, adapter, enforcer, and requires dependency.
+"""Tests for the Casbin package: model, adapter, enforcer, and requires dependency."""
+from typing import TypedDict
 
-The in_memory_analytics_database fixture provides a real (ephemeral) Mongo
-instance so the adapter exercises a genuine Motor round-trip.
-"""
 import casbin
 import httpx
 import pytest
 from fastapi import FastAPI
 
 from app.auth.firebase import SignInProvider, UserInfo
-from app.grants.repository import MongoGrantRepository
-from app.casbin.adapter import GrantsAdapter
+from app.casbin.adapter import RolesAdapter
 from app.casbin.enforcer import clear_enforcer_cache, get_enforcer
 from app.casbin.model import build_model
 from app.casbin.requires import CasbinAPIRouter, make_requires
+from app.roles.repository import MongoRoleRepository, MongoUserRoleRepository
 from app.users.types import ALL_INSTITUTIONS, Action, Subject
 
 
-async def _fresh_enforcer(grant_repo: MongoGrantRepository) -> casbin.AsyncEnforcer:
-    """Build a fresh enforcer bypassing the singleton — for isolated test assertions."""
-    adapter = GrantsAdapter(grant_repo)
+class _PermissionDoc(TypedDict):
+    subject: str
+    action: str
+
+
+class _RoleDoc(TypedDict):
+    name: str
+    label: str
+    description: str
+    permissions: list[_PermissionDoc]
+    assignable: bool
+
+
+def _make_permission(subject: str, action: str) -> _PermissionDoc:
+    return {"subject": subject, "action": action}
+
+
+def _make_role_doc(name: str, permissions: list[_PermissionDoc]) -> _RoleDoc:
+    return {
+        "name": name,
+        "label": name.capitalize(),
+        "description": "",
+        "permissions": permissions,
+        "assignable": True,
+    }
+
+
+async def _insert_role(db, name: str, permissions: list[_PermissionDoc]) -> str:
+    result = await db["roles"].insert_one(_make_role_doc(name, permissions))
+    return str(result.inserted_id)
+
+
+async def _assign_role(db, user_id: str, role_id: str, institution_id: str | None = None) -> None:
+    await db["user_roles"].insert_one({
+        "user_id": user_id,
+        "role_id": role_id,
+        "institution_id": institution_id,
+        "granted_by": None,
+        "granted_at": None,
+    })
+
+
+async def _fresh_enforcer(db) -> casbin.AsyncEnforcer:
+    adapter = RolesAdapter(MongoRoleRepository(db), MongoUserRoleRepository(db))
     enforcer = casbin.AsyncEnforcer(build_model(), adapter)
     await enforcer.load_policy()
     return enforcer
@@ -39,48 +77,46 @@ class TestModel:
         assert "m" in model.model
 
 
-class TestGrantsAdapter:
-    async def test_wildcard_grant_allows_any_institution(self, in_memory_analytics_database):
-        # GIVEN a wildcard grant
-        repo = MongoGrantRepository(in_memory_analytics_database)
-        await repo.create("u1", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS, granted_by=None)
-        enforcer = await _fresh_enforcer(repo)
+class TestRolesAdapter:
+    async def test_deployment_scoped_permission_allows_any_institution(self, in_memory_analytics_database):
+        # GIVEN a deployment-scoped dashboard:view permission
+        db = in_memory_analytics_database
+        role_id = await _insert_role(db, "funder", [_make_permission("dashboard", "view")])
+        await _assign_role(db, "u1", role_id, institution_id=None)
+        enforcer = await _fresh_enforcer(db)
 
-        # THEN the user passes enforcement for any institution
         assert enforcer.enforce("u1", "inst-a", "dashboard:view")
         assert enforcer.enforce("u1", "inst-z", "dashboard:view")
 
-    async def test_institution_scoped_grant_allows_only_that_institution(self, in_memory_analytics_database):
-        # GIVEN a grant scoped to inst-a
-        repo = MongoGrantRepository(in_memory_analytics_database)
-        await repo.create("u1", Subject.DASHBOARD, Action.VIEW, "inst-a", granted_by=None)
-        enforcer = await _fresh_enforcer(repo)
+    async def test_institution_scoped_permission_allows_only_that_institution(self, in_memory_analytics_database):
+        # GIVEN an institution-scoped dashboard:view permission, assigned to inst-a
+        db = in_memory_analytics_database
+        role_id = await _insert_role(db, "implementer", [_make_permission("dashboard", "view")])
+        await _assign_role(db, "u1", role_id, institution_id="inst-a")
+        enforcer = await _fresh_enforcer(db)
 
-        # THEN inst-a is allowed, inst-b is not
         assert enforcer.enforce("u1", "inst-a", "dashboard:view")
         assert not enforcer.enforce("u1", "inst-b", "dashboard:view")
 
-    async def test_denies_when_no_grants(self, in_memory_analytics_database):
-        # GIVEN an empty grants collection
-        repo = MongoGrantRepository(in_memory_analytics_database)
-        enforcer = await _fresh_enforcer(repo)
-
+    async def test_denies_when_no_roles_assigned(self, in_memory_analytics_database):
+        enforcer = await _fresh_enforcer(in_memory_analytics_database)
         assert not enforcer.enforce("u1", "inst-a", "dashboard:view")
 
     async def test_does_not_grant_undeclared_permission(self, in_memory_analytics_database):
-        # GIVEN only dashboard:view
-        repo = MongoGrantRepository(in_memory_analytics_database)
-        await repo.create("u1", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS, granted_by=None)
-        enforcer = await _fresh_enforcer(repo)
+        db = in_memory_analytics_database
+        role_id = await _insert_role(db, "viewer", [_make_permission("dashboard", "view")])
+        await _assign_role(db, "u1", role_id)
+        enforcer = await _fresh_enforcer(db)
 
         assert not enforcer.enforce("u1", ALL_INSTITUTIONS, "dashboard:manage")
 
     async def test_multiple_users_scoped_independently(self, in_memory_analytics_database):
-        # GIVEN u1 has a wildcard grant, u2 has an institution-scoped grant
-        repo = MongoGrantRepository(in_memory_analytics_database)
-        await repo.create("u1", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS, granted_by=None)
-        await repo.create("u2", Subject.DASHBOARD, Action.VIEW, "inst-a", granted_by=None)
-        enforcer = await _fresh_enforcer(repo)
+        db = in_memory_analytics_database
+        deploy_role = await _insert_role(db, "funder", [_make_permission("dashboard", "view")])
+        inst_role = await _insert_role(db, "implementer", [_make_permission("dashboard", "view")])
+        await _assign_role(db, "u1", deploy_role, institution_id=None)
+        await _assign_role(db, "u2", inst_role, institution_id="inst-a")
+        enforcer = await _fresh_enforcer(db)
 
         assert enforcer.enforce("u1", "inst-b", "dashboard:view")
         assert enforcer.enforce("u2", "inst-a", "dashboard:view")
@@ -96,8 +132,8 @@ class TestEnforcerSingleton:
         clear_enforcer_cache()
 
     async def test_returns_same_instance_on_repeated_calls(self, in_memory_analytics_database):
-        repo = MongoGrantRepository(in_memory_analytics_database)
-        adapter = GrantsAdapter(repo)
+        db = in_memory_analytics_database
+        adapter = RolesAdapter(MongoRoleRepository(db), MongoUserRoleRepository(db))
 
         first = await get_enforcer(adapter)
         second = await get_enforcer(adapter)
@@ -105,8 +141,8 @@ class TestEnforcerSingleton:
         assert first is second
 
     async def test_clear_cache_forces_reinitialization(self, in_memory_analytics_database):
-        repo = MongoGrantRepository(in_memory_analytics_database)
-        adapter = GrantsAdapter(repo)
+        db = in_memory_analytics_database
+        adapter = RolesAdapter(MongoRoleRepository(db), MongoUserRoleRepository(db))
         first = await get_enforcer(adapter)
 
         clear_enforcer_cache()
@@ -123,8 +159,6 @@ class TestRequiresDependency:
         clear_enforcer_cache()
 
     def _build_app(self, db, user_id: str) -> FastAPI:
-        repo = MongoGrantRepository(db)
-
         def fake_user_info():
             return UserInfo(
                 user_id=user_id,
@@ -134,10 +168,13 @@ class TestRequiresDependency:
                 sign_in_provider=SignInProvider.PASSWORD,
             )
 
-        def get_repo():
-            return repo
+        def get_role_repo():
+            return MongoRoleRepository(db)
 
-        requires = make_requires(fake_user_info, get_repo)
+        def get_user_role_repo():
+            return MongoUserRoleRepository(db)
+
+        requires = make_requires(fake_user_info, get_role_repo, get_user_role_repo)
         app = FastAPI()
         router = CasbinAPIRouter(requires_factory=requires)
 
@@ -146,8 +183,6 @@ class TestRequiresDependency:
         async def protected():
             return {"ok": True}
 
-        # Stands in for an analytics route: it narrows its own results with resolve_scope, so an
-        # unscoped request only has to show the caller holds the permission somewhere.
         @router.get("/scoped")
         @requires(Subject.DASHBOARD, Action.VIEW, resolves_scope=True)
         async def scoped():
@@ -156,117 +191,88 @@ class TestRequiresDependency:
         app.include_router(router)
         return app
 
-    async def test_allows_wildcard_grant_for_any_institution(self, in_memory_analytics_database):
-        # GIVEN a wildcard grant
-        repo = MongoGrantRepository(in_memory_analytics_database)
-        await repo.create("u1", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS, granted_by=None)
+    async def test_allows_deployment_scoped_role_for_any_institution(self, in_memory_analytics_database):
+        db = in_memory_analytics_database
+        role_id = await _insert_role(db, "funder", [_make_permission("dashboard", "view")])
+        await _assign_role(db, "u1", role_id)
 
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=self._build_app(in_memory_analytics_database, "u1")),
-            base_url="http://test",
-        ) as client:
-            # WHEN requesting with any institution_id
-            response = await client.get("/protected?institution_id=inst-a")
-
-        assert response.status_code == 200
-
-    async def test_allows_institution_scoped_grant_for_own_institution(self, in_memory_analytics_database):
-        # GIVEN a grant scoped to inst-a
-        repo = MongoGrantRepository(in_memory_analytics_database)
-        await repo.create("u1", Subject.DASHBOARD, Action.VIEW, "inst-a", granted_by=None)
-
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=self._build_app(in_memory_analytics_database, "u1")),
-            base_url="http://test",
+            transport=httpx.ASGITransport(app=self._build_app(db, "u1")), base_url="http://test"
         ) as client:
             response = await client.get("/protected?institution_id=inst-a")
 
         assert response.status_code == 200
 
-    async def test_allows_scope_resolving_route_for_an_institution_scoped_caller(self, in_memory_analytics_database):
-        # GIVEN an implementer whose only grant is scoped to one institution
-        repo = MongoGrantRepository(in_memory_analytics_database)
-        await repo.create("u1", Subject.DASHBOARD, Action.VIEW, "inst-a", granted_by=None)
+    async def test_allows_institution_scoped_role_for_own_institution(self, in_memory_analytics_database):
+        db = in_memory_analytics_database
+        role_id = await _insert_role(db, "implementer", [_make_permission("dashboard", "view")])
+        await _assign_role(db, "u1", role_id, institution_id="inst-a")
 
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=self._build_app(in_memory_analytics_database, "u1")),
-            base_url="http://test",
+            transport=httpx.ASGITransport(app=self._build_app(db, "u1")), base_url="http://test"
         ) as client:
-            # WHEN they call a route that scopes its own results, naming no institution
+            response = await client.get("/protected?institution_id=inst-a")
+
+        assert response.status_code == 200
+
+    async def test_allows_scope_resolving_route_for_institution_scoped_caller(self, in_memory_analytics_database):
+        db = in_memory_analytics_database
+        role_id = await _insert_role(db, "implementer", [_make_permission("dashboard", "view")])
+        await _assign_role(db, "u1", role_id, institution_id="inst-a")
+
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=self._build_app(db, "u1")), base_url="http://test"
+        ) as client:
             response = await client.get("/scoped")
 
-        # THEN they are let through — resolve_scope narrows the answer to their institution
         assert response.status_code == 200
 
-    async def test_denies_unscoped_route_for_an_institution_scoped_caller(self, in_memory_analytics_database):
-        # GIVEN the same institution-scoped grant
-        repo = MongoGrantRepository(in_memory_analytics_database)
-        await repo.create("u1", Subject.DASHBOARD, Action.VIEW, "inst-a", granted_by=None)
+    async def test_denies_unscoped_route_for_institution_scoped_caller(self, in_memory_analytics_database):
+        db = in_memory_analytics_database
+        role_id = await _insert_role(db, "implementer", [_make_permission("dashboard", "view")])
+        await _assign_role(db, "u1", role_id, institution_id="inst-a")
 
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=self._build_app(in_memory_analytics_database, "u1")),
-            base_url="http://test",
+            transport=httpx.ASGITransport(app=self._build_app(db, "u1")), base_url="http://test"
         ) as client:
-            # WHEN they call a route that does no narrowing, naming no institution
             response = await client.get("/protected")
 
-        # THEN they are refused: omitting the parameter must not read across the deployment
         assert response.status_code == 403
 
-    async def test_denies_scope_resolving_route_for_a_caller_with_no_grants(self, in_memory_analytics_database):
-        # GIVEN a caller holding nothing at all
+    async def test_denies_scope_resolving_route_for_caller_with_no_roles(self, in_memory_analytics_database):
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=self._build_app(in_memory_analytics_database, "nobody")),
             base_url="http://test",
         ) as client:
             response = await client.get("/scoped")
 
-        # THEN having no institutions is not the same as being allowed at any of them
         assert response.status_code == 403
 
-    async def test_allows_scope_resolving_route_for_a_deployment_wide_caller(self, in_memory_analytics_database):
-        # GIVEN a funder holding a wildcard grant
-        repo = MongoGrantRepository(in_memory_analytics_database)
-        await repo.create("u1", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS, granted_by=None)
+    async def test_allows_scope_resolving_route_for_deployment_wide_caller(self, in_memory_analytics_database):
+        db = in_memory_analytics_database
+        role_id = await _insert_role(db, "funder", [_make_permission("dashboard", "view")])
+        await _assign_role(db, "u1", role_id)
 
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=self._build_app(in_memory_analytics_database, "u1")),
-            base_url="http://test",
+            transport=httpx.ASGITransport(app=self._build_app(db, "u1")), base_url="http://test"
         ) as client:
             response = await client.get("/scoped")
 
         assert response.status_code == 200
 
-    async def test_denies_scope_resolving_route_for_a_foreign_institution(self, in_memory_analytics_database):
-        # GIVEN a grant scoped to inst-a only
-        repo = MongoGrantRepository(in_memory_analytics_database)
-        await repo.create("u1", Subject.DASHBOARD, Action.VIEW, "inst-a", granted_by=None)
+    async def test_denies_institution_scoped_caller_for_foreign_institution(self, in_memory_analytics_database):
+        db = in_memory_analytics_database
+        role_id = await _insert_role(db, "implementer", [_make_permission("dashboard", "view")])
+        await _assign_role(db, "u1", role_id, institution_id="inst-a")
 
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=self._build_app(in_memory_analytics_database, "u1")),
-            base_url="http://test",
+            transport=httpx.ASGITransport(app=self._build_app(db, "u1")), base_url="http://test"
         ) as client:
-            # WHEN they name an institution they do not hold
-            response = await client.get("/scoped?institution_id=inst-b")
-
-        # THEN naming one is still checked against their grants
-        assert response.status_code == 403
-
-    async def test_denies_institution_scoped_grant_for_foreign_institution(self, in_memory_analytics_database):
-        # GIVEN a grant scoped to inst-a only
-        repo = MongoGrantRepository(in_memory_analytics_database)
-        await repo.create("u1", Subject.DASHBOARD, Action.VIEW, "inst-a", granted_by=None)
-
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=self._build_app(in_memory_analytics_database, "u1")),
-            base_url="http://test",
-        ) as client:
-            # WHEN requesting for inst-b
             response = await client.get("/protected?institution_id=inst-b")
 
         assert response.status_code == 403
 
-    async def test_denies_user_with_no_grants(self, in_memory_analytics_database):
+    async def test_denies_user_with_no_roles(self, in_memory_analytics_database):
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=self._build_app(in_memory_analytics_database, "u1")),
             base_url="http://test",
@@ -276,41 +282,37 @@ class TestRequiresDependency:
         assert response.status_code == 403
 
     async def test_denies_user_with_wrong_permission(self, in_memory_analytics_database):
-        # GIVEN institutions:view but not dashboard:view
-        repo = MongoGrantRepository(in_memory_analytics_database)
-        await repo.create("u1", Subject.INSTITUTIONS, Action.VIEW, ALL_INSTITUTIONS, granted_by=None)
+        db = in_memory_analytics_database
+        role_id = await _insert_role(db, "viewer", [_make_permission("institutions", "view")])
+        await _assign_role(db, "u1", role_id)
 
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=self._build_app(in_memory_analytics_database, "u1")),
-            base_url="http://test",
+            transport=httpx.ASGITransport(app=self._build_app(db, "u1")), base_url="http://test"
         ) as client:
             response = await client.get("/protected?institution_id=inst-a")
 
         assert response.status_code == 403
 
-    async def test_denies_when_institution_id_is_absent_and_user_has_no_wildcard_grant(self, in_memory_analytics_database):
-        # institution_id defaults to ALL_INSTITUTIONS ("*") when omitted.
-        # A user with only an institution-scoped grant does not pass the wildcard check.
-        repo = MongoGrantRepository(in_memory_analytics_database)
-        await repo.create("u1", Subject.DASHBOARD, Action.VIEW, "inst-a", granted_by=None)
+    async def test_allows_deployment_wide_caller_without_institution_param(self, in_memory_analytics_database):
+        db = in_memory_analytics_database
+        role_id = await _insert_role(db, "funder", [_make_permission("dashboard", "view")])
+        await _assign_role(db, "u1", role_id)
 
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=self._build_app(in_memory_analytics_database, "u1")),
-            base_url="http://test",
-        ) as client:
-            response = await client.get("/protected")
-
-        assert response.status_code == 403
-
-    async def test_allows_when_institution_id_is_absent_and_user_has_wildcard_grant(self, in_memory_analytics_database):
-        # A user with a wildcard grant passes even when institution_id is not provided.
-        repo = MongoGrantRepository(in_memory_analytics_database)
-        await repo.create("u1", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS, granted_by=None)
-
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=self._build_app(in_memory_analytics_database, "u1")),
-            base_url="http://test",
+            transport=httpx.ASGITransport(app=self._build_app(db, "u1")), base_url="http://test"
         ) as client:
             response = await client.get("/protected")
 
         assert response.status_code == 200
+
+    async def test_denies_institution_scoped_caller_without_institution_param(self, in_memory_analytics_database):
+        db = in_memory_analytics_database
+        role_id = await _insert_role(db, "implementer", [_make_permission("dashboard", "view")])
+        await _assign_role(db, "u1", role_id, institution_id="inst-a")
+
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=self._build_app(db, "u1")), base_url="http://test"
+        ) as client:
+            response = await client.get("/protected")
+
+        assert response.status_code == 403

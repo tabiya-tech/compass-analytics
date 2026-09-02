@@ -4,7 +4,7 @@ from typing import Optional
 
 import casbin
 
-from app.casbin.adapter import GrantsAdapter
+from app.casbin.adapter import RolesAdapter
 from app.casbin.model import build_model
 
 logger = logging.getLogger(__name__)
@@ -13,11 +13,8 @@ _enforcer: Optional[casbin.AsyncEnforcer] = None
 _lock = asyncio.Lock()
 
 
-async def get_enforcer(adapter: GrantsAdapter) -> casbin.AsyncEnforcer:
-    """
-    Returns the process-wide AsyncEnforcer, initializing it on first call.
-    Double-checked locking makes concurrent first-callers safe.
-    """
+async def get_enforcer(adapter: RolesAdapter) -> casbin.AsyncEnforcer:
+    """Process-wide singleton; double-checked locking guards concurrent first-callers."""
     global _enforcer
     if _enforcer is not None:
         return _enforcer

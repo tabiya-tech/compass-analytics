@@ -6,7 +6,6 @@ from app.jobseekers.repositories import IJobseekersRepository
 from app.jobseekers.types import (
     AccessScope,
     JobseekerDetail,
-    JobseekerGrant,
     JobseekerSortKey,
     JobseekerSummary,
     JobseekersQuery,
@@ -53,12 +52,12 @@ def _sort_value(jobseeker: JobseekerSummary, key: JobseekerSortKey) -> tuple[int
 class IJobseekersService(ABC):
     @abstractmethod
     async def get_jobseekers(
-        self, query: JobseekersQuery, grant: JobseekerGrant, token: str
+        self, query: JobseekersQuery, granted_scope: AccessScope, token: str
     ) -> JobseekersResponse: ...
 
     @abstractmethod
     async def get_jobseeker(
-        self, jobseeker_id: str, grant: JobseekerGrant, token: str
+        self, jobseeker_id: str, granted_scope: AccessScope, token: str
     ) -> JobseekerDetail | None: ...
 
 
@@ -66,11 +65,8 @@ class JobseekersService(IJobseekersService):
     def __init__(self, repository: IJobseekersRepository):
         self._repo = repository
 
-    async def get_jobseekers(self, query: JobseekersQuery, grant: JobseekerGrant, token: str) -> JobseekersResponse:
-        if not grant.can_view:
-            raise JobseekersAccessDenied("The caller has no jobseekers:view grant.")
-
-        scope = _narrow(query.scope, grant.scope)
+    async def get_jobseekers(self, query: JobseekersQuery, granted_scope: AccessScope, token: str) -> JobseekersResponse:
+        scope = _narrow(query.scope, granted_scope)
         # Reading stops as soon as the requested page has been reached: rows before it are read
         # only because a cursor cannot be jumped, and rows after it are never read at all.
         wanted = query.page * query.page_size
@@ -133,18 +129,15 @@ class JobseekersService(IJobseekersService):
             )
         ]
 
-    async def get_jobseeker(self, jobseeker_id: str, grant: JobseekerGrant, token: str) -> JobseekerDetail | None:
-        if not grant.can_view:
-            raise JobseekersAccessDenied("The caller has no jobseekers:view grant.")
-
-        detail = await self._repo.get_jobseeker(jobseeker_id, grant.scope, token)
+    async def get_jobseeker(self, jobseeker_id: str, granted_scope: AccessScope, token: str) -> JobseekerDetail | None:
+        detail = await self._repo.get_jobseeker(jobseeker_id, granted_scope, token)
         if detail is None:
             return None
 
         # Out of scope reads as "no such jobseeker", not "not allowed": telling a caller that an id
         # exists at an institution they cannot see is itself a disclosure.
-        if not grant.scope.covers(detail.institution_id):
-            logger.info("Jobseeker %s is outside the caller's grant; reporting it as not found.", jobseeker_id)
+        if not granted_scope.covers(detail.institution_id):
+            logger.info("Jobseeker %s is outside the caller's scope; reporting it as not found.", jobseeker_id)
             return None
 
         return detail
