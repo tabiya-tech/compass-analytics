@@ -61,7 +61,7 @@ export const TwoModulesDeployed: Story = {
 export const DeploymentWideGrant: Story = {
   decorators: [
     (Story) => (
-      <JobseekersHarness access={{ scope: { type: "all" } }}>
+      <JobseekersHarness access={{ scope: { institutionIds: null } }}>
         <Story />
       </JobseekersHarness>
     ),

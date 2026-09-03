@@ -58,7 +58,7 @@ describe("Jobseekers", () => {
 
   it("should never show a jobseeker from an institution the grant does not cover", async () => {
     // GIVEN a grant covering the second institution only
-    const givenScope: AccessProviderProps = { scope: { type: "institutions", institutionIds: ["inst-2"] } };
+    const givenScope: AccessProviderProps = { scope: { institutionIds: ["inst-2"] } };
 
     // WHEN the screen has loaded
     await renderAndWaitForJobseekers(givenScope);
@@ -73,7 +73,7 @@ describe("Jobseekers", () => {
 
   it("should list every institution's jobseekers when the grant covers the whole deployment", async () => {
     // GIVEN a deployment-wide grant
-    const givenScope: AccessProviderProps = { scope: { type: "all" } };
+    const givenScope: AccessProviderProps = { scope: { institutionIds: null } };
 
     // WHEN the screen has loaded
     await renderAndWaitForJobseekers(givenScope);

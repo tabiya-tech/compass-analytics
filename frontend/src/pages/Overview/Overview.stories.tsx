@@ -35,11 +35,11 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
-  decorators: [withAccess({ type: "all" })],
+  decorators: [withAccess({ institutionIds: null })],
 };
 
 export const Loading: Story = {
-  decorators: [withAccess({ type: "institutions", institutionIds: ["inst-1"] })],
+  decorators: [withAccess({ institutionIds: ["inst-1"] })],
   parameters: {
     msw: {
       handlers: [http.get(REACH_API_PATH, async () => await delay("infinite")), demographicsHandler],
@@ -52,7 +52,7 @@ export const Loading: Story = {
 };
 
 export const FailedToLoad: Story = {
-  decorators: [withAccess({ type: "institutions", institutionIds: ["inst-1"] })],
+  decorators: [withAccess({ institutionIds: ["inst-1"] })],
   parameters: {
     msw: {
       handlers: [http.get(REACH_API_PATH, () => new HttpResponse(null, { status: 500 })), demographicsHandler],
@@ -67,7 +67,7 @@ export const FailedToLoad: Story = {
 
 /** Demographics endpoint fails while the main metrics load fine — the panel shows the degraded message. */
 export const DemographicsFailed: Story = {
-  decorators: [withAccess({ type: "institutions", institutionIds: ["inst-1"] })],
+  decorators: [withAccess({ institutionIds: ["inst-1"] })],
   parameters: {
     msw: {
       handlers: [http.get("/api/demographics", () => new HttpResponse(null, { status: 500 }))],
@@ -80,7 +80,7 @@ export const DemographicsFailed: Story = {
 
 /** A deployment running one module has no Modules screen — that module's figures are part of Overview instead. */
 export const SingleModuleDeployment: Story = {
-  decorators: [withAccess({ type: "institutions", institutionIds: ["inst-1"] }, [MODULE_IDS.BUILD_YOUR_PROFILE])],
+  decorators: [withAccess({ institutionIds: ["inst-1"] }, [MODULE_IDS.BUILD_YOUR_PROFILE])],
   play: async ({ canvas }) => {
     await waitFor(() => canvas.getByRole("heading", { name: "Are people building their profiles?" }));
     // Build Your Profile shows a loading skeleton (no heading yet) until its fetch settles.

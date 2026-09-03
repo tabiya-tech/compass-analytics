@@ -51,7 +51,7 @@ export function toModuleMetricsRequest(
   if (filters.institutionDrillDownId) {
     institutions = [filters.institutionDrillDownId];
   } else {
-    institutions = scope.type === "all" ? "all" : scope.institutionIds;
+    institutions = scope.institutionIds === null ? "all" : scope.institutionIds;
   }
 
   return {

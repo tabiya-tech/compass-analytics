@@ -109,7 +109,13 @@ export function ConfirmAccessDialog({
               <Label htmlFor={ROLE_FIELD_ID} className="text-sm font-semibold">
                 {t("userAccess.confirm.grant.roleLabel")}
               </Label>
-              <Select value={selectedRole?._id ?? ""} onValueChange={(id) => { const picked = roles.find((r) => r._id === id); if (picked) onRoleChange(picked); }}>
+              <Select
+                value={selectedRole?._id ?? ""}
+                onValueChange={(id) => {
+                  const picked = roles.find((r) => r._id === id);
+                  if (picked) onRoleChange(picked);
+                }}
+              >
                 <SelectTrigger
                   id={ROLE_FIELD_ID}
                   data-testid={DATA_TEST_ID.ROLE_SELECT}
@@ -118,11 +124,13 @@ export function ConfirmAccessDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {roles.filter((r) => r.assignable).map((r) => (
-                    <SelectItem key={r._id} value={r._id}>
-                      {r.label}
-                    </SelectItem>
-                  ))}
+                  {roles
+                    .filter((r) => r.assignable)
+                    .map((r) => (
+                      <SelectItem key={r._id} value={r._id}>
+                        {r.label}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
               {selectedRole && (
@@ -133,45 +141,45 @@ export function ConfirmAccessDialog({
             </div>
 
             <div className="grid gap-2" data-testid={DATA_TEST_ID.INSTITUTION_FIELD}>
-                <Label htmlFor={INSTITUTION_FIELD_ID} className="text-sm font-semibold">
-                  {t("userAccess.confirm.grant.institutionLabel")}
-                </Label>
-                <Select
-                  value={institutionId ?? undefined}
-                  onValueChange={onInstitutionChange}
-                  disabled={institutions.status !== "success"}
+              <Label htmlFor={INSTITUTION_FIELD_ID} className="text-sm font-semibold">
+                {t("userAccess.confirm.grant.institutionLabel")}
+              </Label>
+              <Select
+                value={institutionId ?? undefined}
+                onValueChange={onInstitutionChange}
+                disabled={institutions.status !== "success"}
+              >
+                <SelectTrigger
+                  id={INSTITUTION_FIELD_ID}
+                  data-testid={DATA_TEST_ID.INSTITUTION_SELECT}
+                  className="h-11 w-full rounded-md text-sm"
                 >
-                  <SelectTrigger
-                    id={INSTITUTION_FIELD_ID}
-                    data-testid={DATA_TEST_ID.INSTITUTION_SELECT}
-                    className="h-11 w-full rounded-md text-sm"
-                  >
-                    <SelectValue
-                      placeholder={t(
-                        institutions.status === "loading"
-                          ? "userAccess.confirm.grant.institutionLoading"
-                          : "userAccess.confirm.grant.institutionPlaceholder"
-                      )}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {institutions.status === "success" &&
-                      institutions.items.map((institution) => (
-                        <SelectItem key={institution.id} value={institution.id}>
-                          {institution.name}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-                {institutions.status === "error" ? (
-                  <p data-testid={DATA_TEST_ID.INSTITUTION_ERROR} className="text-sm text-destructive">
-                    {t("userAccess.confirm.grant.institutionError")}
-                  </p>
-                ) : (
-                  <p data-testid={DATA_TEST_ID.INSTITUTION_HINT} className="text-sm text-muted-foreground">
-                    {t("userAccess.confirm.grant.institutionHint")}
-                  </p>
-                )}
+                  <SelectValue
+                    placeholder={t(
+                      institutions.status === "loading"
+                        ? "userAccess.confirm.grant.institutionLoading"
+                        : "userAccess.confirm.grant.institutionPlaceholder"
+                    )}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {institutions.status === "success" &&
+                    institutions.items.map((institution) => (
+                      <SelectItem key={institution.id} value={institution.id}>
+                        {institution.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              {institutions.status === "error" ? (
+                <p data-testid={DATA_TEST_ID.INSTITUTION_ERROR} className="text-sm text-destructive">
+                  {t("userAccess.confirm.grant.institutionError")}
+                </p>
+              ) : (
+                <p data-testid={DATA_TEST_ID.INSTITUTION_HINT} className="text-sm text-muted-foreground">
+                  {t("userAccess.confirm.grant.institutionHint")}
+                </p>
+              )}
             </div>
           </div>
         )}

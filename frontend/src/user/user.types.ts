@@ -1,9 +1,8 @@
-export type ScopeType = "all" | "institutions";
 export type ModuleId = "build-your-profile" | "job-readiness" | "career-explorer" | "jobs";
 
 export interface UserScope {
-  type: ScopeType;
-  institution_ids: string[];
+  // null = deployment-wide (no filter); [] = no access; ["inst-a", ...] = scoped to those institutions.
+  institution_ids: string[] | null;
 }
 
 export interface PermissionEntry {

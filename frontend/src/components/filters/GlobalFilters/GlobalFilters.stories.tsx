@@ -6,7 +6,7 @@ import { FiltersProvider } from "@/filters/FiltersContext";
 import { createInitialFilters, type FiltersState } from "@/filters/filters";
 
 const GIVEN_TODAY = new Date(2026, 5, 15);
-const ALL_INSTITUTIONS: AccessScope = { type: "all" };
+const ALL_INSTITUTIONS: AccessScope = { institutionIds: null };
 
 function withState(filters: Partial<FiltersState>, scope: AccessScope = ALL_INSTITUTIONS) {
   return (Story: () => React.ReactElement) => (
@@ -53,10 +53,7 @@ export const SingleFilter: Story = {
 
 export const SingleInstitutionScope: Story = {
   decorators: [
-    withState(
-      { institutionDrillDownId: "inst-1", audienceSegment: "women" },
-      { type: "institutions", institutionIds: ["inst-1"] }
-    ),
+    withState({ institutionDrillDownId: "inst-1", audienceSegment: "women" }, { institutionIds: ["inst-1"] }),
   ],
   play: async ({ canvas }) => {
     await expect(canvas.queryByText(/Institution:/)).not.toBeInTheDocument();

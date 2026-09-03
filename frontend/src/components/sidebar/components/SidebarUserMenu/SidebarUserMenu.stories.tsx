@@ -40,7 +40,7 @@ export const Default: Story = {
     // The avatar carries its own sr-only copy of the name, so scope to the visible one.
     await expect(canvas.getByText("Taylor Kimathi", { selector: ":not(.sr-only)" })).toBeVisible();
     // The role sits beneath the name, matching the account screen's own label for it.
-    await expect(canvas.getByText("Funder")).toBeVisible();
+    await expect(canvas.getByText("funder")).toBeVisible();
   },
 };
 
