@@ -33,7 +33,7 @@ export const DATA_TEST_ID = {
 const EDITABLE_FIELD_HIGHLIGHT = "border-tabiya-green focus-visible:ring-tabiya-green/40";
 
 function describeScope(t: Translate, scope: AccessScope): string {
-  if (scope.type === "all") return t("settings.profile.scopeAll");
+  if (scope.institutionIds === null) return t("settings.profile.scopeAll");
   return scope.institutionIds.length === 1
     ? t("settings.profile.scopeOneInstitution")
     : t("settings.profile.scopeInstitutions", { count: scope.institutionIds.length });
@@ -228,10 +228,7 @@ export function Settings() {
                 isSavingProfile={isSavingProfile}
               />
               <ProfileDetail label={t("settings.profile.email")} value={user?.email ?? unknownValuePlaceholder} />
-              <ProfileDetail
-                label={t("settings.profile.role")}
-                value={role ?? unknownValuePlaceholder}
-              />
+              <ProfileDetail label={t("settings.profile.role")} value={role ?? unknownValuePlaceholder} />
               <ProfileDetail label={t("settings.profile.dataScope")} value={describeScope(t, scope)} />
             </dl>
           </CardContent>

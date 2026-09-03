@@ -11,7 +11,7 @@ const givenMe: MeResponse = {
   organization: null,
   role: "funder",
   permissions: ["dashboard:view", "institutions:view"],
-  scope: { type: "all", institution_ids: [] },
+  scope: { institution_ids: null },
   active_modules: ["build-your-profile"],
 };
 

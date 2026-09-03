@@ -27,7 +27,7 @@ export class JobseekersService {
 
   /** `all` asks the endpoint to resolve the grant itself; a list names the institutions outright. */
   private _appendScope(url: URL, scope: AccessScope): void {
-    if (scope.type === "all") {
+    if (scope.institutionIds === null) {
       url.searchParams.set("scope", "all");
       return;
     }

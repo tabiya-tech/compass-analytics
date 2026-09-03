@@ -96,7 +96,7 @@ describe("AccessProvider", () => {
 
   it("should report isMultiInstitution for an 'all' scope", () => {
     render(
-      <AccessProvider scope={{ type: "all" }}>
+      <AccessProvider scope={{ institutionIds: null }}>
         <ScopeProbe />
       </AccessProvider>
     );
@@ -106,7 +106,7 @@ describe("AccessProvider", () => {
 
   it("should not report isMultiInstitution for a single-institution scope", () => {
     render(
-      <AccessProvider scope={{ type: "institutions", institutionIds: ["inst-1"] }}>
+      <AccessProvider scope={{ institutionIds: ["inst-1"] }}>
         <ScopeProbe />
       </AccessProvider>
     );
@@ -131,8 +131,9 @@ describe("AccessGate", () => {
     email: "u@example.com",
     name: "U",
     organization: "U Org",
+    role: "implementer",
     permissions: ["dashboard:view", "institutions:view"],
-    scope: { type: "all", institution_ids: [] },
+    scope: { institution_ids: null },
     active_modules: ["build-your-profile"],
   };
 

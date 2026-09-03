@@ -5,9 +5,7 @@ import { UserService } from "@/user/User.service";
 import type { RoleRecord } from "@/user/user.types";
 
 export type RolesState =
-  | { status: "loading" }
-  | { status: "error" }
-  | { status: "success"; roles: readonly RoleRecord[] };
+  { status: "loading" } | { status: "error" } | { status: "success"; roles: readonly RoleRecord[] };
 
 export function useRoles(): RolesState {
   const { getIdToken } = useAuth();

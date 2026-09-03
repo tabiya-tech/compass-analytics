@@ -226,9 +226,9 @@ export function queryJobseekers(query: JobseekersQuery): JobseekersResponse {
 
   const scope = query.scope;
   const inScope =
-    scope.type === "all"
+    scope.institutionIds === null
       ? MOCK_JOBSEEKERS
-      : MOCK_JOBSEEKERS.filter((jobseeker) => scope.institutionIds.includes(jobseeker.institution_id));
+      : MOCK_JOBSEEKERS.filter((jobseeker) => scope.institutionIds!.includes(jobseeker.institution_id));
 
   const matching = inScope.filter((jobseeker) => {
     const matchesSearch =

@@ -15,7 +15,7 @@ const FIXED_FILTERS = {
   granularity: "month" as const,
 };
 
-const ONE_INSTITUTION: AccessScope = { type: "institutions", institutionIds: ["inst-1"] };
+const ONE_INSTITUTION: AccessScope = { institutionIds: ["inst-1"] };
 
 function withDeployment(activeModules: readonly ModuleId[], scope: AccessScope = ONE_INSTITUTION): Decorator {
   return (Story) => (

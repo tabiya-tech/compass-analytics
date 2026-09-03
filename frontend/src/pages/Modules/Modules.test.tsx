@@ -21,7 +21,7 @@ const GIVEN_FILTERS: FiltersState = {
   granularity: "month",
 };
 
-const ONE_INSTITUTION: AccessScope = { type: "institutions", institutionIds: ["inst-1"] };
+const ONE_INSTITUTION: AccessScope = { institutionIds: ["inst-1"] };
 const WHOLE_SUITE: ModuleId[] = [
   MODULE_IDS.BUILD_YOUR_PROFILE,
   MODULE_IDS.JOB_READINESS,
