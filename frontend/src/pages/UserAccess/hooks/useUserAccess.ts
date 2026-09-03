@@ -34,10 +34,7 @@ export function toEntry(user: ManagedUser, rolesById: Map<string, RoleRecord>): 
   return { user, role: primaryRole, hasAccess: user.roles.length > 0 };
 }
 
-type UsersState =
-  | { status: "loading" }
-  | { status: "error" }
-  | { status: "success"; users: readonly ManagedUser[] };
+type UsersState = { status: "loading" } | { status: "error" } | { status: "success"; users: readonly ManagedUser[] };
 
 export function useUserAccess(roles: readonly RoleRecord[]): UserAccessController {
   const { getIdToken } = useAuth();

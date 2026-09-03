@@ -8,7 +8,7 @@ const GIVEN_FILTERS: FiltersState = createInitialFilters(new Date(2026, 6, 7));
 describe("toOverviewMetricsRequest", () => {
   it("should ask for every institution when the grant covers the whole deployment", () => {
     // GIVEN a grant covering every institution
-    const givenScope: AccessScope = { type: "all" };
+    const givenScope: AccessScope = { institutionIds: null };
 
     // WHEN the request is derived
     const actualRequest = toOverviewMetricsRequest(givenScope, GIVEN_FILTERS);
@@ -19,7 +19,7 @@ describe("toOverviewMetricsRequest", () => {
 
   it("should ask only for the institutions the grant names", () => {
     // GIVEN a grant covering three named institutions
-    const givenScope: AccessScope = { type: "institutions", institutionIds: ["inst-1", "inst-2", "inst-3"] };
+    const givenScope: AccessScope = { institutionIds: ["inst-1", "inst-2", "inst-3"] };
 
     // WHEN the request is derived
     const actualRequest = toOverviewMetricsRequest(givenScope, GIVEN_FILTERS);
@@ -30,7 +30,7 @@ describe("toOverviewMetricsRequest", () => {
 
   it("should narrow to the drilled-into institution, ignoring the rest of the grant", () => {
     // GIVEN a grant covering the deployment, drilled into one institution
-    const givenScope: AccessScope = { type: "all" };
+    const givenScope: AccessScope = { institutionIds: null };
     const givenFilters: FiltersState = { ...GIVEN_FILTERS, institutionDrillDownId: "inst-3" };
 
     // WHEN the request is derived
@@ -42,7 +42,7 @@ describe("toOverviewMetricsRequest", () => {
 
   it("should carry the window, the granularity and the chip filters", () => {
     // GIVEN a window filtered to young jobseekers signing in with Google
-    const givenScope: AccessScope = { type: "institutions", institutionIds: ["inst-1"] };
+    const givenScope: AccessScope = { institutionIds: ["inst-1"] };
     const givenFilters: FiltersState = {
       ...GIVEN_FILTERS,
       dateRange: { start: "2025-07-08", end: "2026-07-07" },

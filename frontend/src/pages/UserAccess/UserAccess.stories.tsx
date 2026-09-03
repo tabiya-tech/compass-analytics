@@ -3,10 +3,9 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { http, HttpResponse, delay } from "msw";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { AuthContext } from "@/auth/AuthContext";
-import { AccessProvider, Action, Subject } from "@/access/AccessContext";
-import { Role } from "@/access/roles";
-import { grantsForRole } from "@/_test_utilities/role-grants";
-import { ALL_INSTITUTIONS, type ManagedUser, type RoleRequest } from "@/user/user.types";
+import { AccessProvider } from "@/access/AccessContext";
+import { stubRoleRecord, userRoleFor } from "@/_test_utilities/role-grants";
+import type { AssignRoleRequest, ManagedUser, RoleRecord } from "@/user/user.types";
 import { handlers } from "@/mocks/handlers";
 import { UserAccess } from "./UserAccess";
 
@@ -19,28 +18,30 @@ function UserAccessHarness({ children }: Readonly<{ children: ReactNode }>) {
   );
 }
 
+const implementerRole = stubRoleRecord({ _id: "role-implementer", name: "implementer", label: "Implementer" });
+const funderRole = stubRoleRecord({ _id: "role-funder", name: "funder", label: "Funder" });
+const storyRoles: RoleRecord[] = [funderRole, implementerRole];
+
 const storyUsers: ManagedUser[] = [
-  { user_id: "user-1", email: "isaac.chirwa@example.com", name: "Isaac Chirwa", grants: [] },
+  { user_id: "user-1", email: "isaac.chirwa@example.com", name: "Isaac Chirwa", roles: [] },
   {
     user_id: "user-2",
     email: "naomi.banda@example.com",
     name: "Naomi Banda",
-    grants: grantsForRole(Role.Implementer),
+    roles: [userRoleFor(implementerRole._id)],
   },
   {
     user_id: "user-3",
     email: "chanda.phiri@example.com",
     name: "Chanda Phiri",
-    grants: grantsForRole(Role.Funder),
+    roles: [userRoleFor(funderRole._id)],
   },
   {
     user_id: "user-4",
     email: "mutale.banda@example.com",
     name: "Mutale Banda",
-    // Provisioned by hand: grants that add up to no role this app knows.
-    grants: [
-      { grant_id: "grant-4", subject: Subject.Dashboard, action: Action.View, institution_id: ALL_INSTITUTIONS },
-    ],
+    // Provisioned by hand: a role assignment that doesn't resolve to a role this app knows.
+    roles: [userRoleFor("role-unknown")],
   },
 ];
 
@@ -55,22 +56,24 @@ const pause = () => delay(STEP_PAUSE_MS);
 let users: ManagedUser[] = structuredClone(storyUsers);
 
 const accessHandlers = [
+  http.get("/api/roles", () => HttpResponse.json(storyRoles)),
   http.get("/api/users", () => HttpResponse.json(users)),
 
   http.post("/api/users/:userId/roles", async ({ params, request }) => {
     await delay(MUTATION_DELAY_MS);
-    const body = (await request.json()) as RoleRequest;
-    const created = grantsForRole(body.role, body.institution_id);
+    const body = (await request.json()) as AssignRoleRequest;
+    const role = storyRoles.find((candidate) => candidate._id === body.role_id);
+    const created = userRoleFor(body.role_id, body.institution_id);
+    if (role) created.role_name = role.name;
     const user = users.find((candidate) => candidate.user_id === String(params.userId));
-    if (user) user.grants = created;
+    if (user) user.roles = [created];
     return HttpResponse.json(created, { status: 201 });
   }),
 
-  // Grants are revoked one at a time, so a role's worth of them is a run of these calls.
-  http.delete("/api/users/:userId/grants/:grantId", async ({ params }) => {
+  http.delete("/api/users/:userId/roles/:userRoleId", async ({ params }) => {
     await delay(MUTATION_DELAY_MS / 2);
     const user = users.find((candidate) => candidate.user_id === String(params.userId));
-    if (user) user.grants = user.grants.filter((grant) => grant.grant_id !== String(params.grantId));
+    if (user) user.roles = user.roles.filter((userRole) => userRole.role_id !== String(params.userRoleId));
     return new HttpResponse(null, { status: 204 });
   }),
 ];
@@ -162,10 +165,9 @@ export const GrantingTheImplementerRole: Story = {
     await userEvent.click(await body.findByRole("option", { name: "Implementer" }));
     await pause();
 
-    // An implementer runs Compass at one institution, so the grant waits for the funder to say which.
+    // An implementer runs Compass at one institution, so picking one is offered — though optional.
     const institution = await within(dialog).findByRole("combobox", { name: "Institution" });
     await waitFor(async () => expect(institution).toBeEnabled());
-    await expect(within(dialog).getByRole("button", { name: "Grant access" })).toBeDisabled();
     await userEvent.click(institution);
     await userEvent.click(await body.findByRole("option", { name: "Lusaka Skills Hub" }));
     await pause();

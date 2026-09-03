@@ -17,10 +17,11 @@ export const MODULE_IDS = {
   JOBS: "jobs",
 } as const;
 
-export type AccessScope = { type: "all" } | { type: "institutions"; institutionIds: string[] };
+// null = deployment-wide (no filter); [] = no access; ["inst-a", ...] = scoped to those institutions.
+export type AccessScope = { institutionIds: string[] | null };
 
 export function coversMultipleInstitutions(scope: AccessScope): boolean {
-  return scope.type === "all" || (scope.type === "institutions" && scope.institutionIds.length > 1);
+  return scope.institutionIds === null || scope.institutionIds.length > 1;
 }
 
 export interface AccessContextValue {
@@ -48,7 +49,7 @@ export interface AccessProviderProps {
 }
 
 const DEFAULT_ABILITY: AppAbility = buildAbility([]);
-const DEFAULT_SCOPE: AccessScope = { type: "institutions", institutionIds: ["inst-1"] };
+const DEFAULT_SCOPE: AccessScope = { institutionIds: ["inst-1"] };
 const DEFAULT_MODULES: readonly ModuleId[] = Object.values(MODULE_IDS);
 
 const AccessContext = createContext<AccessContextValue | null>(null);
@@ -97,7 +98,7 @@ export function AccessProvider({
 }
 
 function _buildScope(me: MeResponse): AccessScope {
-  return me.scope.type === "all" ? { type: "all" } : { type: "institutions", institutionIds: me.scope.institution_ids };
+  return { institutionIds: me.scope.institution_ids };
 }
 
 /**
