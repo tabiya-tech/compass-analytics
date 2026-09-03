@@ -142,7 +142,7 @@ class TestGetMe:
         assert body["user_id"] == "u1"
         assert "dashboard:view" in body["permissions"]
         assert "account:view" in body["permissions"]
-        assert body["scope"]["type"] == "all"
+        assert body["scope"]["institution_ids"] is None
         assert body["active_modules"] == _DEPLOYMENT_MODULES
 
     async def test_returns_role_name(self, client):
@@ -176,7 +176,6 @@ class TestGetMe:
 
         body = (await client.get("/api/me", headers=_auth())).json()
 
-        assert body["scope"]["type"] == "institutions"
         assert body["scope"]["institution_ids"] == ["inst-a"]
 
 
@@ -340,7 +339,7 @@ class TestAssignRole:
         me = await client.get("/api/me", headers=_auth(user_id="u2"))
         assert me.status_code == 200
         body = me.json()
-        assert body["scope"] == {"type": "institutions", "institution_ids": ["inst-a"]}
+        assert body["scope"] == {"institution_ids": ["inst-a"]}
 
     async def test_returns_422_for_unknown_role_id(self, client):
         await _seed_user(client.db, "u1")

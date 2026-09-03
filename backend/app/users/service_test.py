@@ -12,7 +12,7 @@ from app.roles.types import AssignRoleRequest, PermissionEntry, RoleRecord, User
 from app.users.repository import IUserRepository
 from app.users.errors import ForbiddenInstitutionError, UserNotProvisionedError
 from app.users.service import UserService
-from app.users.types import Action, RegisterRequest, ScopeType, Subject, UserRecord
+from app.users.types import Action, RegisterRequest, Subject, UserRecord
 
 
 def _make_role(role_id: str, name: str, permissions: list[PermissionEntry], assignable: bool = True) -> RoleRecord:
@@ -184,7 +184,7 @@ class TestGetMe:
 
         result = await svc.get_me(_make_user_info())
 
-        assert result.scope.type == ScopeType.ALL
+        assert result.scope.institution_ids is None
 
     async def test_returns_institutions_scope_for_institution_scoped_role(self):
         ur = _make_user_role("u1", _IMPLEMENTER_ROLE, institution_id="inst-a")
@@ -192,7 +192,6 @@ class TestGetMe:
 
         result = await svc.get_me(_make_user_info())
 
-        assert result.scope.type == ScopeType.INSTITUTIONS
         assert result.scope.institution_ids == ["inst-a"]
 
     async def test_returns_role_name(self):

@@ -10,7 +10,7 @@ from app.roles.repository import IRoleRepository, IUserRoleRepository
 from app.roles.types import AssignRoleRequest, ManagedUser, RoleRecord, UserRoleView
 from app.users.errors import ForbiddenInstitutionError, UserNotProvisionedError
 from app.users.repository import IUserRepository
-from app.users.types import Action, MeResponse, RegisterRequest, ScopeType, Subject, UserRecord, UserScope
+from app.users.types import Action, MeResponse, RegisterRequest, Subject, UserRecord, UserScope
 
 logger = logging.getLogger(__name__)
 
@@ -90,11 +90,9 @@ class UserService(IUserService):
             if p.subject == Subject.DASHBOARD and p.action == Action.VIEW
         ]
         if any(institution_id is None for _, institution_id in dashboard_entries):
-            return UserScope(type=ScopeType.ALL, institution_ids=[])
+            return UserScope(institution_ids=None)
         institution_ids = sorted({inst for _, inst in dashboard_entries if inst})
-        if not institution_ids:
-            return UserScope(type=ScopeType.ALL, institution_ids=[])
-        return UserScope(type=ScopeType.INSTITUTIONS, institution_ids=institution_ids)
+        return UserScope(institution_ids=institution_ids)
 
     async def _load_user_roles_with_records(self, user_id: str) -> list[tuple[RoleRecord, str | None]]:
         user_roles = await self._user_roles.list_for_user(user_id)
@@ -125,7 +123,7 @@ class UserService(IUserService):
         role_records_with_inst = await self._load_user_roles_with_records(user_info.user_id)
         scope = self._scope(role_records_with_inst)
 
-        if scope.type == ScopeType.ALL:
+        if scope.institution_ids is None:
             return ScopeResolution(institution_ids=[requested_institution_id] if requested_institution_id else None)
 
         if requested_institution_id is None:
