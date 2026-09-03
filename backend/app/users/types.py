@@ -23,19 +23,6 @@ class Action(str, Enum):
 
 
 
-class ScopeType(str, Enum):
-    """
-    How institution access is expressed when a caller's roles are resolved:
-
-    - ALL: at least one role permission is deployment-scoped — the caller sees
-      the whole deployment.
-    - INSTITUTIONS: the caller is limited to the explicit institution_ids list.
-    """
-
-    ALL = "all"
-    INSTITUTIONS = "institutions"
-
-
 # Sentinel value used in Casbin policies for deployment-wide permissions.
 ALL_INSTITUTIONS = "*"
 
@@ -69,8 +56,8 @@ class RegisterRequest(BaseModel):
 
 
 class UserScope(BaseModel):
-    type: ScopeType
-    institution_ids: list[str] = Field(default_factory=list)
+    # null = deployment-wide (no filter); [] = no access; ["inst-a", ...] = scoped to those institutions.
+    institution_ids: Optional[list[str]] = None
 
     model_config = {"extra": "forbid"}
 
