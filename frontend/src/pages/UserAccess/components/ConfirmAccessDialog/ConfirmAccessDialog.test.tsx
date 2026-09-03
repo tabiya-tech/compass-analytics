@@ -2,11 +2,29 @@ import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@/_test_utilities/test-utils";
 import userEvent from "@testing-library/user-event";
-import { Role } from "@/access/roles";
-import { grantsForRole } from "@/_test_utilities/role-grants";
+import { stubRoleRecord, userRoleFor } from "@/_test_utilities/role-grants";
 import type { InstitutionChoicesState } from "@/pages/UserAccess/hooks/useInstitutionChoices";
 import type { UserAccessEntry } from "@/pages/UserAccess/hooks/useUserAccess";
+import type { RoleRecord } from "@/user/user.types";
 import { ConfirmAccessDialog, DATA_TEST_ID } from "./ConfirmAccessDialog";
+
+const FUNDER = stubRoleRecord({
+  _id: "role-funder",
+  name: "funder",
+  label: "Funder",
+  description: "Sees every page except Jobseekers. Can grant access to other users.",
+  assignable: true,
+});
+
+const IMPLEMENTER = stubRoleRecord({
+  _id: "role-implementer",
+  name: "implementer",
+  label: "Implementer",
+  description: "Sees every page except Institutions, for one institution only. Cannot grant access to other users.",
+  assignable: true,
+});
+
+const givenRoles: readonly RoleRecord[] = [FUNDER, IMPLEMENTER];
 
 const givenInstitutions: InstitutionChoicesState = {
   status: "success",
@@ -17,14 +35,14 @@ const givenInstitutions: InstitutionChoicesState = {
 };
 
 const givenUngrantedEntry: UserAccessEntry = {
-  user: { user_id: "user-7", email: "vaani.mumba@example.com", name: "Vaani Mumba", grants: [] },
+  user: { user_id: "user-7", email: "vaani.mumba@example.com", name: "Vaani Mumba", roles: [] },
   role: null,
   hasAccess: false,
 };
 
 const givenGrantedEntry: UserAccessEntry = {
-  user: { ...givenUngrantedEntry.user, grants: grantsForRole(Role.Implementer) },
-  role: Role.Implementer,
+  user: { ...givenUngrantedEntry.user, roles: [userRoleFor(IMPLEMENTER._id, "inst-1")] },
+  role: IMPLEMENTER,
   hasAccess: true,
 };
 
@@ -32,7 +50,8 @@ const givenGrantedEntry: UserAccessEntry = {
 function renderDialog(props: Partial<ComponentProps<typeof ConfirmAccessDialog>> = {}) {
   const resolved = {
     entry: givenUngrantedEntry,
-    role: Role.Funder,
+    roles: givenRoles,
+    selectedRole: FUNDER,
     onRoleChange: vi.fn(),
     institutions: givenInstitutions,
     institutionId: null,
@@ -80,7 +99,7 @@ describe("ConfirmAccessDialog", () => {
   it("should describe the role the funder has chosen, not the one it opened on", () => {
     // GIVEN the funder has switched the choice to implementer
     // WHEN the dialog renders with that role
-    renderDialog({ role: Role.Implementer });
+    renderDialog({ selectedRole: IMPLEMENTER });
 
     // THEN the control and the hint both describe that role
     expect(screen.getByTestId(DATA_TEST_ID.ROLE_SELECT)).toHaveTextContent("Implementer");
@@ -98,7 +117,7 @@ describe("ConfirmAccessDialog", () => {
     await userEvent.click(await screen.findByRole("option", { name: "Implementer" }));
 
     // THEN the choice is reported, and nothing is written by the dialog itself
-    expect(onRoleChange).toHaveBeenCalledExactlyOnceWith(Role.Implementer);
+    expect(onRoleChange).toHaveBeenCalledExactlyOnceWith(IMPLEMENTER);
   });
 
   it("should offer only the roles a funder may hand out", async () => {
@@ -108,26 +127,17 @@ describe("ConfirmAccessDialog", () => {
     // WHEN the role control is opened
     await userEvent.click(screen.getByTestId(DATA_TEST_ID.ROLE_SELECT));
 
-    // THEN only implementer and funder are on offer — super admin is not granted from here
+    // THEN only the assignable roles are on offer
     const options = await screen.findAllByRole("option");
-    expect(options.map((option) => option.textContent)).toEqual(["Implementer", "Funder"]);
+    expect(options.map((option) => option.textContent)).toEqual(["Funder", "Implementer"]);
   });
 
-  it("should not ask for an institution for a role that covers the whole deployment", () => {
-    // GIVEN the funder role, which oversees every institution
+  it("should always ask which institution to scope the role to", () => {
+    // GIVEN any role being granted
     // WHEN the dialog is rendered
-    renderDialog({ role: Role.Funder });
+    renderDialog({ selectedRole: FUNDER });
 
-    // THEN there is no institution to pick — the role is not scoped to one
-    expect(screen.queryByTestId(DATA_TEST_ID.INSTITUTION_FIELD)).not.toBeInTheDocument();
-  });
-
-  it("should ask which institution an implementer is being given", () => {
-    // GIVEN the implementer role, which belongs to a single institution
-    // WHEN the dialog is rendered with it
-    renderDialog({ role: Role.Implementer });
-
-    // THEN an institution is asked for, labelled and explained
+    // THEN the institution picker is always shown — the backend uses null to mean deployment-wide
     expect(screen.getByRole("combobox", { name: "Institution" })).toBe(
       screen.getByTestId(DATA_TEST_ID.INSTITUTION_SELECT)
     );
@@ -137,8 +147,8 @@ describe("ConfirmAccessDialog", () => {
   });
 
   it("should offer every institution the deployment holds", async () => {
-    // GIVEN an implementer grant awaiting an institution
-    renderDialog({ role: Role.Implementer });
+    // GIVEN a grant awaiting an institution
+    renderDialog();
 
     // WHEN the institution control is opened
     await userEvent.click(screen.getByTestId(DATA_TEST_ID.INSTITUTION_SELECT));
@@ -149,8 +159,8 @@ describe("ConfirmAccessDialog", () => {
   });
 
   it("should report the institution the funder picks, leaving the choice to the screen", async () => {
-    // GIVEN an implementer grant awaiting an institution
-    const { onInstitutionChange } = renderDialog({ role: Role.Implementer });
+    // GIVEN a grant awaiting an institution
+    const { onInstitutionChange } = renderDialog();
 
     // WHEN the funder picks one
     await userEvent.click(screen.getByTestId(DATA_TEST_ID.INSTITUTION_SELECT));
@@ -160,19 +170,19 @@ describe("ConfirmAccessDialog", () => {
     expect(onInstitutionChange).toHaveBeenCalledExactlyOnceWith("inst-2");
   });
 
-  it("should hold an implementer grant until an institution has been picked for it", () => {
-    // GIVEN an implementer grant with no institution chosen yet
+  it("should allow confirming without an institution, so deployment-wide grants are possible", () => {
+    // GIVEN no institution has been chosen yet
     // WHEN the dialog is rendered
-    renderDialog({ role: Role.Implementer, institutionId: null });
+    renderDialog({ institutionId: null });
 
-    // THEN it cannot be confirmed — an implementer without an institution has no scope at all
-    expect(screen.getByTestId(DATA_TEST_ID.CONFIRM)).toBeDisabled();
+    // THEN the grant can still go through — null institution means deployment-wide on the backend
+    expect(screen.getByTestId(DATA_TEST_ID.CONFIRM)).toBeEnabled();
   });
 
   it("should let the grant through once an institution has been picked", () => {
-    // GIVEN an implementer grant with an institution chosen
+    // GIVEN an institution chosen for the grant
     // WHEN the dialog is rendered
-    renderDialog({ role: Role.Implementer, institutionId: "inst-1" });
+    renderDialog({ institutionId: "inst-1" });
 
     // THEN it can be confirmed, showing the institution it will be scoped to
     expect(screen.getByTestId(DATA_TEST_ID.CONFIRM)).toBeEnabled();
@@ -181,24 +191,24 @@ describe("ConfirmAccessDialog", () => {
 
   it("should say the institutions are still coming rather than offer an empty list", () => {
     // GIVEN the institutions have not arrived yet
-    // WHEN an implementer grant is being confirmed
-    renderDialog({ role: Role.Implementer, institutions: { status: "loading" } });
+    // WHEN a grant is being confirmed
+    renderDialog({ institutions: { status: "loading" } });
 
     // THEN the control says so and cannot be opened on nothing
     expect(screen.getByTestId(DATA_TEST_ID.INSTITUTION_SELECT)).toHaveTextContent("Loading institutions…");
     expect(screen.getByTestId(DATA_TEST_ID.INSTITUTION_SELECT)).toBeDisabled();
   });
 
-  it("should say so when the institutions could not be loaded, rather than grant an unscoped role", () => {
+  it("should say so when the institutions could not be loaded", () => {
     // GIVEN the institutions failed to load
-    // WHEN an implementer grant is being confirmed
-    renderDialog({ role: Role.Implementer, institutions: { status: "error", retry: vi.fn() } });
+    // WHEN a grant is being confirmed
+    renderDialog({ institutions: { status: "error", retry: vi.fn() } });
 
-    // THEN the failure is stated, and nothing can be granted without a scope to grant it at
+    // THEN the failure is stated — the grant can still proceed with no institution (deployment-wide)
     expect(screen.getByTestId(DATA_TEST_ID.INSTITUTION_ERROR)).toHaveTextContent(
       "Institutions could not be loaded, so this role cannot be scoped yet."
     );
-    expect(screen.getByTestId(DATA_TEST_ID.CONFIRM)).toBeDisabled();
+    expect(screen.getByTestId(DATA_TEST_ID.CONFIRM)).toBeEnabled();
   });
 
   it("should ask the funder to confirm a removal, and say what the user is left able to do", () => {
