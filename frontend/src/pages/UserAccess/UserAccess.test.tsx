@@ -101,9 +101,7 @@ describe("UserAccess", () => {
 
     // WHEN the screen has loaded and roles have resolved
     const rows = await renderAndWaitForRows();
-    await waitFor(() =>
-      expect(within(rows[1]).getByTestId(ROW_TEST_ID.DETAIL)).toHaveTextContent("Implementer")
-    );
+    await waitFor(() => expect(within(rows[1]).getByTestId(ROW_TEST_ID.DETAIL)).toHaveTextContent("Implementer"));
 
     // THEN each user is listed, with the access they actually hold
     expect(rows).toHaveLength(2);

@@ -115,7 +115,7 @@ const stubMe: MeResponse = {
   organization: "Dev Fund",
   role: "funder",
   permissions: ["dashboard:view", "institutions:view", "account:view", "access_management:manage"],
-  scope: { type: "all", institution_ids: [] },
+  scope: { institution_ids: null },
   active_modules: ["build-your-profile", "job-readiness", "career-explorer", "jobs"],
 };
 
@@ -158,7 +158,15 @@ const stubUsers: ManagedUser[] = [
     user_id: "user-implementer",
     email: "implementer@example.com",
     name: "Bob Implementer",
-    roles: [{ role_id: "role-implementer", role_name: "implementer", institution_id: "inst-1", granted_by: null, granted_at: null }],
+    roles: [
+      {
+        role_id: "role-implementer",
+        role_name: "implementer",
+        institution_id: "inst-1",
+        granted_by: null,
+        granted_at: null,
+      },
+    ],
   },
   {
     user_id: "user-no-access",
@@ -212,7 +220,7 @@ export const jobseekersHandler = http.get("/api/jobseekers", ({ request }) => {
   const institutionIds = params.getAll("institution_id");
   return HttpResponse.json(
     queryJobseekers({
-      scope: params.get("scope") === "all" ? { type: "all" } : { type: "institutions", institutionIds },
+      scope: params.get("scope") === "all" ? { institutionIds: null } : { institutionIds },
       search: params.get("search") ?? undefined,
       module_status: parseModuleStatusFilters(params.getAll("module_status")),
       sort: {
@@ -259,12 +267,21 @@ export const assignRoleHandler = http.post("/api/users/:userId/roles", async ({ 
   const body = (await request.json()) as { role_id: string; institution_id: string | null };
   const role = stubRoles.find((stubRole) => stubRole._id === body.role_id);
   return HttpResponse.json(
-    { role_id: body.role_id, role_name: role?.name ?? "unknown", institution_id: body.institution_id, granted_by: "dev-funder", granted_at: new Date().toISOString() },
+    {
+      role_id: body.role_id,
+      role_name: role?.name ?? "unknown",
+      institution_id: body.institution_id,
+      granted_by: "dev-funder",
+      granted_at: new Date().toISOString(),
+    },
     { status: 201 }
   );
 });
 
-export const revokeRoleHandler = http.delete("/api/users/:userId/roles/:userRoleId", () => new HttpResponse(null, { status: 204 }));
+export const revokeRoleHandler = http.delete(
+  "/api/users/:userId/roles/:userRoleId",
+  () => new HttpResponse(null, { status: 204 })
+);
 
 /** Not in the dev worker, like /api/reach — exported individually so overriding stories can still include it. */
 export const buildYourProfileHandler = http.get(`${MODULES_API_BASE}/build-your-profile`, () =>

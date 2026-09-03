@@ -45,7 +45,7 @@ function describeScope(t: Translate, metrics: OverviewMetricsResponse, accessSco
   if (metrics.scope.type === "institution") {
     return t("overview.description.institution", { institution: metrics.scope.institutionName, range });
   }
-  return accessScope.type === "all"
+  return accessScope.institutionIds === null
     ? t("overview.description.portfolioAll", { range })
     : t("overview.description.portfolio", { count: metrics.scope.institutionCount, range });
 }

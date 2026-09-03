@@ -7,7 +7,7 @@ import { createInitialFilters, type FiltersState } from "@/filters/filters";
 import { GlobalFilters } from "./GlobalFilters";
 
 const GIVEN_TODAY = new Date(2026, 5, 15);
-const ALL_INSTITUTIONS: AccessScope = { type: "all" };
+const ALL_INSTITUTIONS: AccessScope = { institutionIds: null };
 
 function renderGlobalFilters(filters: Partial<FiltersState> = {}, scope?: AccessScope) {
   const initialFilters: FiltersState = { ...createInitialFilters(GIVEN_TODAY), ...filters };
@@ -46,10 +46,7 @@ describe("GlobalFilters", () => {
 
   it("should show the institution chip for a grant covering several institutions but not all", () => {
     // GIVEN a grant explicitly covering a portfolio of three institutions (scope is not "all")
-    renderGlobalFilters(
-      { institutionDrillDownId: "inst-1" },
-      { type: "institutions", institutionIds: ["inst-1", "inst-2", "inst-3"] }
-    );
+    renderGlobalFilters({ institutionDrillDownId: "inst-1" }, { institutionIds: ["inst-1", "inst-2", "inst-3"] });
 
     // THEN the drill-down chip still shows — it's meaningful whenever more than one is in scope
     expect(screen.getByText("Institution: inst-1")).toBeInTheDocument();
@@ -57,10 +54,7 @@ describe("GlobalFilters", () => {
 
   it("should suppress the institution chip for a single-institution grant", () => {
     // GIVEN an institution drill-down set, but the grant covers only one institution
-    renderGlobalFilters(
-      { institutionDrillDownId: "inst-1", audienceSegment: "women" },
-      { type: "institutions", institutionIds: ["inst-1"] }
-    );
+    renderGlobalFilters({ institutionDrillDownId: "inst-1", audienceSegment: "women" }, { institutionIds: ["inst-1"] });
 
     // THEN the institution chip is hidden while the others still show
     expect(screen.queryByText(/Institution:/)).not.toBeInTheDocument();

@@ -25,8 +25,8 @@ const GIVEN_FILTERS: FiltersState = {
   granularity: "month",
 };
 
-const ONE_INSTITUTION: AccessScope = { type: "institutions", institutionIds: ["inst-1"] };
-const ALL_INSTITUTIONS: AccessScope = { type: "all" };
+const ONE_INSTITUTION: AccessScope = { institutionIds: ["inst-1"] };
+const ALL_INSTITUTIONS: AccessScope = { institutionIds: null };
 
 const WHOLE_SUITE: ModuleId[] = [
   MODULE_IDS.BUILD_YOUR_PROFILE,
@@ -71,7 +71,7 @@ describe("Overview screen header", () => {
 
   it("should read as a portfolio when the grant covers a named subset of the deployment", async () => {
     // GIVEN a grant covering two specific institutions
-    const someInstitutions: AccessScope = { type: "institutions", institutionIds: ["inst-1", "inst-2"] };
+    const someInstitutions: AccessScope = { institutionIds: ["inst-1", "inst-2"] };
 
     // WHEN the screen loads
     renderOverview(someInstitutions);

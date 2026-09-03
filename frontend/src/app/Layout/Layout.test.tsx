@@ -15,8 +15,9 @@ const givenMe: MeResponse = {
   email: "u@example.com",
   name: "U",
   organization: null,
+  role: "implementer",
   permissions: ["dashboard:view", "institutions:view", "account:view"],
-  scope: { type: "all", institution_ids: [] },
+  scope: { institution_ids: null },
   active_modules: ["build-your-profile", "job-readiness", "career-explorer", "jobs"],
 };
 

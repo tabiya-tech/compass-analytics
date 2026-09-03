@@ -78,7 +78,7 @@ describe("Settings", () => {
   it("should describe a deployment-wide grant as covering every institution", () => {
     // GIVEN a grant over the whole deployment
     // WHEN the profile card renders
-    renderSettings({ scope: { type: "all" } });
+    renderSettings({ scope: { institutionIds: null } });
 
     // THEN the scope names no count — every institution is covered, not some fixed number
     expect(valueOfDetail("Data scope")).toBe("All institutions");
@@ -87,7 +87,7 @@ describe("Settings", () => {
   it("should count the institutions a narrower grant covers", () => {
     // GIVEN a grant over three institutions
     // WHEN the profile card renders
-    renderSettings({ scope: { type: "institutions", institutionIds: ["a", "b", "c"] } });
+    renderSettings({ scope: { institutionIds: ["a", "b", "c"] } });
 
     // THEN the scope reports how many
     expect(valueOfDetail("Data scope")).toBe("3 institutions");
@@ -96,7 +96,7 @@ describe("Settings", () => {
   it("should say 'institution' in the singular for a grant covering one", () => {
     // GIVEN a grant over a single institution
     // WHEN the profile card renders
-    renderSettings({ scope: { type: "institutions", institutionIds: ["a"] } });
+    renderSettings({ scope: { institutionIds: ["a"] } });
 
     // THEN the count reads as English, not "1 institutions"
     expect(valueOfDetail("Data scope")).toBe("1 institution");
