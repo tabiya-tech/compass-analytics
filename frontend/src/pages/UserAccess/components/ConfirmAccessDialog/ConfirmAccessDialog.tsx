@@ -11,16 +11,10 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  ASSIGNABLE_ROLES,
-  isInstitutionScoped,
-  ROLE_DESCRIPTION_KEYS,
-  ROLE_LABEL_KEYS,
-  type Role,
-} from "@/access/roles";
 import { displayName } from "@/pages/UserAccess/components/AccessRow/AccessRow";
 import type { InstitutionChoicesState } from "@/pages/UserAccess/hooks/useInstitutionChoices";
 import type { UserAccessEntry } from "@/pages/UserAccess/hooks/useUserAccess";
+import type { RoleRecord } from "@/user/user.types";
 
 const uniqueId = "9f13c6a2-84be-4d75-a0e1-52c7b8934fd6";
 
@@ -43,8 +37,10 @@ const INSTITUTION_FIELD_ID = `confirm-access-dialog-institution-${uniqueId}`;
 
 export interface ConfirmAccessDialogProps {
   entry: UserAccessEntry | null;
-  role: Role;
-  onRoleChange: (role: Role) => void;
+  /** Assignable roles fetched from the API. */
+  roles: readonly RoleRecord[];
+  selectedRole: RoleRecord | null;
+  onRoleChange: (role: RoleRecord) => void;
   /** The institutions an institution-scoped role can be given at, and how that fetch is going. */
   institutions: InstitutionChoicesState;
   /** The institution picked for the role, or null while none has been. */
@@ -56,7 +52,8 @@ export interface ConfirmAccessDialogProps {
 
 export function ConfirmAccessDialog({
   entry,
-  role,
+  roles,
+  selectedRole,
   onRoleChange,
   institutions,
   institutionId,
@@ -74,9 +71,7 @@ export function ConfirmAccessDialog({
   if (!shown) return null;
 
   const removing = shown.hasAccess;
-  const scopedToInstitution = !removing && isInstitutionScoped(role);
-  // An institution-scoped role is meaningless without one, so hold the grant until it is picked.
-  const blocked = scopedToInstitution && institutionId === null;
+  const blocked = false;
 
   return (
     <Dialog open={entry !== null} onOpenChange={onOpenChange}>
@@ -114,7 +109,7 @@ export function ConfirmAccessDialog({
               <Label htmlFor={ROLE_FIELD_ID} className="text-sm font-semibold">
                 {t("userAccess.confirm.grant.roleLabel")}
               </Label>
-              <Select value={role} onValueChange={(value) => onRoleChange(value as Role)}>
+              <Select value={selectedRole?._id ?? ""} onValueChange={(id) => { const picked = roles.find((r) => r._id === id); if (picked) onRoleChange(picked); }}>
                 <SelectTrigger
                   id={ROLE_FIELD_ID}
                   data-testid={DATA_TEST_ID.ROLE_SELECT}
@@ -123,21 +118,21 @@ export function ConfirmAccessDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ASSIGNABLE_ROLES.map((assignable) => (
-                    <SelectItem key={assignable} value={assignable}>
-                      {t(ROLE_LABEL_KEYS[assignable])}
+                  {roles.filter((r) => r.assignable).map((r) => (
+                    <SelectItem key={r._id} value={r._id}>
+                      {r.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <p data-testid={DATA_TEST_ID.ROLE_HINT} className="text-sm text-muted-foreground">
-                {t(ROLE_DESCRIPTION_KEYS[role])}
-              </p>
+              {selectedRole && (
+                <p data-testid={DATA_TEST_ID.ROLE_HINT} className="text-sm text-muted-foreground">
+                  {selectedRole.description}
+                </p>
+              )}
             </div>
 
-            {/* Only an institution-scoped role needs one; the rest cover the whole deployment. */}
-            {scopedToInstitution && (
-              <div className="grid gap-2" data-testid={DATA_TEST_ID.INSTITUTION_FIELD}>
+            <div className="grid gap-2" data-testid={DATA_TEST_ID.INSTITUTION_FIELD}>
                 <Label htmlFor={INSTITUTION_FIELD_ID} className="text-sm font-semibold">
                   {t("userAccess.confirm.grant.institutionLabel")}
                 </Label>
@@ -177,8 +172,7 @@ export function ConfirmAccessDialog({
                     {t("userAccess.confirm.grant.institutionHint")}
                   </p>
                 )}
-              </div>
-            )}
+            </div>
           </div>
         )}
 

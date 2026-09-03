@@ -5,7 +5,6 @@ import { Loader2 } from "lucide-react";
 import { useMe } from "@/user/useMe";
 import { Action, buildAbility, Subject, type AppAbility } from "@/access/ability";
 import { AccessErrorPage } from "@/access/AccessErrorPage";
-import { Role, roleFromPermissions } from "@/access/roles";
 import type { MeResponse, ModuleId } from "@/user/user.types";
 
 export { Can, useAbility, Subject, Action };
@@ -28,8 +27,7 @@ export interface AccessContextValue {
   scope: AccessScope;
   activeModules: readonly ModuleId[];
   isMultiInstitution: boolean;
-  /** null when the caller's permissions add up to no role we know — see roleFromPermissions. */
-  role: Role | null;
+  role: string | null;
   /**
    * The backend's record of the caller's name — set at first login from the ID token's `name`
    * claim, independent of the client's own copy. A screen should still prefer the live Firebase
@@ -44,7 +42,7 @@ export interface AccessProviderProps {
   ability?: AppAbility;
   scope?: AccessScope;
   activeModules?: readonly ModuleId[];
-  role?: Role | null;
+  role?: string | null;
   name?: string | null;
   organization?: string | null;
 }
@@ -131,7 +129,7 @@ export function AccessGate({ children }: Readonly<{ children: ReactNode }>) {
       ability={buildAbility(me.data.permissions)}
       scope={_buildScope(me.data)}
       activeModules={me.data.active_modules}
-      role={roleFromPermissions(me.data.permissions)}
+      role={me.data.role}
       name={me.data.name}
       organization={me.data.organization}
     >
