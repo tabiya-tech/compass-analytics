@@ -1,13 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import * as Sentry from "@sentry/react";
 import { useAuth } from "@/auth/AuthContext";
-import { roleFromPermissions, type Role } from "@/access/roles";
 import { UserService } from "@/user/User.service";
-import type { ManagedUser } from "@/user/user.types";
+import type { AssignRoleRequest, ManagedUser, RoleRecord } from "@/user/user.types";
 
 export interface UserAccessEntry {
   user: ManagedUser;
-  role: Role | null;
+  role: RoleRecord | null;
   hasAccess: boolean;
 }
 
@@ -26,49 +25,60 @@ export interface UserAccessController {
   state: UserAccessState;
   pendingUserIds: ReadonlySet<string>;
   failure: UserAccessFailure | null;
-  /** `institutionId` is the institution the role is scoped to, or ALL_INSTITUTIONS for the deployment. */
-  grantRole: (entry: UserAccessEntry, role: Role, institutionId: string) => Promise<void>;
+  grantRole: (entry: UserAccessEntry, request: AssignRoleRequest) => Promise<void>;
   revokeAccess: (entry: UserAccessEntry) => Promise<void>;
 }
 
-export function toEntry(user: ManagedUser): UserAccessEntry {
-  const held = user.grants.map((grant) => `${grant.subject}:${grant.action}`);
-  return { user, role: roleFromPermissions(held), hasAccess: user.grants.length > 0 };
+export function toEntry(user: ManagedUser, rolesById: Map<string, RoleRecord>): UserAccessEntry {
+  const primaryRole = user.roles.length > 0 ? (rolesById.get(user.roles[0].role_id) ?? null) : null;
+  return { user, role: primaryRole, hasAccess: user.roles.length > 0 };
 }
 
-export function useUserAccess(): UserAccessController {
+type UsersState =
+  | { status: "loading" }
+  | { status: "error" }
+  | { status: "success"; users: readonly ManagedUser[] };
+
+export function useUserAccess(roles: readonly RoleRecord[]): UserAccessController {
   const { getIdToken } = useAuth();
-  const [state, setState] = useState<UserAccessState>({ status: "loading" });
+  const [usersState, setUsersState] = useState<UsersState>({ status: "loading" });
   const [pendingUserIds, setPendingUserIds] = useState<ReadonlySet<string>>(new Set());
   const [failure, setFailure] = useState<UserAccessFailure | null>(null);
-  const [attempt, setAttempt] = useState(0); // bumped by retry(), to read the list again
+  const [attempt, setAttempt] = useState(0);
 
   const retry = useCallback(() => setAttempt((previous) => previous + 1), []);
 
-  const fetchEntries = useCallback(async (): Promise<UserAccessEntry[]> => {
+  const fetchUsers = useCallback(async (): Promise<ManagedUser[]> => {
     const token = await getIdToken();
-    const users = await UserService.getInstance().getManagedUsers(token);
-    return users.map(toEntry);
+    return UserService.getInstance().getManagedUsers(token);
   }, [getIdToken]);
 
   useEffect(() => {
     let cancelled = false;
-    setState({ status: "loading" }); // a retry re-enters loading, so the press is acknowledged
+    setUsersState({ status: "loading" });
 
     (async () => {
       try {
-        const items = await fetchEntries();
-        if (!cancelled) setState({ status: "success", items });
+        const users = await fetchUsers();
+        if (!cancelled) setUsersState({ status: "success", users });
       } catch (error) {
         Sentry.captureException(error);
-        if (!cancelled) setState({ status: "error", retry });
+        if (!cancelled) setUsersState({ status: "error" });
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [fetchEntries, attempt, retry]);
+  }, [fetchUsers, attempt]);
+
+  const rolesById = useMemo(() => new Map(roles.map((role) => [role._id, role])), [roles]);
+
+  const state = useMemo<UserAccessState>(() => {
+    if (usersState.status === "loading") return { status: "loading" };
+    if (usersState.status === "error") return { status: "error", retry };
+    return { status: "success", items: usersState.users.map((user) => toEntry(user, rolesById)) };
+  }, [usersState, rolesById, retry]);
 
   const markPending = useCallback((userId: string, pending: boolean) => {
     setPendingUserIds((previous) => {
@@ -79,7 +89,6 @@ export function useUserAccess(): UserAccessController {
     });
   }, []);
 
-  /** Writes a change, then re-reads the list so the row never shows stale state. */
   const applyChange = useCallback(
     async (entry: UserAccessEntry, kind: "grant" | "revoke", write: (token: string) => Promise<unknown>) => {
       const { user_id: userId } = entry.user;
@@ -91,11 +100,9 @@ export function useUserAccess(): UserAccessController {
       } catch (error) {
         Sentry.captureException(error);
         setFailure({ kind, entry });
-        // A role is several grants, so a failed change can still have written some. Show what landed.
         try {
-          setState({ status: "success", items: await fetchEntries() });
+          setUsersState({ status: "success", users: await fetchUsers() });
         } catch (refreshError) {
-          // The failed change is the more useful message, so keep it on screen.
           Sentry.captureException(refreshError);
         }
         markPending(userId, false);
@@ -103,25 +110,21 @@ export function useUserAccess(): UserAccessController {
       }
 
       try {
-        const items = await fetchEntries();
-        setState({ status: "success", items });
+        const users = await fetchUsers();
+        setUsersState({ status: "success", users });
       } catch (error) {
         Sentry.captureException(error);
-        // The write landed, so keep the list on screen instead of showing a load error.
         setFailure({ kind: "refresh", entry });
       } finally {
         markPending(userId, false);
       }
     },
-    [fetchEntries, getIdToken, markPending]
+    [fetchUsers, getIdToken, markPending]
   );
 
   const grantRole = useCallback(
-    (entry: UserAccessEntry, role: Role, institutionId: string) =>
-      applyChange(entry, "grant", (token) =>
-        // The server replaces whatever the user held, so this one call is the whole role change.
-        UserService.getInstance().assignRole(entry.user.user_id, { role, institution_id: institutionId }, token)
-      ),
+    (entry: UserAccessEntry, request: AssignRoleRequest) =>
+      applyChange(entry, "grant", (token) => UserService.getInstance().assignRole(entry.user.user_id, request, token)),
     [applyChange]
   );
 
@@ -129,9 +132,8 @@ export function useUserAccess(): UserAccessController {
     (entry: UserAccessEntry) =>
       applyChange(entry, "revoke", async (token) => {
         const service = UserService.getInstance();
-        // Drop every grant (leaving any keeps a page open), in sequence so a refusal stops the rest.
-        for (const grant of entry.user.grants) {
-          await service.revokePermission(entry.user.user_id, grant.grant_id, token);
+        for (const userRole of entry.user.roles) {
+          await service.revokeRole(entry.user.user_id, userRole.role_id, token);
         }
       }),
     [applyChange]

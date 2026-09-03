@@ -1,7 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Check, Plus, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ROLE_LABEL_KEYS } from "@/access/roles";
 import type { UserAccessEntry } from "@/pages/UserAccess/hooks/useUserAccess";
 import { cn } from "@/lib/utils";
 
@@ -31,8 +30,7 @@ export function AccessRow({ entry, onToggle, pending = false, className }: Reado
   const { role, hasAccess } = entry;
   const name = displayName(entry);
 
-  // Grants matching no known role: say so rather than name a role they do not hold.
-  const access = role ? t(ROLE_LABEL_KEYS[role]) : t(hasAccess ? "userAccess.row.otherAccess" : "userAccess.row.none");
+  const access = role ? role.label : t(hasAccess ? "userAccess.row.otherAccess" : "userAccess.row.none");
   const detail = entry.user.name && entry.user.email ? `${entry.user.email} · ${access}` : access;
 
   return (

@@ -1,78 +1,66 @@
 import { describe, expect, it } from "vitest";
-import { Action, Subject } from "@/access/ability";
-import { Role } from "@/access/roles";
-import { grantsForRole } from "@/_test_utilities/role-grants";
-import { ALL_INSTITUTIONS, type ManagedUser } from "@/user/user.types";
+import { stubRoleRecord, userRoleFor } from "@/_test_utilities/role-grants";
+import type { ManagedUser, RoleRecord } from "@/user/user.types";
 import { toEntry } from "./useUserAccess";
 
-function givenUser(grants: ManagedUser["grants"]): ManagedUser {
-  return { user_id: "user-7", email: "v@example.com", name: "Vaani Mumba", grants };
+const FUNDER = stubRoleRecord({ _id: "role-funder", name: "funder", label: "Funder" });
+const IMPLEMENTER = stubRoleRecord({ _id: "role-implementer", name: "implementer", label: "Implementer" });
+
+const rolesById = new Map<string, RoleRecord>([
+  [FUNDER._id, FUNDER],
+  [IMPLEMENTER._id, IMPLEMENTER],
+]);
+
+function givenUser(roles: ManagedUser["roles"]): ManagedUser {
+  return { user_id: "user-7", email: "v@example.com", name: "Vaani Mumba", roles };
 }
 
-const grant = (grantId: string, subject: Subject, action: Action, institutionId = ALL_INSTITUTIONS) => ({
-  grant_id: grantId,
-  subject,
-  action,
-  institution_id: institutionId,
-});
-
 describe("toEntry", () => {
-  it("should name the role the user's grants add up to", () => {
-    // GIVEN a user holding the grants an implementer role expands into
-    const user = givenUser(grantsForRole(Role.Implementer));
+  it("should resolve the role from the user's first user_role assignment", () => {
+    // GIVEN a user assigned the implementer role
+    const user = givenUser([userRoleFor(IMPLEMENTER._id, "inst-1")]);
 
     // WHEN the row is derived
-    const actual = toEntry(user);
+    const actual = toEntry(user, rolesById);
 
-    // THEN the row can name their role, and reports them as holding access
-    expect(actual.role).toBe(Role.Implementer);
+    // THEN the row resolves to the implementer role record and reports access
+    expect(actual.role).toEqual(IMPLEMENTER);
     expect(actual.hasAccess).toBe(true);
   });
 
-  it("should name the funder role from the grants it expands into", () => {
-    // GIVEN a user holding a funder's grants
-    const user = givenUser(grantsForRole(Role.Funder));
+  it("should resolve the funder role", () => {
+    // GIVEN a user assigned the funder role
+    const user = givenUser([userRoleFor(FUNDER._id)]);
 
     // WHEN the row is derived
-    const actual = toEntry(user);
+    const actual = toEntry(user, rolesById);
 
     // THEN they are reported as a funder
-    expect(actual.role).toBe(Role.Funder);
+    expect(actual.role).toEqual(FUNDER);
   });
 
-  it("should report no role for a registered user who holds no grants", () => {
-    // GIVEN a user whose access has not been granted yet
+  it("should report no role for a user who holds no assignments", () => {
+    // GIVEN a user with no role assignments
     const user = givenUser([]);
 
     // WHEN the row is derived
-    const actual = toEntry(user);
+    const actual = toEntry(user, rolesById);
 
-    // THEN there is no role to name, and the row offers to grant one
+    // THEN there is no role to name and the row offers to grant one
     expect(actual.role).toBeNull();
     expect(actual.hasAccess).toBe(false);
   });
 
-  it("should report access without a role when the grants held match none", () => {
-    // GIVEN a user provisioned by hand, holding part of a role only
-    const user = givenUser([grant("g1", Subject.Dashboard, Action.View)]);
+  it("should report access without a role when the role_id is unknown", () => {
+    // GIVEN a user assigned a role that is no longer in the roles list
+    const user = givenUser([userRoleFor("role-deleted")]);
 
     // WHEN the row is derived
-    const actual = toEntry(user);
+    const actual = toEntry(user, rolesById);
 
-    // THEN no role is claimed, but the access they do hold is not hidden either
+    // THEN no role is named, but they are still shown as having access
     expect(actual.role).toBeNull();
     expect(actual.hasAccess).toBe(true);
-  });
-
-  it("should name the role regardless of the institution its grants are scoped to", () => {
-    // GIVEN an implementer provisioned against one institution rather than the whole deployment
-    const user = givenUser(grantsForRole(Role.Implementer, "inst-1"));
-
-    // WHEN the row is derived
-    const actual = toEntry(user);
-
-    // THEN their role is still named — the screen reports roles, not scopes
-    expect(actual.role).toBe(Role.Implementer);
   });
 
   it("should keep the user as the API returned them, so the row can name them", () => {
@@ -80,7 +68,7 @@ describe("toEntry", () => {
     const user = givenUser([]);
 
     // WHEN the row is derived
-    const actual = toEntry(user);
+    const actual = toEntry(user, rolesById);
 
     // THEN the whole user is carried through untouched
     expect(actual.user).toEqual(user);
