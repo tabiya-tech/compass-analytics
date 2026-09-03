@@ -1,22 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@/_test_utilities/test-utils";
 import userEvent from "@testing-library/user-event";
-import { Action, Subject } from "@/access/AccessContext";
-import { Role } from "@/access/roles";
-import { grantsForRole } from "@/_test_utilities/role-grants";
-import { ALL_INSTITUTIONS } from "@/user/user.types";
+import { stubRoleRecord, userRoleFor } from "@/_test_utilities/role-grants";
 import type { UserAccessEntry } from "@/pages/UserAccess/hooks/useUserAccess";
 import { AccessRow, DATA_TEST_ID } from "./AccessRow";
 
+const IMPLEMENTER = stubRoleRecord({ _id: "role-implementer", name: "implementer", label: "Implementer" });
+const FUNDER = stubRoleRecord({ _id: "role-funder", name: "funder", label: "Funder" });
+
 const givenUngrantedEntry: UserAccessEntry = {
-  user: { user_id: "user-7", email: "vaani.mumba@example.com", name: "Vaani Mumba", grants: [] },
+  user: { user_id: "user-7", email: "vaani.mumba@example.com", name: "Vaani Mumba", roles: [] },
   role: null,
   hasAccess: false,
 };
 
 const givenImplementerEntry: UserAccessEntry = {
-  user: { ...givenUngrantedEntry.user, grants: grantsForRole(Role.Implementer) },
-  role: Role.Implementer,
+  user: { ...givenUngrantedEntry.user, roles: [userRoleFor(IMPLEMENTER._id, "inst-1")] },
+  role: IMPLEMENTER,
   hasAccess: true,
 };
 
@@ -26,7 +26,7 @@ describe("AccessRow", () => {
     // WHEN the row is rendered
     render(<AccessRow entry={givenImplementerEntry} onToggle={vi.fn()} />);
 
-    // THEN it names the person, their email, and the role their grants add up to
+    // THEN it names the person, their email, and the role their assignments add up to
     expect(screen.getByTestId(DATA_TEST_ID.USER)).toHaveTextContent("Vaani Mumba");
     expect(screen.getByTestId(DATA_TEST_ID.DETAIL)).toHaveTextContent("vaani.mumba@example.com · Implementer");
   });
@@ -34,8 +34,8 @@ describe("AccessRow", () => {
   it("should name the funder role for a user who holds it", () => {
     // GIVEN a user who has been given the funder role
     const givenFunder: UserAccessEntry = {
-      user: { ...givenUngrantedEntry.user, grants: grantsForRole(Role.Funder) },
-      role: Role.Funder,
+      user: { ...givenUngrantedEntry.user, roles: [userRoleFor(FUNDER._id)] },
+      role: FUNDER,
       hasAccess: true,
     };
 
@@ -47,8 +47,8 @@ describe("AccessRow", () => {
     expect(screen.getByTestId(DATA_TEST_ID.DETAIL)).not.toHaveTextContent("Implementer");
   });
 
-  it("should say a user holds no access yet when they hold no grants", () => {
-    // GIVEN a registered user nobody has granted anything to
+  it("should say a user holds no access yet when they hold no roles", () => {
+    // GIVEN a registered user nobody has assigned anything to
     // WHEN the row is rendered
     render(<AccessRow entry={givenUngrantedEntry} onToggle={vi.fn()} />);
 
@@ -56,19 +56,19 @@ describe("AccessRow", () => {
     expect(screen.getByTestId(DATA_TEST_ID.DETAIL)).toHaveTextContent("No access yet");
   });
 
-  it("should not claim a role for a user whose grants add up to none", () => {
-    // GIVEN a user provisioned by hand, holding part of a role only
-    const givenCustom: UserAccessEntry = {
+  it("should not claim a role for a user whose assignment resolves to none", () => {
+    // GIVEN a user assigned a role that is no longer in the known roles
+    const givenUnknownRole: UserAccessEntry = {
       user: {
         ...givenUngrantedEntry.user,
-        grants: [{ grant_id: "g1", subject: Subject.Dashboard, action: Action.View, institution_id: ALL_INSTITUTIONS }],
+        roles: [userRoleFor("role-deleted")],
       },
       role: null,
       hasAccess: true,
     };
 
     // WHEN the row is rendered
-    render(<AccessRow entry={givenCustom} onToggle={vi.fn()} />);
+    render(<AccessRow entry={givenUnknownRole} onToggle={vi.fn()} />);
 
     // THEN their access is reported without overstating it as a role
     expect(screen.getByTestId(DATA_TEST_ID.DETAIL)).toHaveTextContent("Custom permissions");
@@ -130,8 +130,8 @@ describe("AccessRow", () => {
     expect(toggle).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("should offer the grant to a user with no grants to derive an institution from", () => {
-    // GIVEN a newly registered user, whose grants name no institution
+  it("should offer the grant to a user with no assignments to derive an institution from", () => {
+    // GIVEN a newly registered user, whose assignments name no institution
     // WHEN the row is rendered
     render(<AccessRow entry={givenUngrantedEntry} onToggle={vi.fn()} />);
 

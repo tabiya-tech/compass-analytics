@@ -9,7 +9,6 @@ import { ScreenHead } from "@/components/shared/ScreenHead";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { useAuth } from "@/auth/AuthContext";
 import { useAccess, type AccessScope } from "@/access/AccessContext";
-import { ROLE_LABEL_KEYS } from "@/access/roles";
 import { UserService } from "@/user/User.service";
 import { cn } from "@/lib/utils";
 
@@ -231,7 +230,7 @@ export function Settings() {
               <ProfileDetail label={t("settings.profile.email")} value={user?.email ?? unknownValuePlaceholder} />
               <ProfileDetail
                 label={t("settings.profile.role")}
-                value={role ? t(ROLE_LABEL_KEYS[role]) : unknownValuePlaceholder}
+                value={role ?? unknownValuePlaceholder}
               />
               <ProfileDetail label={t("settings.profile.dataScope")} value={describeScope(t, scope)} />
             </dl>

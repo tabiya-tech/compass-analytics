@@ -5,14 +5,13 @@ import { http, HttpResponse } from "msw";
 import { server } from "@/mocks/server";
 import { AuthProvider } from "@/auth/AuthContext";
 import { AccessProvider, type AccessScope } from "@/access/AccessContext";
-import { Role } from "@/access/roles";
 import { Settings, DATA_TEST_ID } from "./Settings";
 
 // The Firebase stub in src/test/setup.ts signs in as this user, so it is what the card reads.
 const SIGNED_IN_EMAIL = "test@example.com";
 
 function renderSettings(
-  options: { scope?: AccessScope; role?: Role | null; name?: string | null; organization?: string | null } = {}
+  options: { scope?: AccessScope; role?: string | null; name?: string | null; organization?: string | null } = {}
 ) {
   return render(
     <AuthProvider>
@@ -61,10 +60,10 @@ describe("Settings", () => {
   it("should name the role the caller's permissions add up to", () => {
     // GIVEN a caller whose grants make them a funder
     // WHEN the profile card renders
-    renderSettings({ role: Role.Funder });
+    renderSettings({ role: "funder" });
 
-    // THEN the card names that role in the same words the User Access screen uses
-    expect(valueOfDetail("Role")).toBe("Funder");
+    // THEN the card shows the role name from the backend
+    expect(valueOfDetail("Role")).toBe("funder");
   });
 
   it("should fall back to a dash when the permissions match no known role", () => {

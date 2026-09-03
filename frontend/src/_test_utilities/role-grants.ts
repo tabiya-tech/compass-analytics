@@ -1,16 +1,17 @@
-import type { Action, Subject } from "@/access/ability";
-import { ROLE_PERMISSIONS, type Role } from "@/access/roles";
-import { ALL_INSTITUTIONS, type GrantView } from "@/user/user.types";
+import type { RoleRecord, UserRoleView } from "@/user/user.types";
 
-/** The grants POST /users/{id}/roles expands `role` into, for tests and stories to build users from. */
-export function grantsForRole(role: Role, institutionId: string = ALL_INSTITUTIONS): GrantView[] {
-  return ROLE_PERMISSIONS[role].map((permission) => {
-    const [subject, action] = permission.split(":") as [Subject, Action];
-    return {
-      grant_id: `grant-${role}-${subject}-${action}`,
-      subject,
-      action,
-      institution_id: institutionId,
-    };
-  });
+export function stubRoleRecord(overrides: Partial<RoleRecord> = {}): RoleRecord {
+  return {
+    _id: "role-stub",
+    name: "funder",
+    label: "Funder",
+    description: "Deployment-wide access.",
+    permissions: [{ subject: "dashboard", action: "view" }],
+    assignable: true,
+    ...overrides,
+  };
+}
+
+export function userRoleFor(roleId: string, institutionId: string | null = null): UserRoleView {
+  return { role_id: roleId, role_name: roleId, institution_id: institutionId, granted_by: null, granted_at: null };
 }

@@ -13,14 +13,13 @@ import { routerPaths } from "@/app/routerPaths";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { useAuth } from "@/auth/AuthContext";
 import { useAccess } from "@/access/AccessContext";
-import { ROLE_LABEL_KEYS } from "@/access/roles";
 
 export function SidebarUserMenu({ onSignOut }: Readonly<{ onSignOut: () => void }>) {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { role, name: nameOnBackendRecord } = useAccess();
   const displayedName = user?.displayName ?? nameOnBackendRecord ?? t("common.myAccount");
-  const displayedRoleLabel = role ? t(ROLE_LABEL_KEYS[role]) : t("common.unknown");
+  const displayedRoleLabel = role ?? t("common.unknown");
 
   return (
     <SidebarMenu>

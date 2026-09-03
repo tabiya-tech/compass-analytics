@@ -7,7 +7,7 @@ import type {
   JobsResponse,
   ReachResponse,
 } from "@/analytics/analytics.types";
-import type { MeResponse } from "@/user/user.types";
+import type { ManagedUser, MeResponse, RoleRecord } from "@/user/user.types";
 import { REACH_API_PATH } from "@/pages/Overview/services/OverviewMetrics.service";
 import { MODULES_API_BASE } from "@/pages/Modules/services/ModuleMetrics.service";
 import type { InstitutionSortKey, SortDirection } from "@/institutions/institutions.types";
@@ -113,10 +113,60 @@ const stubMe: MeResponse = {
   email: "funder@example.com",
   name: "Dev Funder",
   organization: "Dev Fund",
-  permissions: ["dashboard:view", "institutions:view", "account:view"],
+  role: "funder",
+  permissions: ["dashboard:view", "institutions:view", "account:view", "access_management:manage"],
   scope: { type: "all", institution_ids: [] },
   active_modules: ["build-your-profile", "job-readiness", "career-explorer", "jobs"],
 };
+
+const stubRoles: RoleRecord[] = [
+  {
+    _id: "role-funder",
+    name: "funder",
+    label: "Funder",
+    description: "Deployment-wide visibility across all institutions.",
+    permissions: [
+      { subject: "dashboard", action: "view" },
+      { subject: "institutions", action: "view" },
+      { subject: "access_management", action: "manage" },
+      { subject: "account", action: "view" },
+    ],
+    assignable: true,
+  },
+  {
+    _id: "role-implementer",
+    name: "implementer",
+    label: "Implementer",
+    description: "Institution-scoped access for a single implementing partner.",
+    permissions: [
+      { subject: "dashboard", action: "view" },
+      { subject: "jobseekers", action: "view" },
+      { subject: "account", action: "view" },
+    ],
+    assignable: true,
+  },
+];
+
+const stubUsers: ManagedUser[] = [
+  {
+    user_id: "user-funder",
+    email: "funder@example.com",
+    name: "Alice Funder",
+    roles: [{ role_id: "role-funder", role_name: "funder", institution_id: null, granted_by: null, granted_at: null }],
+  },
+  {
+    user_id: "user-implementer",
+    email: "implementer@example.com",
+    name: "Bob Implementer",
+    roles: [{ role_id: "role-implementer", role_name: "implementer", institution_id: "inst-1", granted_by: null, granted_at: null }],
+  },
+  {
+    user_id: "user-no-access",
+    email: "noone@example.com",
+    name: "Carol None",
+    roles: [],
+  },
+];
 
 /** Applies the query server-side, the way the real endpoint will: search, filter, sort, paginate. */
 export const institutionsHandler = http.get("/api/analytics/institutions", ({ request }) => {
@@ -201,6 +251,21 @@ export const jobReadinessHandler = http.get("/api/modules/job-readiness", () => 
 /** Stands in for the real /api/me — exported individually so the browser dev worker can include it too. */
 export const meHandler = http.get("/api/me", () => HttpResponse.json(stubMe));
 
+export const rolesHandler = http.get("/api/roles", () => HttpResponse.json(stubRoles));
+
+export const usersHandler = http.get("/api/users", () => HttpResponse.json(stubUsers));
+
+export const assignRoleHandler = http.post("/api/users/:userId/roles", async ({ request }) => {
+  const body = (await request.json()) as { role_id: string; institution_id: string | null };
+  const role = stubRoles.find((stubRole) => stubRole._id === body.role_id);
+  return HttpResponse.json(
+    { role_id: body.role_id, role_name: role?.name ?? "unknown", institution_id: body.institution_id, granted_by: "dev-funder", granted_at: new Date().toISOString() },
+    { status: 201 }
+  );
+});
+
+export const revokeRoleHandler = http.delete("/api/users/:userId/roles/:userRoleId", () => new HttpResponse(null, { status: 204 }));
+
 /** Not in the dev worker, like /api/reach — exported individually so overriding stories can still include it. */
 export const buildYourProfileHandler = http.get(`${MODULES_API_BASE}/build-your-profile`, () =>
   HttpResponse.json(stubBuildYourProfile)
@@ -224,6 +289,10 @@ export const handlers: HttpHandler[] = [
   institutionsHandler,
   institutionDetailHandler,
   meHandler,
+  rolesHandler,
+  usersHandler,
+  assignRoleHandler,
+  revokeRoleHandler,
   http.post("/api/users/register", () => new HttpResponse(null, { status: 201 })),
   http.get("/api/reach", () => HttpResponse.json(stubReach)),
   buildYourProfileHandler,

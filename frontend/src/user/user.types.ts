@@ -1,6 +1,3 @@
-import type { Action, Subject } from "@/access/ability";
-import type { Role } from "@/access/roles";
-
 export type ScopeType = "all" | "institutions";
 export type ModuleId = "build-your-profile" | "job-readiness" | "career-explorer" | "jobs";
 
@@ -9,37 +6,50 @@ export interface UserScope {
   institution_ids: string[];
 }
 
+export interface PermissionEntry {
+  subject: string;
+  action: string;
+}
+
+export interface RoleRecord {
+  _id: string;
+  name: string;
+  label: string;
+  description: string;
+  permissions: PermissionEntry[];
+  assignable: boolean;
+}
+
+export interface UserRoleView {
+  role_id: string;
+  role_name: string;
+  institution_id: string | null;
+  granted_by: string | null;
+  granted_at: string | null;
+}
+
 /** Shape of GET /api/me — the caller's granted permissions and access scope. */
 export interface MeResponse {
   user_id: string;
   email: string | null;
   name: string | null;
   organization: string | null;
+  role: string | null;
   permissions: string[];
   scope: UserScope;
   active_modules: ModuleId[];
 }
 
-/** Sentinel institution_id meaning every institution in the deployment. */
-export const ALL_INSTITUTIONS = "*";
-
-export interface GrantView {
-  grant_id: string;
-  subject: Subject;
-  action: Action;
-  institution_id: string;
-}
-
-/** One row of GET /api/users — a user plus every grant they hold. */
+/** One row of GET /api/users — a user plus every role they hold. */
 export interface ManagedUser {
   user_id: string;
   email: string | null;
   name: string | null;
-  grants: GrantView[];
+  roles: UserRoleView[];
 }
 
 /** Body of POST /api/users/{userId}/roles. */
-export interface RoleRequest {
-  role: Role;
-  institution_id: string;
+export interface AssignRoleRequest {
+  role_id: string;
+  institution_id: string | null;
 }
