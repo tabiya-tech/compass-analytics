@@ -191,15 +191,16 @@ describe("ModuleBody for Job Readiness", () => {
     expect(barWidthOf("digital-basics") / actualBusiest).toBeCloseTo(892 / 1415, 2);
   });
 
-  it("should say which shade means finished and which means started", () => {
-    // GIVEN bars stacking completions inside starts
+  it("should name every band a bar is split into", () => {
+    // GIVEN bars stacking completions inside starts, against the courses nobody has begun
     // WHEN the body is rendered
     render(<ModuleBody metrics={JOB_READINESS} />);
 
-    // THEN a legend names both stages
+    // THEN a legend names all three bands
     const actualLegend = within(screen.getByTestId(LEGEND_TEST_ID.CONTAINER));
     expect(actualLegend.getByText("Completed")).toBeInTheDocument();
-    expect(actualLegend.getByText("Started")).toBeInTheDocument();
+    expect(actualLegend.getByText("In progress")).toBeInTheDocument();
+    expect(actualLegend.getByText("Not started")).toBeInTheDocument();
   });
 
   it("should say so when the deployment has no job-readiness courses configured", () => {

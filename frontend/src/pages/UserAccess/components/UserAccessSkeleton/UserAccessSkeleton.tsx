@@ -40,7 +40,7 @@ export function UserAccessSkeleton({ rows = 6, className }: Readonly<UserAccessS
               <Skeleton className="h-3 w-52" />
             </div>
           </div>
-          <Skeleton className="h-11 w-[190px] rounded-pill" />
+          <Skeleton className="h-9 min-w-[160px] rounded-pill" />
         </div>
       ))}
     </div>

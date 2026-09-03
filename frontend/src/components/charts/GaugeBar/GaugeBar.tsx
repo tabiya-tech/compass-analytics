@@ -79,21 +79,22 @@ export function GaugeBar({
   return (
     <div data-slot="gauge-bar" data-testid={DATA_TEST_ID.CONTAINER} className={cn(className)}>
       <div className="mb-1.5 flex items-baseline justify-between gap-4 text-sm">
-        <span className="truncate font-medium text-foreground">{label}</span>
-        <span data-testid={DATA_TEST_ID.CAPTION} className="shrink-0 font-mono text-xs text-muted-foreground">
+        <span className="truncate font-semibold text-foreground text-[13px]">{label}</span>
+        <span data-testid={DATA_TEST_ID.CAPTION} className="shrink-0 font-mono text-[13px] text-grey-text">
           {caption}
         </span>
       </div>
       <div
         data-testid={DATA_TEST_ID.TRACK}
         aria-hidden="true"
-        className="h-2 w-full overflow-hidden rounded-full bg-muted"
+        className="h-3.5 w-full overflow-hidden rounded-full bg-surface-wash"
       >
         <ChartContainer config={CHART_CONFIG} className="aspect-auto h-full w-full">
           <RechartsBarChart
             layout="vertical"
             data={chartData}
             margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
+            barCategoryGap={0}
             accessibilityLayer={false}
           >
             <XAxis type="number" hide domain={[0, domainMax]} allowDataOverflow />

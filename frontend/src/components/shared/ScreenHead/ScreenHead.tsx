@@ -31,7 +31,7 @@ export function ScreenHead({ title, eyebrow, description, className }: Readonly<
       <h1
         data-slot="screen-head-title"
         data-testid={DATA_TEST_ID.TITLE}
-        className="text-4xl font-bold tracking-tight text-foreground"
+        className="text-3xl font-bold tracking-tight text-foreground"
       >
         {title}
       </h1>
@@ -39,7 +39,7 @@ export function ScreenHead({ title, eyebrow, description, className }: Readonly<
         <p
           data-slot="screen-head-description"
           data-testid={DATA_TEST_ID.DESCRIPTION}
-          className="max-w-(--measure) text-muted-foreground"
+          className="max-w-(--measure) text-muted-foreground text-[15px]"
         >
           {description}
         </p>

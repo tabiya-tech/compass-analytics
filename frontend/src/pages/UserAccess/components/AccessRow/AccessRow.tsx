@@ -39,20 +39,20 @@ export function AccessRow({ entry, onToggle, pending = false, className }: Reado
     <li
       data-testid={DATA_TEST_ID.CONTAINER}
       data-granted={hasAccess}
-      className={cn("flex flex-wrap items-center justify-between gap-4 rounded-card bg-muted px-5 py-4", className)}
+      className={cn("flex flex-wrap items-center justify-between gap-4 rounded-card bg-muted px-4 py-3", className)}
     >
-      <div className="flex min-w-0 items-center gap-4">
+      <div className="flex min-w-0 items-center gap-3.5">
         <span
           aria-hidden="true"
-          className="flex size-11 shrink-0 items-center justify-center rounded-full bg-tabiya-blue text-white [&_svg]:size-5"
+          className="flex size-10 shrink-0 items-center justify-center rounded-full bg-tabiya-blue text-white [&_svg]:size-5"
         >
           <UserRound />
         </span>
         <span className="min-w-0">
-          <span data-testid={DATA_TEST_ID.USER} className="block truncate font-semibold text-foreground">
+          <span data-testid={DATA_TEST_ID.USER} className="block truncate text-sm font-semibold text-foreground">
             {name}
           </span>
-          <span data-testid={DATA_TEST_ID.DETAIL} className="block truncate text-sm text-muted-foreground">
+          <span data-testid={DATA_TEST_ID.DETAIL} className="block truncate text-[12.5px] text-muted-foreground">
             {detail}
           </span>
         </span>
@@ -68,7 +68,7 @@ export function AccessRow({ entry, onToggle, pending = false, className }: Reado
         // The visible label repeats down the list, so name the button after the user.
         aria-label={t(hasAccess ? "userAccess.toggle.grantedLabel" : "userAccess.toggle.grantLabel", { user: name })}
         className={cn(
-          "h-11 min-w-[190px] cursor-pointer rounded-pill px-6 text-sm font-semibold",
+          "h-9 min-w-[160px] cursor-pointer rounded-pill px-4 text-[13px] font-semibold",
           // Granted keeps the brand variant's lighter green. The outline variant would hover to
           // bg-accent — Tabiya Green, the granted look — so tint it with its own blue instead.
           !hasAccess && "border-tabiya-blue hover:bg-tabiya-blue/10"

@@ -38,7 +38,7 @@ export function ChartLegend({
       data-slot="chart-legend"
       data-testid={DATA_TEST_ID.CONTAINER}
       className={cn(
-        "flex text-sm",
+        "flex text-xs",
         orientation === "horizontal" ? "flex-wrap items-center justify-center gap-x-5 gap-y-2 pt-3" : "flex-col gap-2",
         className
       )}
@@ -59,7 +59,7 @@ export function ChartLegend({
               style={{ background: item.color }}
             />
             <span className={cn("text-foreground", isSelected && "font-medium")}>{item.label}</span>
-            {item.value && <span className="text-muted-foreground tabular-nums">{item.value}</span>}
+            {item.value && <span className="text-grey-text tabular-nums">{item.value}</span>}
           </>
         );
 

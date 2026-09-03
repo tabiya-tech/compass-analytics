@@ -4,6 +4,9 @@
 
 const CHART_SERIES_COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)"] as const;
 
+/** The unfilled remainder of a bar's track — the "not yet" band, shared by every progress bar. */
+export const CHART_TRACK_COLOR = "var(--surface-wash)";
+
 /** Marks a threshold — a histogram's target line, a gauge's off-track state — never a data series. */
 export const CHART_TARGET_COLOR = "var(--chart-warning)";
 
@@ -26,17 +29,15 @@ export function seriesColorAt(index: number): string {
 /**
  * A funnel's stages are the same metric shedding people at each step, not
  * separate series, so they share one ramp that darkens as the funnel narrows.
- * Each stop carries the ink its own fill can legibly hold.
+ * Every stop carries white ink; only the lightest fill holds it below AA.
  */
-const INK_ON_LIGHT = "var(--chart-funnel-ink-on-light)";
 const INK_ON_DARK = "var(--chart-funnel-ink-on-dark)";
 
 const CHART_FUNNEL_STOPS = [
-  { fill: "var(--chart-funnel-1)", ink: INK_ON_LIGHT },
-  { fill: "var(--chart-funnel-2)", ink: INK_ON_LIGHT },
+  { fill: "var(--chart-funnel-1)", ink: INK_ON_DARK },
+  { fill: "var(--chart-funnel-2)", ink: INK_ON_DARK },
   { fill: "var(--chart-funnel-3)", ink: INK_ON_DARK },
   { fill: "var(--chart-funnel-4)", ink: INK_ON_DARK },
-  { fill: "var(--chart-funnel-5)", ink: INK_ON_DARK },
 ] as const;
 
 export interface FunnelStop {

@@ -101,7 +101,7 @@ export function UserAccess() {
           <ul
             data-testid={DATA_TEST_ID.LIST}
             aria-label={t("userAccess.listLabel")}
-            className="grid min-h-0 min-w-0 flex-1 auto-rows-max gap-3 overflow-y-auto rounded-card border bg-card p-4"
+            className="grid min-h-0 min-w-0 flex-1 auto-rows-max gap-3 overflow-y-auto rounded-card border bg-card p-6"
           >
             {state.items.map((entry) => (
               <AccessRow

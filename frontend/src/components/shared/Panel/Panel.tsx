@@ -40,14 +40,14 @@ export function Panel({
       data-testid={testId ?? DATA_TEST_ID.CONTAINER}
       aria-busy={isLoading || undefined}
       className={cn(
-        "gap-5 rounded-card py-6 transition-opacity duration-(--duration-base)",
+        "gap-3 rounded-card py-6 transition-opacity duration-(--duration-base)",
         isLoading && "opacity-60",
         className
       )}
     >
       <CardHeader className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="grid min-w-56 flex-1 gap-1.5">
-          <h2 data-testid={DATA_TEST_ID.TITLE} className="text-xl font-bold tracking-tight text-foreground">
+          <h2 data-testid={DATA_TEST_ID.TITLE} className="text-[17px] font-bold tracking-tight text-foreground">
             {title}
           </h2>
           {description && <CardDescription data-testid={DATA_TEST_ID.DESCRIPTION}>{description}</CardDescription>}

@@ -484,6 +484,7 @@
     "eyebrow": "Modules",
     "title": "Module-based analytics",
     "description": "{{range}}",
+    "timelineHint": "Jump to any module from the bar below.",
     "error": "We couldn't load the module metrics.",
     "timeline": {
       "label": "Modules",
@@ -539,7 +540,9 @@
         "empty": "This deployment has no job-readiness sub-modules yet.",
         "legend": {
           "completed": "Completed",
-          "started": "Started"
+          "started": "Started",
+          "inProgress": "In progress",
+          "notStarted": "Not started"
         }
       }
     },
