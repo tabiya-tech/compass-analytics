@@ -3,8 +3,10 @@ import { useTranslation } from "react-i18next";
 import { Search, TriangleAlert } from "lucide-react";
 import { useAccess } from "@/access/AccessContext";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { usePagination } from "@/hooks/usePagination";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { TablePagination } from "@/components/shared/TablePagination";
 import { ScreenHead } from "@/components/shared/ScreenHead";
 import { StatTile } from "@/components/shared/StatTile";
 import type { InstitutionsQuery, InstitutionsSort } from "@/institutions/institutions.types";
@@ -25,7 +27,7 @@ export const DATA_TEST_ID = {
   ERROR: `institutions-error-${uniqueId}`,
 };
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 
 const SEARCH_DEBOUNCE_MS = 250;
 
@@ -48,6 +50,17 @@ export function Institutions() {
   const state = useInstitutions(query);
   const detail = useInstitutionDetail(selectedId);
 
+  const portfolioSize = state.status === "success" ? state.data.items.length : 0;
+  const { page, setPage } = usePagination({
+    listIdentity: JSON.stringify([debouncedSearch, regions, sort]),
+    pageCount:
+      state.status === "success" ? Math.max(1, Math.ceil(portfolioSize / PAGE_SIZE)) : Number.POSITIVE_INFINITY,
+  });
+  const institutionsOnPage = useMemo(
+    () => (state.status === "success" ? state.data.items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : []),
+    [state, page]
+  );
+
   const columns = useMemo(() => getInstitutionColumns(activeModules), [activeModules]);
   const regionOptions = useMemo(
     () =>
@@ -63,7 +76,7 @@ export function Institutions() {
   };
 
   return (
-    <div className="flex h-svh min-w-0 flex-col gap-6 p-6 pb-8" data-testid={DATA_TEST_ID.CONTAINER}>
+    <div className="flex h-svh min-w-0 flex-col gap-6 p-6 pb-0" data-testid={DATA_TEST_ID.CONTAINER}>
       <ScreenHead
         className="shrink-0"
         eyebrow={t("institutions.eyebrow")}
@@ -136,10 +149,11 @@ export function Institutions() {
             </p>
           </div>
 
-          <div className="flex min-h-64 min-w-0 flex-1 flex-col">
+          <div className="flex min-w-0 flex-col gap-2">
             <InstitutionsTable
-              className="min-h-0"
-              institutions={state.data.items}
+              className="overflow-x-auto overflow-y-auto"
+              style={{ maxHeight: `calc(100svh - 428px)` }}
+              institutions={institutionsOnPage}
               columns={columns}
               sort={sort}
               onSortChange={setSort}
@@ -148,6 +162,13 @@ export function Institutions() {
               onSelectedRegionsChange={setRegions}
               onClearFilters={clearFilters}
               onInstitutionSelect={(institution) => setSelectedId(institution.id)}
+            />
+            <TablePagination
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={portfolioSize}
+              onPageChange={setPage}
+              className="shrink-0"
             />
           </div>
         </>

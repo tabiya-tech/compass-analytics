@@ -3,13 +3,16 @@ import { http, HttpResponse } from "msw";
 import userEvent from "@testing-library/user-event";
 import { render, screen, waitFor, waitForElementToBeRemoved, within } from "@/_test_utilities/test-utils";
 import { server } from "@/mocks/server";
+import { queryJobseekers } from "@/mocks/data/jobseekers";
 import { AccessProvider, MODULE_IDS, type AccessProviderProps } from "@/access/AccessContext";
 import { DATA_TEST_ID as TABLE_TEST_ID } from "@/pages/JobSeekers/components/JobseekersTable";
 import { DATA_TEST_ID as SKELETON_TEST_ID } from "@/pages/JobSeekers/components/JobseekersSkeleton";
+import { DATA_TEST_ID as PAGINATION_TEST_ID } from "@/components/shared/TablePagination";
 import { DATA_TEST_ID, Jobseekers } from "./Jobseekers";
 
 /** The default grant covers one institution, and that institution's cohort is 21 of the mocked 28. */
 const GIVEN_JOBSEEKER_COUNT = 21;
+const GIVEN_PAGE_SIZE = 20;
 const GIVEN_FIRST_JOBSEEKER = "Aisha Mwansa"; // the roster opens sorted by name, A–Z
 
 function renderJobseekers(access?: AccessProviderProps) {
@@ -49,10 +52,10 @@ describe("Jobseekers", () => {
     // WHEN the screen has loaded
     await renderAndWaitForJobseekers();
 
-    // THEN one row per jobseeker in that institution is shown, A–Z
-    expect(screen.getAllByTestId(TABLE_TEST_ID.ROW)).toHaveLength(GIVEN_JOBSEEKER_COUNT);
+    // THEN the first page of that institution's jobseekers is shown, A–Z
+    expect(screen.getAllByTestId(TABLE_TEST_ID.ROW)).toHaveLength(GIVEN_PAGE_SIZE);
     expect(jobseekerNames()[0]).toBe(GIVEN_FIRST_JOBSEEKER);
-    // AND the count reflects the cohort
+    // AND the count reflects the whole cohort, not just the page
     expect(screen.getByTestId(DATA_TEST_ID.COUNT)).toHaveTextContent(`${GIVEN_JOBSEEKER_COUNT} jobseekers`);
   });
 
@@ -82,6 +85,85 @@ describe("Jobseekers", () => {
     const actualNames = jobseekerNames();
     expect(actualNames).toContain(GIVEN_FIRST_JOBSEEKER);
     expect(actualNames).toContain("Diego Fernández");
+  });
+
+  it("should request the exact page whose number is clicked, not a repeat of the current one", async () => {
+    // GIVEN a roster too large for one page — larger than the mocked cohort really is, since the
+    // fixture doesn't carry hundreds of rows, but standing in for a real deployment that would
+    let lastRequestedPage: string | null = null;
+    server.use(
+      http.get("/api/jobseekers", ({ request }) => {
+        lastRequestedPage = new URL(request.url).searchParams.get("page");
+        const response = queryJobseekers({
+          scope: { type: "institutions", institutionIds: ["inst-1"] },
+          sort: { by: "name", direction: "asc" },
+          page: 1,
+          page_size: 100,
+        });
+        return HttpResponse.json({ ...response, total: 250 });
+      })
+    );
+    await renderAndWaitForJobseekers();
+    expect(lastRequestedPage).toBe("1");
+
+    // WHEN the reader clicks straight to the third page
+    await userEvent.click(screen.getByRole("button", { name: "Page 3" }));
+
+    // THEN the request that goes out asks for that exact page, not another copy of the first
+    await waitFor(() => expect(lastRequestedPage).toBe("3"));
+    expect(screen.getByRole("button", { name: "Page 3" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("should page the roster on one request, rather than fetching rows it will not show", async () => {
+    // GIVEN a roster too large for one page, with the jobseekers endpoint counting its calls
+    let calls = 0;
+    server.use(
+      http.get("/api/jobseekers", () => {
+        calls += 1;
+        const response = queryJobseekers({
+          scope: { type: "institutions", institutionIds: ["inst-1"] },
+          sort: { by: "name", direction: "asc" },
+          page: 1,
+          page_size: 100,
+        });
+        return HttpResponse.json({ ...response, total: 250 });
+      })
+    );
+    await renderAndWaitForJobseekers();
+    calls = 0; // only the click below is under test, not the initial load
+
+    // WHEN the reader steps to the next page
+    await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+
+    // THEN that page costs a single request
+    await waitFor(() => expect(screen.getByRole("button", { name: "Page 2" })).toHaveAttribute("aria-current", "page"));
+    expect(calls).toBe(1);
+  });
+
+  it("should stop offering a next page once one comes back with fewer rows than it asked for", async () => {
+    // GIVEN a backend that reports a roster of 51 — enough for a third page
+    const givenPageSize = 20;
+    server.use(
+      http.get("/api/jobseekers", ({ request }) => {
+        const requestedPage = Number(new URL(request.url).searchParams.get("page") ?? 1);
+        const response = queryJobseekers({
+          scope: { type: "institutions", institutionIds: ["inst-1"] },
+          sort: { by: "name", direction: "asc" },
+          page: 1,
+          page_size: requestedPage === 2 ? 1 : givenPageSize,
+        });
+        return HttpResponse.json({ ...response, page: requestedPage, total: 51 });
+      })
+    );
+    await renderAndWaitForJobseekers();
+
+    // WHEN the reader steps to the second page
+    await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+
+    // THEN the short page is trusted as the roster's real end
+    await waitFor(() => expect(screen.getByTestId(PAGINATION_TEST_ID.RANGE)).toHaveTextContent(`Showing 21–21 of 21`));
+    expect(screen.queryByRole("button", { name: "Page 3" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
   });
 
   it("should re-order the roster when another column is sorted", async () => {
@@ -170,7 +252,10 @@ describe("Jobseekers", () => {
     await userEvent.click(screen.getByRole("button", { name: "Clear search and filters" }));
 
     // THEN the whole cohort is back
-    await waitFor(() => expect(screen.getAllByTestId(TABLE_TEST_ID.ROW)).toHaveLength(GIVEN_JOBSEEKER_COUNT));
+    await waitFor(() =>
+      expect(screen.getByTestId(DATA_TEST_ID.COUNT)).toHaveTextContent(`${GIVEN_JOBSEEKER_COUNT} jobseekers`)
+    );
+    expect(screen.getAllByTestId(TABLE_TEST_ID.ROW)).toHaveLength(GIVEN_PAGE_SIZE);
   });
 
   it("should show a status column only for the modules the deployment runs, and never for Jobs", async () => {
@@ -252,7 +337,7 @@ describe("Jobseekers", () => {
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
 
     // THEN the roster arrives on the second attempt
-    await waitFor(() => expect(screen.getAllByTestId(TABLE_TEST_ID.ROW)).toHaveLength(GIVEN_JOBSEEKER_COUNT));
+    await waitFor(() => expect(screen.getAllByTestId(TABLE_TEST_ID.ROW)).toHaveLength(GIVEN_PAGE_SIZE));
     expect(screen.queryByTestId(DATA_TEST_ID.ERROR)).not.toBeInTheDocument();
   });
 

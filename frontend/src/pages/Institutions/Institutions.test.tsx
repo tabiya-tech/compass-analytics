@@ -10,6 +10,7 @@ import { DATA_TEST_ID, Institutions } from "./Institutions";
 
 /** The mocked portfolio the shared MSW handler serves. */
 const GIVEN_INSTITUTION_COUNT = 30;
+const GIVEN_PAGE_SIZE = 20;
 
 function renderInstitutions(activeModules?: ModuleId[]) {
   return render(
@@ -59,15 +60,15 @@ describe("Institutions", () => {
     expect(stats.getByText("Implementing institutions")).toBeInTheDocument();
   });
 
-  it("should list every institution, most registered users first, and say how many there are", async () => {
+  it("should list the first page of institutions, most registered users first, and say how many there are", async () => {
     // GIVEN the portfolio of institutions
     // WHEN the screen has loaded
     await renderAndWaitForInstitutions();
 
-    // THEN one row per institution is shown, biggest deployment first
-    expect(screen.getAllByTestId(TABLE_TEST_ID.ROW)).toHaveLength(GIVEN_INSTITUTION_COUNT);
+    // THEN a page of institutions is shown, biggest deployment first
+    expect(screen.getAllByTestId(TABLE_TEST_ID.ROW)).toHaveLength(GIVEN_PAGE_SIZE);
     expect(institutionNames()[0]).toBe("Mazabuka Livelihoods Trust");
-    // AND the count reflects the portfolio
+    // AND the count reflects the whole portfolio, not just the page
     expect(screen.getByTestId(DATA_TEST_ID.COUNT)).toHaveTextContent(`${GIVEN_INSTITUTION_COUNT} institutions`);
   });
 
@@ -141,7 +142,7 @@ describe("Institutions", () => {
     await userEvent.click(screen.getByRole("button", { name: "Clear search and filters" }));
 
     // THEN the whole portfolio is back
-    await waitFor(() => expect(screen.getAllByTestId(TABLE_TEST_ID.ROW)).toHaveLength(GIVEN_INSTITUTION_COUNT));
+    await waitFor(() => expect(screen.getAllByTestId(TABLE_TEST_ID.ROW)).toHaveLength(GIVEN_PAGE_SIZE));
   });
 
   it("should show a column only for the modules the deployment runs", async () => {
@@ -193,7 +194,7 @@ describe("Institutions", () => {
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
 
     // THEN the institutions arrive on the second attempt
-    await waitFor(() => expect(screen.getAllByTestId(TABLE_TEST_ID.ROW)).toHaveLength(GIVEN_INSTITUTION_COUNT));
+    await waitFor(() => expect(screen.getAllByTestId(TABLE_TEST_ID.ROW)).toHaveLength(GIVEN_PAGE_SIZE));
     expect(screen.queryByTestId(DATA_TEST_ID.ERROR)).not.toBeInTheDocument();
   });
 
