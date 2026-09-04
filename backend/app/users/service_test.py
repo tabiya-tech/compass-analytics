@@ -116,9 +116,9 @@ class _FakeUserRoleRepository(IUserRoleRepository):
         self._user_roles.append(record)
         return record
 
-    async def revoke(self, user_role_id: str, user_id: str) -> bool:
+    async def revoke(self, role_id: str, user_id: str) -> bool:
         before = len(self._user_roles)
-        self._user_roles = [ur for ur in self._user_roles if not (ur.id == user_role_id and ur.user_id == user_id)]
+        self._user_roles = [ur for ur in self._user_roles if not (ur.role_id == role_id and ur.user_id == user_id)]
         return len(self._user_roles) < before
 
     async def revoke_all_for_user(self, user_id: str) -> None:
@@ -325,23 +325,23 @@ class TestAssignRole:
 
 class TestRevokeRole:
     async def test_revokes_user_role_successfully(self):
-        ur = _make_user_role("u2", _FUNDER_ROLE, ur_id="ur-99")
+        ur = _make_user_role("u2", _FUNDER_ROLE)
         svc, ur_repo = await _make_service(records=[_make_user_record()], user_roles=[ur])
 
-        await svc.revoke_role(_make_user_info(), "u2", "ur-99")
+        await svc.revoke_role(_make_user_info(), "u2", _FUNDER_ROLE.id)
 
         assert await ur_repo.list_for_user("u2") == []
 
-    async def test_raises_not_found_for_unknown_user_role_id(self):
+    async def test_raises_not_found_for_unassigned_role(self):
         svc, _ = await _make_service(records=[_make_user_record()])
         from app.users.errors import GrantNotFoundError
         with pytest.raises(GrantNotFoundError):
-            await svc.revoke_role(_make_user_info(), "u2", "no-such-id")
+            await svc.revoke_role(_make_user_info(), "u2", "no-such-role")
 
     async def test_raises_not_provisioned_when_caller_has_no_record(self):
         svc, _ = await _make_service()
         with pytest.raises(UserNotProvisionedError):
-            await svc.revoke_role(_make_user_info(), "u2", "some-id")
+            await svc.revoke_role(_make_user_info(), "u2", "some-role-id")
 
 
 class TestRegister:

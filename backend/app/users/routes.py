@@ -87,20 +87,20 @@ def add_users_routes(app: FastAPI, auth: Authentication) -> None:
         except UnknownRoleError as exc:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Unknown role: {exc}") from exc
 
-    @router.delete("/users/{target_user_id}/roles/{user_role_id}", status_code=status.HTTP_204_NO_CONTENT, responses={
+    @router.delete("/users/{target_user_id}/roles/{role_id}", status_code=status.HTTP_204_NO_CONTENT, responses={
         HTTPStatus.UNAUTHORIZED: {"model": InvalidTokenErrorResponse, "description": "Missing or invalid authentication token."},
         HTTPStatus.FORBIDDEN: {"model": None, "description": "Caller does not have access-management permission."},
-        HTTPStatus.NOT_FOUND: {"model": None, "description": "No user_role with the given ID exists."},
+        HTTPStatus.NOT_FOUND: {"model": None, "description": "No assignment for this role and user exists."},
     })
     @requires(Subject.ACCESS_MANAGEMENT, Action.MANAGE)
     async def revoke_role(
         target_user_id: str,
-        user_role_id: str,
+        role_id: str,
         user_info: UserInfo = Depends(get_user_info),
         service: IUserService = Depends(get_user_service),
     ) -> None:
         try:
-            await service.revoke_role(user_info, target_user_id, user_role_id)
+            await service.revoke_role(user_info, target_user_id, role_id)
         except UserNotProvisionedError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not provisioned.") from exc
         except GrantNotFoundError as exc:
