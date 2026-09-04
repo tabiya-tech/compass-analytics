@@ -16,6 +16,7 @@ from app.app_config import ApplicationConfig, set_application_config
 from app.auth.api_key import ExternalService
 from app.auth.firebase import Authentication
 from app.jobseekers.routes import add_jobseekers_routes
+from app.roles.routes import add_roles_routes
 from app.sentry_init import init_sentry, set_sentry_contexts
 from app.server_dependencies.db_dependencies import AnalyticsDBProvider
 from app.users.routes import add_users_routes
@@ -144,6 +145,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 
 add_version_routes(app)
 add_users_routes(app, firebase_auth)
+add_roles_routes(app, firebase_auth)
 add_analytics_routes(app, firebase_auth)
 add_jobseekers_routes(app, firebase_auth)
 
