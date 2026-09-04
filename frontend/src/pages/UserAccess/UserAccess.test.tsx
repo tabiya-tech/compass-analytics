@@ -3,22 +3,20 @@ import { http, HttpResponse } from "msw";
 import userEvent from "@testing-library/user-event";
 import { render, screen, waitFor, within } from "@/_test_utilities/test-utils";
 import { server } from "@/mocks/server";
-import { Action, Subject } from "@/access/AccessContext";
-import { Role } from "@/access/roles";
-import { grantsForRole } from "@/_test_utilities/role-grants";
-import { ALL_INSTITUTIONS, type ManagedUser, type RoleRequest } from "@/user/user.types";
+import { userRoleFor } from "@/_test_utilities/role-grants";
+import type { AssignRoleRequest, ManagedUser, UserRoleView } from "@/user/user.types";
 import { UserAccess, DATA_TEST_ID } from "./UserAccess";
 import { DATA_TEST_ID as ROW_TEST_ID } from "./components/AccessRow/AccessRow";
 import { DATA_TEST_ID as DIALOG_TEST_ID } from "./components/ConfirmAccessDialog/ConfirmAccessDialog";
 
 /** Isaac holds no access at all; Naomi already holds the implementer role. */
 const givenUsers: ManagedUser[] = [
-  { user_id: "user-1", email: "isaac.chirwa@example.com", name: "Isaac Chirwa", grants: [] },
+  { user_id: "user-1", email: "isaac.chirwa@example.com", name: "Isaac Chirwa", roles: [] },
   {
     user_id: "user-2",
     email: "naomi.banda@example.com",
     name: "Naomi Banda",
-    grants: grantsForRole(Role.Implementer),
+    roles: [userRoleFor("role-implementer", "inst-1")],
   },
 ];
 
@@ -30,28 +28,33 @@ function givenUsersEndpoint(users: ManagedUser[] = givenUsers) {
 }
 
 /** Assigns the role server-side, so the re-read reflects it. */
-function givenRoleEndpoint(state: ManagedUser[], onCall?: (url: URL, body: RoleRequest) => void) {
+function givenRoleEndpoint(state: ManagedUser[], onCall?: (url: URL, body: AssignRoleRequest) => void) {
   server.use(
     http.post("/api/users/:userId/roles", async ({ params, request }) => {
-      const body = (await request.json()) as RoleRequest;
+      const body = (await request.json()) as AssignRoleRequest;
       onCall?.(new URL(request.url), body);
-      const created = grantsForRole(body.role, body.institution_id);
+      const created: UserRoleView = {
+        role_id: body.role_id,
+        role_name: body.role_id,
+        institution_id: body.institution_id,
+        granted_by: null,
+        granted_at: null,
+      };
       const user = state.find((candidate) => candidate.user_id === String(params.userId));
-      if (user) user.grants = created;
+      if (user) user.roles = [created];
       return HttpResponse.json(created, { status: 201 });
     })
   );
 }
 
-/** Deletes grants one at a time, as the API does. Records the paths called; `refuseAfter` refuses one. */
-function givenGrantDeleteEndpoint(state: ManagedUser[], refuseAfter?: (deletedSoFar: number) => boolean) {
+/** Revokes a user role by its id. Records the paths called. */
+function givenRevokeEndpoint(state: ManagedUser[]) {
   const called: string[] = [];
   server.use(
-    http.delete("/api/users/:userId/grants/:grantId", ({ params, request }) => {
+    http.delete("/api/users/:userId/roles/:userRoleId", ({ params, request }) => {
       called.push(new URL(request.url).pathname);
-      if (refuseAfter?.(called.length)) return new HttpResponse(null, { status: 403 });
       const user = state.find((candidate) => candidate.user_id === String(params.userId));
-      if (user) user.grants = user.grants.filter((grant) => grant.grant_id !== String(params.grantId));
+      if (user) user.roles = user.roles.filter((userRole) => userRole.role_id !== String(params.userRoleId));
       return new HttpResponse(null, { status: 204 });
     })
   );
@@ -72,7 +75,7 @@ async function pickRole(row: HTMLElement, roleLabel: string) {
   await userEvent.click(await screen.findByRole("option", { name: roleLabel }));
 }
 
-/** Picks an institution for a role that is scoped to one. The picker waits on its own fetch. */
+/** Picks an institution for a role. The picker waits on its own fetch. */
 async function pickInstitution(institutionName: string) {
   await waitFor(() => expect(screen.getByTestId(DIALOG_TEST_ID.INSTITUTION_SELECT)).toBeEnabled());
   await userEvent.click(screen.getByTestId(DIALOG_TEST_ID.INSTITUTION_SELECT));
@@ -96,8 +99,9 @@ describe("UserAccess", () => {
     // GIVEN two provisioned users
     givenUsersEndpoint();
 
-    // WHEN the screen has loaded
+    // WHEN the screen has loaded and roles have resolved
     const rows = await renderAndWaitForRows();
+    await waitFor(() => expect(within(rows[1]).getByTestId(ROW_TEST_ID.DETAIL)).toHaveTextContent("Implementer"));
 
     // THEN each user is listed, with the access they actually hold
     expect(rows).toHaveLength(2);
@@ -111,11 +115,11 @@ describe("UserAccess", () => {
   it("should scroll a list too long for the box inside it, rather than down the page", async () => {
     // GIVEN more users than fit the screen
     givenUsersEndpoint(
-      Array.from({ length: 30 }, (_, i) => ({
-        user_id: `user-${i}`,
-        email: `pm${i}@example.com`,
-        name: `PM ${i}`,
-        grants: [],
+      Array.from({ length: 30 }, (_, index) => ({
+        user_id: `user-${index}`,
+        email: `pm${index}@example.com`,
+        name: `PM ${index}`,
+        roles: [],
       }))
     );
 
@@ -133,7 +137,7 @@ describe("UserAccess", () => {
     // WHEN the screen has loaded
     const rows = await renderAndWaitForRows();
 
-    // THEN the toggle reads from the grants each user actually holds
+    // THEN the toggle reads from the roles each user actually holds
     expect(within(rows[0]).getByTestId(ROW_TEST_ID.TOGGLE)).toHaveAttribute("aria-pressed", "false");
     expect(within(rows[1]).getByTestId(ROW_TEST_ID.TOGGLE)).toHaveAttribute("aria-pressed", "true");
   });
@@ -177,11 +181,11 @@ describe("UserAccess", () => {
     expect(within(rows[0]).getByTestId(ROW_TEST_ID.TOGGLE)).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("should post the default funder role across every institution when a grant is confirmed", async () => {
+  it("should post the default funder role when a grant is confirmed", async () => {
     // GIVEN a user with no access
     const state = givenUsersEndpoint();
     let actualUrl: URL | undefined;
-    let actualBody: RoleRequest | undefined;
+    let actualBody: AssignRoleRequest | undefined;
     givenRoleEndpoint(state, (url, body) => {
       actualUrl = url;
       actualBody = body;
@@ -192,16 +196,16 @@ describe("UserAccess", () => {
     await userEvent.click(within(rows[0]).getByTestId(ROW_TEST_ID.TOGGLE));
     await userEvent.click(await screen.findByTestId(DIALOG_TEST_ID.CONFIRM));
 
-    // THEN the role the dialog opened on is posted, scoped to every institution
+    // THEN the role the dialog opened on is posted
     await waitFor(() => expect(actualBody).toBeDefined());
     expect(actualUrl?.pathname).toBe("/api/users/user-1/roles");
-    expect(actualBody).toEqual({ role: Role.Funder, institution_id: ALL_INSTITUTIONS });
+    expect(actualBody).toEqual({ role_id: "role-funder", institution_id: null });
   });
 
   it("should post the implementer role scoped to the institution picked for it", async () => {
     // GIVEN a user with no access
     const state = givenUsersEndpoint();
-    let actualBody: RoleRequest | undefined;
+    let actualBody: AssignRoleRequest | undefined;
     givenRoleEndpoint(state, (_url, body) => {
       actualBody = body;
     });
@@ -212,12 +216,12 @@ describe("UserAccess", () => {
     await pickInstitution("Lusaka Skills Hub");
     await userEvent.click(screen.getByTestId(DIALOG_TEST_ID.CONFIRM));
 
-    // THEN that role is written against that institution, not across the whole deployment
+    // THEN that role is written against that institution
     await waitFor(() => expect(actualBody).toBeDefined());
-    expect(actualBody).toEqual({ role: Role.Implementer, institution_id: "inst-7" });
+    expect(actualBody).toEqual({ role_id: "role-implementer", institution_id: "inst-7" });
   });
 
-  it("should ask which institution an implementer is for, and grant nothing until it is picked", async () => {
+  it("should ask which institution an implementer is for, and allow confirming without one", async () => {
     // GIVEN a user with no access
     const state = givenUsersEndpoint();
     let granted = false;
@@ -226,19 +230,20 @@ describe("UserAccess", () => {
     });
     const rows = await renderAndWaitForRows();
 
-    // WHEN the funder picks the implementer role, which belongs to a single institution
+    // WHEN the funder picks the implementer role
     await pickRole(rows[0], "Implementer");
 
-    // THEN an institution is asked for, and the grant is held until one is chosen
+    // THEN an institution picker is shown
     expect(screen.getByTestId(DIALOG_TEST_ID.INSTITUTION_FIELD)).toBeInTheDocument();
-    expect(screen.getByTestId(DIALOG_TEST_ID.CONFIRM)).toBeDisabled();
+    // AND the grant can proceed without one — null means deployment-wide on the backend
+    expect(screen.getByTestId(DIALOG_TEST_ID.CONFIRM)).toBeEnabled();
     expect(granted).toBe(false);
   });
 
-  it("should drop the institution when the funder switches back to a deployment-wide role", async () => {
+  it("should drop the institution when the funder switches back to the funder role", async () => {
     // GIVEN an institution picked for the implementer role
     const state = givenUsersEndpoint();
-    let actualBody: RoleRequest | undefined;
+    let actualBody: AssignRoleRequest | undefined;
     givenRoleEndpoint(state, (_url, body) => {
       actualBody = body;
     });
@@ -251,9 +256,9 @@ describe("UserAccess", () => {
     await userEvent.click(await screen.findByRole("option", { name: "Funder" }));
     await userEvent.click(screen.getByTestId(DIALOG_TEST_ID.CONFIRM));
 
-    // THEN the institution does not follow the role that was not scoped to it
+    // THEN the institution does not follow the role switch — institution resets to null
     await waitFor(() => expect(actualBody).toBeDefined());
-    expect(actualBody).toEqual({ role: Role.Funder, institution_id: ALL_INSTITUTIONS });
+    expect(actualBody).toEqual({ role_id: "role-funder", institution_id: null });
   });
 
   it("should not carry an institution picked for one user over to the next", async () => {
@@ -271,13 +276,12 @@ describe("UserAccess", () => {
 
     // THEN the institution starts unchosen, rather than the previous one being granted unnoticed
     expect(screen.getByTestId(DIALOG_TEST_ID.INSTITUTION_SELECT)).toHaveTextContent("Select an institution");
-    expect(screen.getByTestId(DIALOG_TEST_ID.CONFIRM)).toBeDisabled();
   });
 
   it("should offer to remove the whole role from a user who already holds one", async () => {
     // GIVEN a user who already holds the funder role
     givenUsersEndpoint([
-      { user_id: "user-3", email: "chanda@example.com", name: "Chanda Phiri", grants: grantsForRole(Role.Funder) },
+      { user_id: "user-3", email: "chanda@example.com", name: "Chanda Phiri", roles: [userRoleFor("role-funder")] },
     ]);
     const rows = await renderAndWaitForRows();
 
@@ -302,13 +306,13 @@ describe("UserAccess", () => {
 
     // THEN the row re-reads from the server and names the role they now hold
     await waitFor(() => expect(screen.getAllByTestId(ROW_TEST_ID.TOGGLE)[0]).toHaveAttribute("aria-pressed", "true"));
-    expect(screen.getAllByTestId(ROW_TEST_ID.DETAIL)[0]).toHaveTextContent("Implementer");
+    await waitFor(() => expect(screen.getAllByTestId(ROW_TEST_ID.DETAIL)[0]).toHaveTextContent("Implementer"));
   });
 
-  it("should delete every grant a user holds when their access is toggled off", async () => {
-    // GIVEN a user who already holds a whole role
+  it("should revoke the user role when their access is toggled off", async () => {
+    // GIVEN a user who already holds a role
     const state = givenUsersEndpoint();
-    const deleted = givenGrantDeleteEndpoint(state);
+    const revoked = givenRevokeEndpoint(state);
     const rows = await renderAndWaitForRows();
 
     // WHEN the funder removes their access and confirms
@@ -316,53 +320,12 @@ describe("UserAccess", () => {
     expect(await screen.findByTestId(DIALOG_TEST_ID.TITLE)).toHaveTextContent("Remove access");
     await userEvent.click(screen.getByTestId(DIALOG_TEST_ID.CONFIRM));
 
-    // THEN every grant the role gave them is deleted, not just the dashboard one
-    await waitFor(() => expect(deleted).toHaveLength(grantsForRole(Role.Implementer).length));
-    expect(deleted).toEqual(
-      grantsForRole(Role.Implementer).map((grant) => `/api/users/user-2/grants/${grant.grant_id}`)
-    );
+    // THEN the role assignment is deleted for that user
+    await waitFor(() => expect(revoked).toHaveLength(1));
+    expect(revoked[0]).toBe("/api/users/user-2/roles/role-implementer");
     // AND the row now offers the grant again, with no role left to name
     await waitFor(() => expect(screen.getAllByTestId(ROW_TEST_ID.TOGGLE)[1]).toHaveAttribute("aria-pressed", "false"));
     expect(screen.getAllByTestId(ROW_TEST_ID.DETAIL)[1]).toHaveTextContent("No access yet");
-  });
-
-  it("should show the access that is left when a removal fails part-way through", async () => {
-    // GIVEN a removal whose second delete is refused
-    const state = givenUsersEndpoint();
-    givenGrantDeleteEndpoint(state, (deletedSoFar) => deletedSoFar > 1);
-    const rows = await renderAndWaitForRows();
-
-    // WHEN the funder removes their access and confirms
-    await userEvent.click(within(rows[1]).getByTestId(ROW_TEST_ID.TOGGLE));
-    await userEvent.click(await screen.findByTestId(DIALOG_TEST_ID.CONFIRM));
-
-    // THEN the failure is reported, and the row reports what the user is actually left holding
-    const failure = await screen.findByTestId(DATA_TEST_ID.FAILURE);
-    expect(failure).toHaveTextContent("Could not remove Naomi Banda's access. Please try again.");
-    await waitFor(() => expect(screen.getAllByTestId(ROW_TEST_ID.DETAIL)[1]).toHaveTextContent("Custom permissions"));
-
-    // Snackbars outlive the render that raised them, so dismiss it rather than leaving it up.
-    await userEvent.click(within(failure).getByRole("button", { name: "Close" }));
-    await waitFor(() => expect(screen.queryByTestId(DATA_TEST_ID.FAILURE)).not.toBeInTheDocument());
-  });
-
-  it("should report access without a role for a user whose grants match none", async () => {
-    // GIVEN a user provisioned by hand, holding part of a role only
-    givenUsersEndpoint([
-      {
-        user_id: "user-4",
-        email: "mutale@example.com",
-        name: "Mutale Banda",
-        grants: [{ grant_id: "g1", subject: Subject.Dashboard, action: Action.View, institution_id: ALL_INSTITUTIONS }],
-      },
-    ]);
-
-    // WHEN the screen has loaded
-    const rows = await renderAndWaitForRows();
-
-    // THEN no role is claimed for them, but the access they hold is not hidden either
-    expect(within(rows[0]).getByTestId(ROW_TEST_ID.DETAIL)).toHaveTextContent("Custom permissions");
-    expect(within(rows[0]).getByTestId(ROW_TEST_ID.TOGGLE)).toHaveAttribute("aria-pressed", "true");
   });
 
   it("should tell the funder when the API refuses the change", async () => {
@@ -387,7 +350,7 @@ describe("UserAccess", () => {
   it("should tell the funder when a removal is refused", async () => {
     // GIVEN the removal is refused
     givenUsersEndpoint();
-    server.use(http.delete("/api/users/:userId/grants/:grantId", () => new HttpResponse(null, { status: 403 })));
+    server.use(http.delete("/api/users/:userId/roles/:userRoleId", () => new HttpResponse(null, { status: 403 })));
     const rows = await renderAndWaitForRows();
 
     // WHEN the funder removes access and confirms
@@ -413,7 +376,12 @@ describe("UserAccess", () => {
         reads += 1;
         return reads > 1 ? new HttpResponse(null, { status: 500 }) : HttpResponse.json(state);
       }),
-      http.post("/api/users/:userId/roles", () => HttpResponse.json(grantsForRole(Role.Funder), { status: 201 }))
+      http.post("/api/users/:userId/roles", () =>
+        HttpResponse.json(
+          { role_id: "role-funder", role_name: "funder", institution_id: null, granted_by: null, granted_at: null },
+          { status: 201 }
+        )
+      )
     );
     const rows = await renderAndWaitForRows();
 
@@ -487,5 +455,24 @@ describe("UserAccess", () => {
     // THEN it says so, rather than showing an empty box
     expect(await screen.findByText("There are no users to give access to yet.")).toBeInTheDocument();
     expect(screen.queryByTestId(DATA_TEST_ID.LIST)).not.toBeInTheDocument();
+  });
+
+  it("should report access without a role for a user whose role_id is not in the known roles", async () => {
+    // GIVEN a user assigned a role id the roles endpoint doesn't include
+    givenUsersEndpoint([
+      {
+        user_id: "user-4",
+        email: "mutale@example.com",
+        name: "Mutale Banda",
+        roles: [userRoleFor("role-deleted")],
+      },
+    ]);
+
+    // WHEN the screen has loaded
+    const rows = await renderAndWaitForRows();
+
+    // THEN no role is claimed for them, but the access they hold is not hidden either
+    expect(within(rows[0]).getByTestId(ROW_TEST_ID.DETAIL)).toHaveTextContent("Custom permissions");
+    expect(within(rows[0]).getByTestId(ROW_TEST_ID.TOGGLE)).toHaveAttribute("aria-pressed", "true");
   });
 });

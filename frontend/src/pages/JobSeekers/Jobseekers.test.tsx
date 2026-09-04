@@ -12,9 +12,12 @@ import { DATA_TEST_ID, Jobseekers } from "./Jobseekers";
 const GIVEN_JOBSEEKER_COUNT = 21;
 const GIVEN_FIRST_JOBSEEKER = "Aisha Mwansa"; // the roster opens sorted by name, A–Z
 
+/** Scope tests opt into when they don't care about scope — most of this file. */
+const ONE_INSTITUTION_SCOPE: AccessProviderProps["scope"] = { institutionIds: ["inst-1"] };
+
 function renderJobseekers(access?: AccessProviderProps) {
   return render(
-    <AccessProvider {...access}>
+    <AccessProvider scope={ONE_INSTITUTION_SCOPE} {...access}>
       <Jobseekers />
     </AccessProvider>
   );
@@ -58,7 +61,7 @@ describe("Jobseekers", () => {
 
   it("should never show a jobseeker from an institution the grant does not cover", async () => {
     // GIVEN a grant covering the second institution only
-    const givenScope: AccessProviderProps = { scope: { type: "institutions", institutionIds: ["inst-2"] } };
+    const givenScope: AccessProviderProps = { scope: { institutionIds: ["inst-2"] } };
 
     // WHEN the screen has loaded
     await renderAndWaitForJobseekers(givenScope);
@@ -73,7 +76,7 @@ describe("Jobseekers", () => {
 
   it("should list every institution's jobseekers when the grant covers the whole deployment", async () => {
     // GIVEN a deployment-wide grant
-    const givenScope: AccessProviderProps = { scope: { type: "all" } };
+    const givenScope: AccessProviderProps = { scope: { institutionIds: null } };
 
     // WHEN the screen has loaded
     await renderAndWaitForJobseekers(givenScope);

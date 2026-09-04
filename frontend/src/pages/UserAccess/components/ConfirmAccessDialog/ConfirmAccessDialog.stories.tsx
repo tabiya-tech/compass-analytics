@@ -1,10 +1,10 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { DEFAULT_ASSIGNABLE_ROLE, Role } from "@/access/roles";
-import { grantsForRole } from "@/_test_utilities/role-grants";
+import { stubRoleRecord, userRoleFor } from "@/_test_utilities/role-grants";
 import type { InstitutionChoicesState } from "@/pages/UserAccess/hooks/useInstitutionChoices";
 import type { UserAccessEntry } from "@/pages/UserAccess/hooks/useUserAccess";
+import type { RoleRecord } from "@/user/user.types";
 import { ConfirmAccessDialog, type ConfirmAccessDialogProps } from "./ConfirmAccessDialog";
 
 const institutions: InstitutionChoicesState = {
@@ -16,26 +16,42 @@ const institutions: InstitutionChoicesState = {
   ],
 };
 
+const implementerRole = stubRoleRecord({
+  _id: "role-implementer",
+  name: "implementer",
+  label: "Implementer",
+  description: "Sees every page except Institutions, for one institution only. Cannot grant access to other users.",
+});
+
+const funderRole = stubRoleRecord({
+  _id: "role-funder",
+  name: "funder",
+  label: "Funder",
+  description: "Sees every page except Jobseekers. Can grant access to other users.",
+});
+
+const roles: readonly RoleRecord[] = [implementerRole, funderRole];
+
 const user = { user_id: "user-7", email: "vaani.mumba@example.com", name: "Vaani Mumba" };
 
-const ungrantedEntry: UserAccessEntry = { user: { ...user, grants: [] }, role: null, hasAccess: false };
+const ungrantedEntry: UserAccessEntry = { user: { ...user, roles: [] }, role: null, hasAccess: false };
 
 const grantedEntry: UserAccessEntry = {
-  user: { ...user, grants: grantsForRole(Role.Implementer) },
-  role: Role.Implementer,
+  user: { ...user, roles: [userRoleFor(implementerRole._id)] },
+  role: implementerRole,
   hasAccess: true,
 };
 
 /** The screen owns the role and institution; hold them here so the controls respond to a pick. */
 function Controlled(props: Readonly<ConfirmAccessDialogProps>) {
-  const [role, setRole] = useState<Role>(props.role);
+  const [selectedRole, setSelectedRole] = useState<RoleRecord | null>(props.selectedRole);
   const [institutionId, setInstitutionId] = useState<string | null>(props.institutionId);
   return (
     <ConfirmAccessDialog
       {...props}
-      role={role}
+      selectedRole={selectedRole}
       onRoleChange={(picked) => {
-        setRole(picked);
+        setSelectedRole(picked);
         // The institution belonged to the previous role, so it does not carry across the change.
         setInstitutionId(null);
         props.onRoleChange(picked);
@@ -53,7 +69,8 @@ const meta = {
   component: ConfirmAccessDialog,
   tags: ["autodocs"],
   args: {
-    role: DEFAULT_ASSIGNABLE_ROLE,
+    roles,
+    selectedRole: funderRole,
     onRoleChange: fn(),
     institutions,
     institutionId: null,
@@ -95,26 +112,27 @@ export const PickingTheImplementerRole: Story = {
     // The listbox is portalled too, so look for the option on the document.
     await userEvent.click(await body.findByRole("option", { name: "Implementer" }));
 
-    await expect(args.onRoleChange).toHaveBeenCalledWith(Role.Implementer);
+    await expect(args.onRoleChange).toHaveBeenCalledWith(implementerRole);
     // The open listbox hides the dialog from the a11y tree, so wait for it to come back.
     await expect(await within(dialog).findByRole("combobox", { name: "Role" })).toHaveTextContent("Implementer");
     await expect(dialog).toHaveTextContent(
       "Sees every page except Institutions, for one institution only. Cannot grant access to other users."
     );
-    // The role belongs to one institution, so picking it asks which — and holds the grant until then.
+    // The role belongs to one institution, so picking it offers a picker — but confirming without
+    // one is still allowed, since null means deployment-wide on the backend.
     await expect(within(dialog).getByRole("combobox", { name: "Institution" })).toBeVisible();
-    await expect(within(dialog).getByRole("button", { name: "Grant access" })).toBeDisabled();
+    await expect(within(dialog).getByRole("button", { name: "Grant access" })).toBeEnabled();
   },
 };
 
-/** The implementer role covers one institution, so the grant waits for the funder to say which. */
+/** The implementer role covers one institution — picking one scopes the grant to it. */
 export const ScopingTheImplementerRoleToAnInstitution: Story = {
-  args: { entry: ungrantedEntry, role: Role.Implementer },
+  args: { entry: ungrantedEntry, selectedRole: implementerRole },
   play: async ({ args, canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
     const dialog = await body.findByRole("dialog", { name: "Grant access" });
 
-    await expect(within(dialog).getByRole("button", { name: "Grant access" })).toBeDisabled();
+    await expect(within(dialog).getByRole("button", { name: "Grant access" })).toBeEnabled();
 
     await userEvent.click(within(dialog).getByRole("combobox", { name: "Institution" }));
     await userEvent.click(await body.findByRole("option", { name: "Ndola Livelihoods Trust" }));
@@ -128,16 +146,16 @@ export const ScopingTheImplementerRoleToAnInstitution: Story = {
   },
 };
 
-/** Without the institution list there is no scope to grant at, so the grant cannot go through. */
+/** Without the institution list there is no scope to pick from, but the grant can still proceed unscoped. */
 export const InstitutionsUnavailable: Story = {
-  args: { entry: ungrantedEntry, role: Role.Implementer, institutions: { status: "error", retry: fn() } },
+  args: { entry: ungrantedEntry, selectedRole: implementerRole, institutions: { status: "error", retry: fn() } },
   play: async ({ canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
     const dialog = await body.findByRole("dialog", { name: "Grant access" });
 
     await expect(dialog).toHaveTextContent("Institutions could not be loaded, so this role cannot be scoped yet.");
     await expect(within(dialog).getByRole("combobox", { name: "Institution" })).toBeDisabled();
-    await expect(within(dialog).getByRole("button", { name: "Grant access" })).toBeDisabled();
+    await expect(within(dialog).getByRole("button", { name: "Grant access" })).toBeEnabled();
   },
 };
 

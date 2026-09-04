@@ -5,14 +5,14 @@ import { toast } from "sonner";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ScreenHead } from "@/components/shared/ScreenHead";
-import { DEFAULT_ASSIGNABLE_ROLE, isInstitutionScoped, type Role } from "@/access/roles";
 import { AccessRow } from "@/pages/UserAccess/components/AccessRow";
 import { displayName } from "@/pages/UserAccess/components/AccessRow/AccessRow";
 import { ConfirmAccessDialog } from "@/pages/UserAccess/components/ConfirmAccessDialog";
 import { UserAccessSkeleton } from "@/pages/UserAccess/components/UserAccessSkeleton";
 import { useInstitutionChoices } from "@/pages/UserAccess/hooks/useInstitutionChoices";
+import { useRoles } from "@/pages/UserAccess/hooks/useRoles";
 import { useUserAccess, type UserAccessEntry, type UserAccessFailure } from "@/pages/UserAccess/hooks/useUserAccess";
-import { ALL_INSTITUTIONS } from "@/user/user.types";
+import type { RoleRecord } from "@/user/user.types";
 
 const uniqueId = "e7c04a19-3b58-42df-90ac-6d1f8b25e743";
 
@@ -20,6 +20,7 @@ export const DATA_TEST_ID = {
   CONTAINER: `user-access-container-${uniqueId}`,
   LIST: `user-access-list-${uniqueId}`,
   ERROR: `user-access-error-${uniqueId}`,
+  ROLES_ERROR: `user-access-roles-error-${uniqueId}`,
   FAILURE: `user-access-failure-${uniqueId}`,
 };
 
@@ -35,37 +36,44 @@ function failureMessage(t: Translate, reported: UserAccessFailure): string {
 
 export function UserAccess() {
   const { t } = useTranslation();
-  const { state, pendingUserIds, failure, grantRole, revokeAccess } = useUserAccess();
+  const rolesState = useRoles();
+  const roles = rolesState.status === "success" ? rolesState.roles : [];
+  const assignableRoles = roles.filter((role) => role.assignable);
+
+  const { state, pendingUserIds, failure, grantRole, revokeAccess } = useUserAccess(roles);
   const institutions = useInstitutionChoices();
   const [confirming, setConfirming] = useState<UserAccessEntry | null>(null);
-  const [role, setRole] = useState<Role>(DEFAULT_ASSIGNABLE_ROLE);
+  const [selectedRole, setSelectedRole] = useState<RoleRecord | null>(null);
   const [institutionId, setInstitutionId] = useState<string | null>(null);
 
-  // A role that is not institution-scoped covers the deployment; one that is waits for a pick.
-  const scope = isInstitutionScoped(role) ? institutionId : ALL_INSTITUTIONS;
+  // Seed the default role once the roles fetch resolves.
+  useEffect(() => {
+    if (selectedRole === null && assignableRoles.length > 0) {
+      setSelectedRole(assignableRoles[0]);
+    }
+  }, [assignableRoles, selectedRole]);
 
   const startConfirming = (entry: UserAccessEntry) => {
-    // Reset, so a role picked for one user is not carried to the next.
-    setRole(DEFAULT_ASSIGNABLE_ROLE);
+    setSelectedRole(assignableRoles[0] ?? null);
     setInstitutionId(null);
     setConfirming(entry);
   };
 
-  const changeRole = (picked: Role) => {
-    setRole(picked);
-    // The institution was chosen for the previous role, so don't carry it across the change.
+  const changeRole = (picked: RoleRecord) => {
+    setSelectedRole(picked);
     setInstitutionId(null);
   };
 
   const confirmChange = () => {
     if (!confirming) return;
-    if (confirming.hasAccess) void revokeAccess(confirming);
-    // The dialog holds the confirmation until an institution-scoped role has one, so `scope` is set.
-    else if (scope) void grantRole(confirming, role, scope);
+    if (confirming.hasAccess) {
+      void revokeAccess(confirming);
+    } else if (selectedRole) {
+      void grantRole(confirming, { role_id: selectedRole._id, institution_id: institutionId });
+    }
     setConfirming(null);
   };
 
-  // Show a toast for any failure, even if the list is re-read successfully afterward.
   useEffect(() => {
     if (!failure) return;
     toast.error(failureMessage(t, failure), {
@@ -94,6 +102,16 @@ export function UserAccess() {
         </div>
       )}
 
+      {rolesState.status === "error" && state.status !== "error" && (
+        <div data-testid={DATA_TEST_ID.ROLES_ERROR}>
+          <EmptyState
+            icon={<TriangleAlert />}
+            message={t("userAccess.rolesError")}
+            action={{ label: t("common.retry"), onClick: rolesState.retry }}
+          />
+        </div>
+      )}
+
       {state.status === "success" &&
         (state.items.length === 0 ? (
           <EmptyState message={t("userAccess.empty")} className="rounded-card border bg-card" />
@@ -116,7 +134,8 @@ export function UserAccess() {
 
       <ConfirmAccessDialog
         entry={confirming}
-        role={role}
+        roles={assignableRoles}
+        selectedRole={selectedRole}
         onRoleChange={changeRole}
         institutions={institutions}
         institutionId={institutionId}

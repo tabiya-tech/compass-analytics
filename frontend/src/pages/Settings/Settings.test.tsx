@@ -5,14 +5,13 @@ import { http, HttpResponse } from "msw";
 import { server } from "@/mocks/server";
 import { AuthProvider } from "@/auth/AuthContext";
 import { AccessProvider, type AccessScope } from "@/access/AccessContext";
-import { Role } from "@/access/roles";
 import { Settings, DATA_TEST_ID } from "./Settings";
 
 // The Firebase stub in src/test/setup.ts signs in as this user, so it is what the card reads.
 const SIGNED_IN_EMAIL = "test@example.com";
 
 function renderSettings(
-  options: { scope?: AccessScope; role?: Role | null; name?: string | null; organization?: string | null } = {}
+  options: { scope?: AccessScope; role?: string | null; name?: string | null; organization?: string | null } = {}
 ) {
   return render(
     <AuthProvider>
@@ -58,17 +57,18 @@ describe("Settings", () => {
     expect(valueOfDetail("Email")).toBe(SIGNED_IN_EMAIL);
   });
 
-  it("should name the role the caller's permissions add up to", () => {
-    // GIVEN a caller whose grants make them a funder
+  it("should name the role the backend assigned the caller", () => {
+    // GIVEN a caller the backend has assigned the funder role
     // WHEN the profile card renders
-    renderSettings({ role: Role.Funder });
+    renderSettings({ role: "funder" });
 
-    // THEN the card names that role in the same words the User Access screen uses
-    expect(valueOfDetail("Role")).toBe("Funder");
+    // THEN the card shows the role name from the backend as-is — /api/roles, which could label
+    // it, is gated behind access-management permission that not every caller holds
+    expect(valueOfDetail("Role")).toBe("funder");
   });
 
-  it("should fall back to a dash when the permissions match no known role", () => {
-    // GIVEN a caller holding permissions that add up to no role
+  it("should fall back to a dash when the backend has assigned no role", () => {
+    // GIVEN a caller with no role
     // WHEN the profile card renders
     renderSettings({ role: null });
 
@@ -79,7 +79,7 @@ describe("Settings", () => {
   it("should describe a deployment-wide grant as covering every institution", () => {
     // GIVEN a grant over the whole deployment
     // WHEN the profile card renders
-    renderSettings({ scope: { type: "all" } });
+    renderSettings({ scope: { institutionIds: null } });
 
     // THEN the scope names no count — every institution is covered, not some fixed number
     expect(valueOfDetail("Data scope")).toBe("All institutions");
@@ -88,7 +88,7 @@ describe("Settings", () => {
   it("should count the institutions a narrower grant covers", () => {
     // GIVEN a grant over three institutions
     // WHEN the profile card renders
-    renderSettings({ scope: { type: "institutions", institutionIds: ["a", "b", "c"] } });
+    renderSettings({ scope: { institutionIds: ["a", "b", "c"] } });
 
     // THEN the scope reports how many
     expect(valueOfDetail("Data scope")).toBe("3 institutions");
@@ -97,7 +97,7 @@ describe("Settings", () => {
   it("should say 'institution' in the singular for a grant covering one", () => {
     // GIVEN a grant over a single institution
     // WHEN the profile card renders
-    renderSettings({ scope: { type: "institutions", institutionIds: ["a"] } });
+    renderSettings({ scope: { institutionIds: ["a"] } });
 
     // THEN the count reads as English, not "1 institutions"
     expect(valueOfDetail("Data scope")).toBe("1 institution");

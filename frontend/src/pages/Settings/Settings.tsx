@@ -9,7 +9,6 @@ import { ScreenHead } from "@/components/shared/ScreenHead";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { useAuth } from "@/auth/AuthContext";
 import { useAccess, type AccessScope } from "@/access/AccessContext";
-import { ROLE_LABEL_KEYS } from "@/access/roles";
 import { UserService } from "@/user/User.service";
 import { cn } from "@/lib/utils";
 
@@ -34,7 +33,8 @@ export const DATA_TEST_ID = {
 const EDITABLE_FIELD_HIGHLIGHT = "border-tabiya-green focus-visible:ring-tabiya-green/40";
 
 function describeScope(t: Translate, scope: AccessScope): string {
-  if (scope.type === "all") return t("settings.profile.scopeAll");
+  if (scope.institutionIds === null) return t("settings.profile.scopeAll");
+  if (scope.institutionIds.length === 0) return t("settings.profile.scopeNone");
   return scope.institutionIds.length === 1
     ? t("settings.profile.scopeOneInstitution")
     : t("settings.profile.scopeInstitutions", { count: scope.institutionIds.length });
@@ -214,7 +214,7 @@ export function Settings() {
                 />
                 {!isEditingProfile && (
                   <p data-testid={DATA_TEST_ID.PROFILE_ROLE_SUBTITLE} className="text-sm text-grey-text">
-                    {role ? t(ROLE_LABEL_KEYS[role]) : unknownValuePlaceholder}
+                    {role ?? unknownValuePlaceholder}
                   </p>
                 )}
               </div>
@@ -229,10 +229,7 @@ export function Settings() {
                 isSavingProfile={isSavingProfile}
               />
               <ProfileDetail label={t("settings.profile.email")} value={user?.email ?? unknownValuePlaceholder} />
-              <ProfileDetail
-                label={t("settings.profile.role")}
-                value={role ? t(ROLE_LABEL_KEYS[role]) : unknownValuePlaceholder}
-              />
+              <ProfileDetail label={t("settings.profile.role")} value={role ?? unknownValuePlaceholder} />
               <ProfileDetail label={t("settings.profile.dataScope")} value={describeScope(t, scope)} />
             </dl>
           </CardContent>

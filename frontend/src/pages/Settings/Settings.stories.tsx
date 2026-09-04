@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor } from "storybook/test";
 import { AuthContext } from "@/auth/AuthContext";
 import { AccessProvider } from "@/access/AccessContext";
-import { Role } from "@/access/roles";
 import type { User } from "firebase/auth";
 import { Settings, DATA_TEST_ID } from "./Settings";
 
@@ -31,14 +30,14 @@ type Story = StoryObj<typeof meta>;
 export const FunderAcrossTheDeployment: Story = {
   decorators: [
     (Story) => (
-      <AccessProvider role={Role.Funder} scope={{ type: "all" }}>
+      <AccessProvider role="funder" scope={{ institutionIds: null }}>
         <Story />
       </AccessProvider>
     ),
   ],
   play: async ({ canvas }) => {
     await expect(canvas.getByRole("heading", { name: "Profile & settings" })).toBeVisible();
-    await expect(canvas.getByTestId(DATA_TEST_ID.PROFILE_ROLE_SUBTITLE)).toHaveTextContent("Funder");
+    await expect(canvas.getByTestId(DATA_TEST_ID.PROFILE_ROLE_SUBTITLE)).toHaveTextContent("funder");
     await expect(canvas.getByText("All institutions")).toBeVisible();
   },
 };
@@ -47,13 +46,13 @@ export const FunderAcrossTheDeployment: Story = {
 export const ImplementerAtOneInstitution: Story = {
   decorators: [
     (Story) => (
-      <AccessProvider role={Role.Implementer} scope={{ type: "institutions", institutionIds: ["inst-1"] }}>
+      <AccessProvider role="implementer" scope={{ institutionIds: ["inst-1"] }}>
         <Story />
       </AccessProvider>
     ),
   ],
   play: async ({ canvas }) => {
-    await expect(canvas.getByTestId(DATA_TEST_ID.PROFILE_ROLE_SUBTITLE)).toHaveTextContent("Implementer");
+    await expect(canvas.getByTestId(DATA_TEST_ID.PROFILE_ROLE_SUBTITLE)).toHaveTextContent("implementer");
     await expect(canvas.getByText("1 institution")).toBeVisible();
   },
 };
@@ -62,7 +61,7 @@ export const ImplementerAtOneInstitution: Story = {
 export const UnknownRole: Story = {
   decorators: [
     (Story) => (
-      <AccessProvider role={null} scope={{ type: "institutions", institutionIds: ["a", "b", "c"] }}>
+      <AccessProvider role={null} scope={{ institutionIds: ["a", "b", "c"] }}>
         <Story />
       </AccessProvider>
     ),
@@ -80,7 +79,7 @@ export const LongEmailAddress: Story = {
   decorators: [
     (Story) => (
       <AuthContext.Provider value={signedInAs("Jordan Avila", "fniragena+02.a.very.long.address@students.example.org")}>
-        <AccessProvider role={Role.Funder} scope={{ type: "all" }}>
+        <AccessProvider role="funder" scope={{ institutionIds: null }}>
           {/* max-w-md, same as the card's own cap — this is the narrowest it ever actually gets. */}
           <div style={{ width: 448 }}>
             <Story />
@@ -109,11 +108,7 @@ export const NameFromTheBackendRecord: Story = {
   decorators: [
     (Story) => (
       <AuthContext.Provider value={signedInAs(null, "kunda.tembo@partner.org")}>
-        <AccessProvider
-          role={Role.Implementer}
-          name="Kunda Tembo"
-          scope={{ type: "institutions", institutionIds: ["inst-1"] }}
-        >
+        <AccessProvider role="implementer" name="Kunda Tembo" scope={{ institutionIds: ["inst-1"] }}>
           <Story />
         </AccessProvider>
       </AuthContext.Provider>
@@ -127,7 +122,7 @@ export const NameFromTheBackendRecord: Story = {
 export const EditingTheProfile: Story = {
   decorators: [
     (Story) => (
-      <AccessProvider role={Role.Funder} organization="Acme Corp" scope={{ type: "all" }}>
+      <AccessProvider role="funder" organization="Acme Corp" scope={{ institutionIds: null }}>
         <Story />
       </AccessProvider>
     ),
@@ -155,7 +150,7 @@ export const EditingTheProfile: Story = {
 export const CannotSaveWithoutAName: Story = {
   decorators: [
     (Story) => (
-      <AccessProvider role={Role.Funder} scope={{ type: "all" }}>
+      <AccessProvider role="funder" scope={{ institutionIds: null }}>
         <Story />
       </AccessProvider>
     ),

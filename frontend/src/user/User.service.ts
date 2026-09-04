@@ -1,4 +1,4 @@
-import type { GrantView, ManagedUser, MeResponse, RoleRequest } from "@/user/user.types";
+import type { AssignRoleRequest, ManagedUser, MeResponse, RoleRecord, UserRoleView } from "@/user/user.types";
 
 export const USER_API_BASE = "/api";
 
@@ -52,7 +52,6 @@ export class UserService {
     }
   }
 
-  /** Fetches the caller's profile. Throws UserApiError on a non-2xx response. */
   async getMe(token: string): Promise<MeResponse> {
     const url = new URL(`${USER_API_BASE}/me`, window.location.origin);
     const response = await fetch(url.toString(), {
@@ -65,24 +64,27 @@ export class UserService {
     return response.json() as Promise<MeResponse>;
   }
 
-  /** Every provisioned user with the grants they hold. Requires access-management:manage. */
+  async getRoles(token: string): Promise<RoleRecord[]> {
+    const response = await this._send("/roles", token);
+    return response.json() as Promise<RoleRecord[]>;
+  }
+
   async getManagedUsers(token: string): Promise<ManagedUser[]> {
     const response = await this._send("/users", token);
     return response.json() as Promise<ManagedUser[]>;
   }
 
-  /** Assigns a role; the server expands it into one grant per permission. */
-  async assignRole(userId: string, request: RoleRequest, token: string): Promise<GrantView[]> {
+  async assignRole(userId: string, request: AssignRoleRequest, token: string): Promise<UserRoleView> {
     const response = await this._send(`/users/${encodeURIComponent(userId)}/roles`, token, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
     });
-    return response.json() as Promise<GrantView[]>;
+    return response.json() as Promise<UserRoleView>;
   }
 
-  async revokePermission(userId: string, grantId: string, token: string): Promise<void> {
-    await this._send(`/users/${encodeURIComponent(userId)}/grants/${encodeURIComponent(grantId)}`, token, {
+  async revokeRole(userId: string, roleId: string, token: string): Promise<void> {
+    await this._send(`/users/${encodeURIComponent(userId)}/roles/${encodeURIComponent(roleId)}`, token, {
       method: "DELETE",
     });
   }

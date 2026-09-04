@@ -4,10 +4,9 @@ import { render, screen } from "@/_test_utilities/test-utils";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { DATA_TEST_ID as USER_AVATAR_TEST_ID } from "@/components/shared/UserAvatar";
 import { AccessProvider } from "@/access/AccessContext";
-import { Role } from "@/access/roles";
 import { SidebarUserMenu } from "./SidebarUserMenu";
 
-function renderMenu(role: Role | null = null) {
+function renderMenu(role: string | null = null) {
   const onSignOut = vi.fn();
   render(
     <AccessProvider role={role}>
@@ -59,10 +58,10 @@ describe("SidebarUserMenu", () => {
   it("should name the role beneath the person's name", () => {
     // GIVEN a signed-in funder
     // WHEN rendered
-    renderMenu(Role.Funder);
+    renderMenu("funder");
 
-    // THEN the role sits under the name, in the same words the account screen uses for it
-    expect(screen.getByText("Funder")).toBeInTheDocument();
+    // THEN the role name from the backend sits under the person's name
+    expect(screen.getByText("funder")).toBeInTheDocument();
   });
 
   it("should show a dash for the role when the caller's permissions add up to none this app knows", () => {

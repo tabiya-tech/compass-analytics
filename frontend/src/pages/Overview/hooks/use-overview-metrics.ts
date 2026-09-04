@@ -21,7 +21,7 @@ export interface OverviewMetricsResult extends OverviewMetricsState {
 export function toOverviewMetricsRequest(scope: AccessScope, filters: FiltersState): OverviewMetricsRequest {
   const institutions = filters.institutionDrillDownId
     ? [filters.institutionDrillDownId]
-    : scope.type === "all"
+    : scope.institutionIds === null
       ? "all"
       : scope.institutionIds;
 

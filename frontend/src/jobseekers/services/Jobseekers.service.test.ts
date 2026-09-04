@@ -7,7 +7,7 @@ import type { JobseekerDetail, JobseekersQuery, JobseekersResponse } from "@/job
 const givenToken = "some-id-token";
 
 const givenQuery: JobseekersQuery = {
-  scope: { type: "institutions", institutionIds: ["inst-1", "inst-2"] },
+  scope: { institutionIds: ["inst-1", "inst-2"] },
   search: "maría",
   module_status: { "build-your-profile": ["completed"], "job-readiness": ["not_started", "in_progress"] },
   sort: { by: "profile_score_pct", direction: "desc" },
@@ -106,7 +106,7 @@ describe("JobseekersService", () => {
     );
 
     // WHEN the roster is fetched for a deployment-wide grant
-    await JobseekersService.getInstance().getJobseekers({ ...givenQuery, scope: { type: "all" } }, givenToken);
+    await JobseekersService.getInstance().getJobseekers({ ...givenQuery, scope: { institutionIds: null } }, givenToken);
 
     // THEN no institution is named, and the scope says so outright
     expect(actualUrl?.searchParams.get("scope")).toBe("all");

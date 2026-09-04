@@ -1,27 +1,28 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent } from "storybook/test";
-import { Role } from "@/access/roles";
-import { grantsForRole } from "@/_test_utilities/role-grants";
+import { stubRoleRecord, userRoleFor } from "@/_test_utilities/role-grants";
 import type { UserAccessEntry } from "@/pages/UserAccess/hooks/useUserAccess";
 import { AccessRow } from "./AccessRow";
 
 const user = { user_id: "user-7", email: "vaani.mumba@example.com", name: "Vaani Mumba" };
 
 const ungrantedEntry: UserAccessEntry = {
-  user: { ...user, grants: [] },
+  user: { ...user, roles: [] },
   role: null,
   hasAccess: false,
 };
 
+const implementerRole = stubRoleRecord({ name: "implementer", label: "Implementer" });
 const implementerEntry: UserAccessEntry = {
-  user: { ...user, grants: grantsForRole(Role.Implementer) },
-  role: Role.Implementer,
+  user: { ...user, roles: [userRoleFor(implementerRole._id)] },
+  role: implementerRole,
   hasAccess: true,
 };
 
+const funderRole = stubRoleRecord({ name: "funder", label: "Funder" });
 const funderEntry: UserAccessEntry = {
-  user: { ...user, grants: grantsForRole(Role.Funder) },
-  role: Role.Funder,
+  user: { ...user, roles: [userRoleFor(funderRole._id)] },
+  role: funderRole,
   hasAccess: true,
 };
 
@@ -71,11 +72,11 @@ export const Funder: Story = {
   },
 };
 
-/** Provisioned by hand, holding grants that add up to no role this app knows. */
+/** Provisioned by hand, holding a role assignment that doesn't resolve to a known role. */
 export const CustomPermissions: Story = {
   args: {
     entry: {
-      user: { ...user, grants: grantsForRole(Role.Implementer).slice(0, 1) },
+      user: { ...user, roles: [userRoleFor("custom-role")] },
       role: null,
       hasAccess: true,
     },

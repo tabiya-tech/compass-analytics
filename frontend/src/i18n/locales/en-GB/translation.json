@@ -206,6 +206,7 @@
     "description": "Choose the role each person is given. A role decides which pages they can see, and whether they can grant access to other users.",
     "listLabel": "Users and the access they hold",
     "error": "Failed to load user access.",
+    "rolesError": "Failed to load roles. You can view access but cannot grant new roles.",
     "empty": "There are no users to give access to yet.",
     "failure": {
       "grant": "Could not grant access to {{user}}. Please try again.",
@@ -215,20 +216,6 @@
     "row": {
       "none": "No access yet",
       "otherAccess": "Custom permissions"
-    },
-    "roles": {
-      "implementer": {
-        "label": "Implementer",
-        "description": "Sees every page except Institutions, for one institution only. Cannot grant access to other users."
-      },
-      "funder": {
-        "label": "Funder",
-        "description": "Sees every page except Jobseekers. Can grant access to other users."
-      },
-      "superAdmin": {
-        "label": "Super admin",
-        "description": "Sees every page and can grant access to other users."
-      }
     },
     "toggle": {
       "grant": "Grant access",
@@ -588,6 +575,7 @@
       "role": "Role",
       "dataScope": "Data scope",
       "scopeAll": "All institutions",
+      "scopeNone": "No access",
       "scopeOneInstitution": "1 institution",
       "scopeInstitutions": "{{count}} institutions",
       "editProfile": "Edit profile",
