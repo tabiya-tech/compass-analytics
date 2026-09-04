@@ -1,7 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { Role } from "@/access/roles";
 import { stubRoleRecord, userRoleFor } from "@/_test_utilities/role-grants";
 import type { InstitutionChoicesState } from "@/pages/UserAccess/hooks/useInstitutionChoices";
 import type { UserAccessEntry } from "@/pages/UserAccess/hooks/useUserAccess";
@@ -19,14 +18,14 @@ const institutions: InstitutionChoicesState = {
 
 const implementerRole = stubRoleRecord({
   _id: "role-implementer",
-  name: Role.Implementer,
+  name: "implementer",
   label: "Implementer",
   description: "Sees every page except Institutions, for one institution only. Cannot grant access to other users.",
 });
 
 const funderRole = stubRoleRecord({
   _id: "role-funder",
-  name: Role.Funder,
+  name: "funder",
   label: "Funder",
   description: "Sees every page except Jobseekers. Can grant access to other users.",
 });

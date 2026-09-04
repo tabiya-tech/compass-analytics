@@ -71,7 +71,7 @@ export function ConfirmAccessDialog({
   if (!shown) return null;
 
   const removing = shown.hasAccess;
-  const blocked = false;
+  const blocked = !removing && selectedRole === null;
 
   return (
     <Dialog open={entry !== null} onOpenChange={onOpenChange}>
@@ -112,7 +112,7 @@ export function ConfirmAccessDialog({
               <Select
                 value={selectedRole?._id ?? ""}
                 onValueChange={(id) => {
-                  const picked = roles.find((r) => r._id === id);
+                  const picked = roles.find((role) => role._id === id);
                   if (picked) onRoleChange(picked);
                 }}
               >
@@ -125,10 +125,10 @@ export function ConfirmAccessDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {roles
-                    .filter((r) => r.assignable)
-                    .map((r) => (
-                      <SelectItem key={r._id} value={r._id}>
-                        {r.label}
+                    .filter((role) => role.assignable)
+                    .map((role) => (
+                      <SelectItem key={role._id} value={role._id}>
+                        {role.label}
                       </SelectItem>
                     ))}
                 </SelectContent>
