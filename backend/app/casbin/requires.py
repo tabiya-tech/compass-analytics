@@ -8,15 +8,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.auth.firebase import UserInfo
 from app.roles.repository import IRoleRepository, IUserRoleRepository
 from app.casbin.adapter import RolesAdapter
-from app.casbin.enforcer import get_enforcer
+from app.casbin.enforcer import get_enforcer, is_enforcer_ready
 from app.users.types import ALL_INSTITUTIONS, Action, Subject
 
 _REQUIRES_ATTR = "_casbin_requires"
 
 
 class ResolvedScope(BaseModel):
-    """Caller's permitted institutions; empty means deployment-wide."""
-    institution_ids: list[str] = []
+    # null = deployment-wide; ["inst-a", ...] = scoped to those institutions.
+    institution_ids: Optional[list[str]] = None
 
 
 class _RequiresFactory:
@@ -60,7 +60,8 @@ class _RequiresFactory:
             role_repo: IRoleRepository = Depends(get_role_repository),
             user_role_repo: IUserRoleRepository = Depends(get_user_role_repository),
         ) -> Optional[ResolvedScope]:
-            enforcer = await get_enforcer(RolesAdapter(role_repo, user_role_repo))
+            adapter = None if is_enforcer_ready() else RolesAdapter(role_repo, user_role_repo)
+            enforcer = await get_enforcer(adapter)
             perm = f"{subject.value}:{action.value}"
 
             if institution_id is not None:
@@ -70,7 +71,7 @@ class _RequiresFactory:
 
             if resolves_scope:
                 if enforcer.enforce(user_info.user_id, ALL_INSTITUTIONS, perm):
-                    return ResolvedScope()
+                    return ResolvedScope(institution_ids=None)
                 user_roles = await user_role_repo.list_for_user(user_info.user_id)
                 institution_ids = sorted(
                     ur.institution_id

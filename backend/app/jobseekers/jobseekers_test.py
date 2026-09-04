@@ -129,7 +129,7 @@ class _TestUserRoleRepository(IUserRoleRepository):
     async def assign(self, user_id, role_id, institution_id, granted_by):
         raise NotImplementedError
 
-    async def revoke(self, user_role_id):
+    async def revoke(self, user_role_id: str, user_id: str) -> bool:
         raise NotImplementedError
 
     async def revoke_all_for_user(self, user_id):

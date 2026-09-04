@@ -338,6 +338,10 @@ class TestRevokeRole:
         with pytest.raises(GrantNotFoundError):
             await svc.revoke_role(_make_user_info(), "u2", "no-such-id")
 
+    async def test_raises_not_provisioned_when_caller_has_no_record(self):
+        svc, _ = await _make_service()
+        with pytest.raises(UserNotProvisionedError):
+            await svc.revoke_role(_make_user_info(), "u2", "some-id")
 
 
 class TestRegister:

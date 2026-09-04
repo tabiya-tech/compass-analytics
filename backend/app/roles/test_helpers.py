@@ -65,7 +65,7 @@ class FakeUserRoleRepository(IUserRoleRepository):
     async def assign(self, user_id: str, role_id: str, institution_id: str | None, granted_by: str | None) -> UserRoleRecord:
         raise NotImplementedError
 
-    async def revoke(self, user_role_id: str) -> bool:
+    async def revoke(self, user_role_id: str, user_id: str) -> bool:
         raise NotImplementedError
 
     async def revoke_all_for_user(self, user_id: str) -> None:

@@ -61,28 +61,6 @@ def _validate_rows(rows: list[dict[str, str]], known_role_names: set[str]) -> li
     return valid
 
 
-async def _provision(entries: list[tuple[str, str, str | None]]) -> None:
-    load_dotenv()
-    db = await AnalyticsDBProvider.get_db()
-    await AnalyticsDBProvider.initialize_mongo_db(db)
-    role_repo = MongoRoleRepository(db)
-    user_role_repo = MongoUserRoleRepository(db)
-
-    all_roles = await role_repo.list_all()
-    role_id_by_name = {r.name: r.id for r in all_roles}
-
-    for user_id, role_name, institution_id in entries:
-        role_id = role_id_by_name.get(role_name)
-        if not role_id:
-            logger.warning("Role '%s' not found in DB — skipping user_id=%s", role_name, user_id)
-            continue
-        await user_role_repo.assign(user_id=user_id, role_id=role_id, institution_id=institution_id, granted_by=None)
-        logger.info("%-40s %-20s %s", user_id, role_name, institution_id or "*")
-
-    AnalyticsDBProvider.clear_cache()
-    logger.info("Done. Provisioned %d user(s).", len(entries))
-
-
 def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("Usage: poetry run python -m scripts.bootstrap_users <path/to/users.csv>")
@@ -98,10 +76,21 @@ def main() -> None:
         db = await AnalyticsDBProvider.get_db()
         await AnalyticsDBProvider.initialize_mongo_db(db)
         role_repo = MongoRoleRepository(db)
+        user_role_repo = MongoUserRoleRepository(db)
+
         all_roles = await role_repo.list_all()
-        known_names = {r.name for r in all_roles}
+        role_id_by_name = {r.name: r.id for r in all_roles}
+        known_names = set(role_id_by_name)
+
         entries = _validate_rows(rows, known_names)
-        await _provision(entries)
+
+        for user_id, role_name, institution_id in entries:
+            role_id = role_id_by_name[role_name]
+            await user_role_repo.assign(user_id=user_id, role_id=role_id, institution_id=institution_id, granted_by=None)
+            logger.info("%-40s %-20s %s", user_id, role_name, institution_id or "*")
+
+        AnalyticsDBProvider.clear_cache()
+        logger.info("Done. Provisioned %d user(s).", len(entries))
 
     asyncio.run(_run())
 
