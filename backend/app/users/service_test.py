@@ -80,7 +80,6 @@ class _FakeRoleRepository(IRoleRepository):
     async def get_by_name(self, name: str) -> RoleRecord | None:
         return next((r for r in self._roles.values() if r.name == name), None)
 
-
 class _FakeUserRoleRepository(IUserRoleRepository):
     def __init__(self, user_roles: list[UserRoleRecord] | None = None):
         self._user_roles: list[UserRoleRecord] = user_roles or []
@@ -117,9 +116,9 @@ class _FakeUserRoleRepository(IUserRoleRepository):
         self._user_roles.append(record)
         return record
 
-    async def revoke(self, user_role_id: str) -> bool:
+    async def revoke(self, user_role_id: str, user_id: str) -> bool:
         before = len(self._user_roles)
-        self._user_roles = [ur for ur in self._user_roles if ur.id != user_role_id]
+        self._user_roles = [ur for ur in self._user_roles if not (ur.id == user_role_id and ur.user_id == user_id)]
         return len(self._user_roles) < before
 
     async def revoke_all_for_user(self, user_id: str) -> None:

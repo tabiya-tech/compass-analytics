@@ -34,7 +34,6 @@ class IRoleRepository(ABC):
     async def get_by_name(self, name: str) -> RoleRecord | None:
         raise NotImplementedError
 
-
 class MongoRoleRepository(IRoleRepository):
     def __init__(self, db: AsyncIOMotorDatabase):
         self._collection = db[ROLES_COLLECTION]
@@ -62,7 +61,6 @@ class MongoRoleRepository(IRoleRepository):
             logger.exception("Failed to get role by name=%s", name)
             raise
 
-
 class IUserRoleRepository(ABC):
     @abstractmethod
     async def list_all(self) -> list[UserRoleRecord]:
@@ -81,7 +79,7 @@ class IUserRoleRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def revoke(self, user_role_id: str) -> bool:
+    async def revoke(self, user_role_id: str, user_id: str) -> bool:
         raise NotImplementedError
 
     @abstractmethod
@@ -130,16 +128,16 @@ class MongoUserRoleRepository(IUserRoleRepository):
             existing = await self._collection.find_one({"user_id": user_id, "role_id": role_id, "institution_id": institution_id})
             return UserRoleRecord.model_validate(_serialize_id(existing))
 
-    async def revoke(self, user_role_id: str) -> bool:
+    async def revoke(self, user_role_id: str, user_id: str) -> bool:
         try:
             oid = ObjectId(user_role_id)
         except Exception:
             return False
         try:
-            result = await self._collection.delete_one({"_id": oid})
+            result = await self._collection.delete_one({"_id": oid, "user_id": user_id})
             return result.deleted_count > 0
         except Exception:
-            logger.exception("Failed to revoke user_role_id=%s", user_role_id)
+            logger.exception("Failed to revoke user_role_id=%s user_id=%s", user_role_id, user_id)
             raise
 
     async def revoke_all_for_user(self, user_id: str) -> None:

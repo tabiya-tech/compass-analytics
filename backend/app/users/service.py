@@ -167,6 +167,7 @@ class UserService(IUserService):
 
     async def assign_role(self, user_info: UserInfo, target_user_id: str, request: AssignRoleRequest) -> UserRoleView:
         from app.users.errors import UnknownRoleError
+        await self._require_record(user_info)
         role = await self._roles.get_by_id(request.role_id)
         if role is None:
             raise UnknownRoleError(request.role_id)
@@ -187,7 +188,7 @@ class UserService(IUserService):
 
     async def revoke_role(self, user_info: UserInfo, target_user_id: str, user_role_id: str) -> None:
         from app.users.errors import GrantNotFoundError
-        removed = await self._user_roles.revoke(user_role_id)
+        removed = await self._user_roles.revoke(user_role_id, target_user_id)
         if not removed:
             raise GrantNotFoundError(user_role_id)
         await reload_policy()

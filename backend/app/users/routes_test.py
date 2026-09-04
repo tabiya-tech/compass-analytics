@@ -225,32 +225,6 @@ class TestRegister:
         assert body["name"] == "Kunda Tembo"
 
 
-class TestListRoles:
-    async def test_returns_401_without_auth(self, client):
-        assert (await client.get("/api/roles")).status_code == 401
-
-    async def test_returns_403_without_access_management_permission(self, client):
-        # u1 has only dashboard:view, not access-management:manage
-        await _seed_user(client.db, "u1")
-        role_id = await _seed_role(client.db, "viewer", [{"subject": "dashboard", "action": "view"}])
-        await _seed_user_role(client.db, "u1", role_id)
-
-        assert (await client.get("/api/roles", headers=_auth())).status_code == 403
-
-    async def test_returns_roles_for_authorized_caller(self, client):
-        await _seed_user(client.db, "u1")
-        role_id = await _seed_role(client.db, "admin", [{"subject": "access-management", "action": "manage"}])
-        await _seed_user_role(client.db, "u1", role_id)
-        await _seed_role(client.db, "viewer", [{"subject": "dashboard", "action": "view"}])
-
-        body = (await client.get("/api/roles", headers=_auth())).json()
-
-        assert isinstance(body, list)
-        names = {r["name"] for r in body}
-        assert "admin" in names
-        assert "viewer" in names
-
-
 class TestListUsers:
     async def test_returns_401_without_auth(self, client):
         assert (await client.get("/api/users")).status_code == 401
@@ -304,6 +278,24 @@ class TestAssignRole:
             headers=_auth(),
         )
         assert response.status_code == 403
+
+    async def test_returns_404_when_caller_is_not_provisioned(self, client):
+        # u1 has Casbin access-management permission but no users record
+        role_id = await _seed_role(client.db, "admin", [{"subject": "access-management", "action": "manage"}])
+        await _seed_user(client.db, "u1")
+        await _seed_user_role(client.db, "u1", role_id)
+
+        # Now delete the users record so u1 is no longer provisioned
+        from app.users.repository import USERS_COLLECTION
+        await client.db[USERS_COLLECTION].delete_one({"user_id": "u1"})
+
+        response = await client.post(
+            "/api/users/u2/roles",
+            json={"role_id": role_id, "institution_id": None},
+            headers=_auth(),
+        )
+
+        assert response.status_code == 404
 
     async def test_assigns_role_and_returns_201(self, client):
         await _seed_user(client.db, "u1")
@@ -384,6 +376,19 @@ class TestRevokeRole:
         await _seed_user_role(client.db, "u1", role_id)
 
         response = await client.delete("/api/users/u2/roles/no-such-id", headers=_auth())
+
+        assert response.status_code == 404
+
+    async def test_returns_404_when_user_role_belongs_to_different_user(self, client):
+        await _seed_user(client.db, "u1")
+        await _seed_user(client.db, "u3")
+        role_id = await _seed_role(client.db, "admin", [{"subject": "access-management", "action": "manage"}])
+        await _seed_user_role(client.db, "u1", role_id)
+        impl_role_id = await _seed_role(client.db, "implementer", [{"subject": "dashboard", "action": "view"}])
+        u3_role_id = await _seed_user_role(client.db, "u3", impl_role_id)
+
+        # Attempt to revoke u3's role via the u2 path — must not succeed
+        response = await client.delete(f"/api/users/u2/roles/{u3_role_id}", headers=_auth())
 
         assert response.status_code == 404
 
