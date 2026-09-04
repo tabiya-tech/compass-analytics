@@ -6,11 +6,16 @@ import { AuthContext } from "@/auth/AuthContext";
 import { AccessProvider, MODULE_IDS, type AccessProviderProps } from "@/access/AccessContext";
 import { Jobseekers } from "./Jobseekers";
 
+/** Most stories don't care about scope, so they get one institution's worth of the mocked roster. */
+const ONE_INSTITUTION_SCOPE: AccessProviderProps["scope"] = { institutionIds: ["inst-1"] };
+
 /** Storybook gives the story router, i18n and MSW — but not auth, so stub a signed-in user here. */
 function JobseekersHarness({ access, children }: Readonly<{ access?: AccessProviderProps; children: ReactNode }>) {
   return (
     <AuthContext.Provider value={{ user: null, loading: false, getIdToken: async () => "storybook-token" }}>
-      <AccessProvider {...access}>{children}</AccessProvider>
+      <AccessProvider scope={ONE_INSTITUTION_SCOPE} {...access}>
+        {children}
+      </AccessProvider>
     </AuthContext.Provider>
   );
 }

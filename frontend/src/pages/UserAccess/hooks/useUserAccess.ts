@@ -127,11 +127,11 @@ export function useUserAccess(roles: readonly RoleRecord[]): UserAccessControlle
 
   const revokeAccess = useCallback(
     (entry: UserAccessEntry) =>
-      applyChange(entry, "revoke", async (token) => {
+      applyChange(entry, "revoke", (token) => {
         const service = UserService.getInstance();
-        for (const userRole of entry.user.roles) {
-          await service.revokeRole(entry.user.user_id, userRole.role_id, token);
-        }
+        return Promise.all(
+          entry.user.roles.map((userRole) => service.revokeRole(entry.user.user_id, userRole.role_id, token))
+        );
       }),
     [applyChange]
   );

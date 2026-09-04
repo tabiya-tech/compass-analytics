@@ -224,11 +224,11 @@ export function queryJobseekers(query: JobseekersQuery): JobseekersResponse {
   const search = query.search?.trim().toLowerCase() ?? "";
   const filters = Object.entries(query.module_status ?? {}).filter(([, statuses]) => statuses && statuses.length > 0);
 
-  const scope = query.scope;
+  const { institutionIds } = query.scope;
   const inScope =
-    scope.institutionIds === null
+    institutionIds === null
       ? MOCK_JOBSEEKERS
-      : MOCK_JOBSEEKERS.filter((jobseeker) => scope.institutionIds!.includes(jobseeker.institution_id));
+      : MOCK_JOBSEEKERS.filter((jobseeker) => institutionIds.includes(jobseeker.institution_id));
 
   const matching = inScope.filter((jobseeker) => {
     const matchesSearch =

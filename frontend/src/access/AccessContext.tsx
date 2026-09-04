@@ -49,7 +49,7 @@ export interface AccessProviderProps {
 }
 
 const DEFAULT_ABILITY: AppAbility = buildAbility([]);
-const DEFAULT_SCOPE: AccessScope = { institutionIds: ["inst-1"] };
+const DEFAULT_SCOPE: AccessScope = { institutionIds: [] };
 const DEFAULT_MODULES: readonly ModuleId[] = Object.values(MODULE_IDS);
 
 const AccessContext = createContext<AccessContextValue | null>(null);

@@ -12,9 +12,12 @@ import { DATA_TEST_ID, Jobseekers } from "./Jobseekers";
 const GIVEN_JOBSEEKER_COUNT = 21;
 const GIVEN_FIRST_JOBSEEKER = "Aisha Mwansa"; // the roster opens sorted by name, A–Z
 
+/** Scope tests opt into when they don't care about scope — most of this file. */
+const ONE_INSTITUTION_SCOPE: AccessProviderProps["scope"] = { institutionIds: ["inst-1"] };
+
 function renderJobseekers(access?: AccessProviderProps) {
   return render(
-    <AccessProvider {...access}>
+    <AccessProvider scope={ONE_INSTITUTION_SCOPE} {...access}>
       <Jobseekers />
     </AccessProvider>
   );

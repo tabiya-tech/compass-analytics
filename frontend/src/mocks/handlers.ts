@@ -279,7 +279,7 @@ export const assignRoleHandler = http.post("/api/users/:userId/roles", async ({ 
 });
 
 export const revokeRoleHandler = http.delete(
-  "/api/users/:userId/roles/:userRoleId",
+  "/api/users/:userId/roles/:roleId",
   () => new HttpResponse(null, { status: 204 })
 );
 
