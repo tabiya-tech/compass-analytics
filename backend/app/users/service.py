@@ -91,12 +91,15 @@ class UserService(IUserService):
         ]
         if any(institution_id is None for _, institution_id in dashboard_entries):
             return UserScope(institution_ids=None)
-        institution_ids = sorted({inst for _, inst in dashboard_entries if inst})
+        institution_ids = sorted({institution_id for _, institution_id in dashboard_entries if institution_id})
         return UserScope(institution_ids=institution_ids)
+
+    async def _roles_by_id(self) -> dict[str, RoleRecord]:
+        return {role.id: role for role in await self._roles.list_all()}
 
     async def _load_user_roles_with_records(self, user_id: str) -> list[tuple[RoleRecord, str | None]]:
         user_roles = await self._user_roles.list_for_user(user_id)
-        roles_by_id = {role.id: role for role in await self._roles.list_all()}
+        roles_by_id = await self._roles_by_id()
         return [
             (roles_by_id[ur.role_id], ur.institution_id)
             for ur in user_roles
@@ -139,7 +142,7 @@ class UserService(IUserService):
         users = await self._repo.list_all()
         user_ids = [u.user_id for u in users]
         all_user_roles = await self._user_roles.list_for_users(user_ids)
-        roles_by_id = {role.id: role for role in await self._roles.list_all()}
+        roles_by_id = await self._roles_by_id()
 
         user_roles_by_user: dict[str, list[UserRoleView]] = {}
         for ur in all_user_roles:
@@ -188,6 +191,7 @@ class UserService(IUserService):
 
     async def revoke_role(self, user_info: UserInfo, target_user_id: str, user_role_id: str) -> None:
         from app.users.errors import GrantNotFoundError
+        await self._require_record(user_info)
         removed = await self._user_roles.revoke(user_role_id, target_user_id)
         if not removed:
             raise GrantNotFoundError(user_role_id)
