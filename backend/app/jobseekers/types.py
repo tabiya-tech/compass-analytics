@@ -33,8 +33,10 @@ class AccessScope(BaseModel):
 
     @classmethod
     def from_resolved_scope(cls, resolved: "ResolvedScope") -> "AccessScope":
-        if not resolved.institution_ids:
+        if resolved.institution_ids is None:
             return cls(type="all")
+        if not resolved.institution_ids:
+            raise ValueError(f"Cannot build AccessScope from an empty institution list: {resolved!r}")
         return cls(type="institutions", institution_ids=resolved.institution_ids)
 
 
