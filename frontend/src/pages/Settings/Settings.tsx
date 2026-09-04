@@ -213,7 +213,7 @@ export function Settings() {
                 />
                 {!isEditingProfile && (
                   <p data-testid={DATA_TEST_ID.PROFILE_ROLE_SUBTITLE} className="text-sm text-grey-text">
-                    {role ? t(ROLE_LABEL_KEYS[role]) : unknownValuePlaceholder}
+                    {role ?? unknownValuePlaceholder}
                   </p>
                 )}
               </div>

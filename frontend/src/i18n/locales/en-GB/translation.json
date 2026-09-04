@@ -216,20 +216,6 @@
       "none": "No access yet",
       "otherAccess": "Custom permissions"
     },
-    "roles": {
-      "implementer": {
-        "label": "Implementer",
-        "description": "Sees every page except Institutions, for one institution only. Cannot grant access to other users."
-      },
-      "funder": {
-        "label": "Funder",
-        "description": "Sees every page except Jobseekers. Can grant access to other users."
-      },
-      "superAdmin": {
-        "label": "Super admin",
-        "description": "Sees every page and can grant access to other users."
-      }
-    },
     "toggle": {
       "grant": "Grant access",
       "granted": "Access granted",

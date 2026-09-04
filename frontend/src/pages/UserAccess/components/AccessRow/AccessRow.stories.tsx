@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent } from "storybook/test";
-import { Role } from "@/access/roles";
 import { stubRoleRecord, userRoleFor } from "@/_test_utilities/role-grants";
 import type { UserAccessEntry } from "@/pages/UserAccess/hooks/useUserAccess";
 import { AccessRow } from "./AccessRow";
@@ -13,14 +12,14 @@ const ungrantedEntry: UserAccessEntry = {
   hasAccess: false,
 };
 
-const implementerRole = stubRoleRecord({ name: Role.Implementer, label: "Implementer" });
+const implementerRole = stubRoleRecord({ name: "implementer", label: "Implementer" });
 const implementerEntry: UserAccessEntry = {
   user: { ...user, roles: [userRoleFor(implementerRole._id)] },
   role: implementerRole,
   hasAccess: true,
 };
 
-const funderRole = stubRoleRecord({ name: Role.Funder, label: "Funder" });
+const funderRole = stubRoleRecord({ name: "funder", label: "Funder" });
 const funderEntry: UserAccessEntry = {
   user: { ...user, roles: [userRoleFor(funderRole._id)] },
   role: funderRole,

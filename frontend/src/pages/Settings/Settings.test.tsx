@@ -57,17 +57,18 @@ describe("Settings", () => {
     expect(valueOfDetail("Email")).toBe(SIGNED_IN_EMAIL);
   });
 
-  it("should name the role the caller's permissions add up to", () => {
-    // GIVEN a caller whose grants make them a funder
+  it("should name the role the backend assigned the caller", () => {
+    // GIVEN a caller the backend has assigned the funder role
     // WHEN the profile card renders
     renderSettings({ role: "funder" });
 
-    // THEN the card shows the role name from the backend
+    // THEN the card shows the role name from the backend as-is — /api/roles, which could label
+    // it, is gated behind access-management permission that not every caller holds
     expect(valueOfDetail("Role")).toBe("funder");
   });
 
-  it("should fall back to a dash when the permissions match no known role", () => {
-    // GIVEN a caller holding permissions that add up to no role
+  it("should fall back to a dash when the backend has assigned no role", () => {
+    // GIVEN a caller with no role
     // WHEN the profile card renders
     renderSettings({ role: null });
 
