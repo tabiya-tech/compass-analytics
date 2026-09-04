@@ -29,6 +29,7 @@ export interface InstitutionsTableProps {
   onClearFilters: () => void;
   onInstitutionSelect: (institution: InstitutionSummary) => void;
   className?: string;
+  style?: React.CSSProperties;
 }
 
 /** Clicking the sorted column flips it; a new column starts high-to-low for figures, A–Z for names. */
@@ -70,6 +71,7 @@ export function InstitutionsTable({
   onClearFilters,
   onInstitutionSelect,
   className,
+  style,
 }: Readonly<InstitutionsTableProps>) {
   const { t } = useTranslation();
 
@@ -78,6 +80,7 @@ export function InstitutionsTable({
     <Table
       data-testid={DATA_TEST_ID.CONTAINER}
       containerClassName={cn("w-full min-w-0 rounded-card border bg-card", className)}
+      containerStyle={style}
     >
       <TableCaption className="sr-only">{t("institutions.table.caption")}</TableCaption>
       <TableHeader>
