@@ -7,7 +7,7 @@ from fastapi import Depends, FastAPI, HTTPException, status
 from app.auth.errors import InvalidTokenErrorResponse
 from app.auth.firebase import Authentication, UserInfo
 from app.casbin.requires import CasbinAPIRouter, make_requires
-from app.roles.types import AssignRoleRequest, ManagedUser, RoleRecord, UserRoleView
+from app.roles.types import AssignRoleRequest, ManagedUser, UserRoleView
 from app.users.dependencies import get_role_repository, get_user_role_repository, get_user_service
 from app.users.errors import GrantNotFoundError, UnknownRoleError, UserNotProvisionedError, UserNotProvisionedErrorResponse
 from app.users.service import IUserService
@@ -51,16 +51,6 @@ def add_users_routes(app: FastAPI, auth: Authentication) -> None:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="No user profile found. Your access has not been provisioned yet.",
             ) from exc
-
-    @router.get("/roles", response_model=list[RoleRecord], responses={
-        HTTPStatus.UNAUTHORIZED: {"model": InvalidTokenErrorResponse, "description": "Missing or invalid authentication token."},
-        HTTPStatus.FORBIDDEN: {"model": None, "description": "Caller does not have access-management permission."},
-    })
-    @requires(Subject.ACCESS_MANAGEMENT, Action.MANAGE)
-    async def list_roles(
-        role_repo=Depends(get_role_repository),
-    ) -> list[RoleRecord]:
-        return await role_repo.list_all()
 
     @router.get("/users", response_model=list[ManagedUser], responses={
         HTTPStatus.UNAUTHORIZED: {"model": InvalidTokenErrorResponse, "description": "Missing or invalid authentication token."},
