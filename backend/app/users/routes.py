@@ -6,10 +6,9 @@ from fastapi import Depends, FastAPI, HTTPException, status
 
 from app.auth.errors import InvalidTokenErrorResponse
 from app.auth.firebase import Authentication, UserInfo
-from app.grants.errors import GrantNotFoundErrorResponse, InsufficientPermissionsErrorResponse, UnknownRoleErrorResponse
-from app.grants.types import GrantRequest, GrantView, ManagedUser, RoleRequest
 from app.casbin.requires import CasbinAPIRouter, make_requires
-from app.users.dependencies import get_grant_repository, get_user_service
+from app.roles.types import AssignRoleRequest, ManagedUser, UserRoleView
+from app.users.dependencies import get_role_repository, get_user_role_repository, get_user_service
 from app.users.errors import GrantNotFoundError, UnknownRoleError, UserNotProvisionedError, UserNotProvisionedErrorResponse
 from app.users.service import IUserService
 from app.users.types import Action, MeResponse, RegisterRequest, Subject
@@ -21,7 +20,7 @@ _API_PREFIX = "/api"
 
 def add_users_routes(app: FastAPI, auth: Authentication) -> None:
     get_user_info = auth.get_user_info()
-    requires = make_requires(get_user_info, get_grant_repository)
+    requires = make_requires(get_user_info, get_role_repository, get_user_role_repository)
 
     router = CasbinAPIRouter(requires_factory=requires, prefix=_API_PREFIX, tags=["Users"])
 
@@ -34,7 +33,6 @@ def add_users_routes(app: FastAPI, auth: Authentication) -> None:
         service: IUserService = Depends(get_user_service),
     ) -> None:
         logger.info("register endpoint hit for user_id=%s", user_info.user_id)
-        # A plain login sends no body; treat that the same as an explicitly empty one.
         await service.register(user_info, body or RegisterRequest())
         logger.info("register complete for user_id=%s", user_info.user_id)
 
@@ -56,7 +54,7 @@ def add_users_routes(app: FastAPI, auth: Authentication) -> None:
 
     @router.get("/users", response_model=list[ManagedUser], responses={
         HTTPStatus.UNAUTHORIZED: {"model": InvalidTokenErrorResponse, "description": "Missing or invalid authentication token."},
-        HTTPStatus.FORBIDDEN: {"model": InsufficientPermissionsErrorResponse, "description": "Caller does not have the access:management permission."},
+        HTTPStatus.FORBIDDEN: {"model": None, "description": "Caller does not have access-management permission."},
         HTTPStatus.NOT_FOUND: {"model": UserNotProvisionedErrorResponse, "description": "The authenticated user has no provisioned profile."},
     })
     @requires(Subject.ACCESS_MANAGEMENT, Action.MANAGE)
@@ -69,36 +67,19 @@ def add_users_routes(app: FastAPI, auth: Authentication) -> None:
         except UserNotProvisionedError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not provisioned.") from exc
 
-    @router.post("/users/{target_user_id}/grants", response_model=GrantView, status_code=status.HTTP_201_CREATED, responses={
+    @router.post("/users/{target_user_id}/roles", response_model=UserRoleView, status_code=status.HTTP_201_CREATED, responses={
         HTTPStatus.UNAUTHORIZED: {"model": InvalidTokenErrorResponse, "description": "Missing or invalid authentication token."},
-        HTTPStatus.FORBIDDEN: {"model": InsufficientPermissionsErrorResponse, "description": "Caller does not have the access:management permission."},
+        HTTPStatus.FORBIDDEN: {"model": None, "description": "Caller does not have access-management permission."},
         HTTPStatus.NOT_FOUND: {"model": UserNotProvisionedErrorResponse, "description": "The authenticated user has no provisioned profile."},
-    })
-    @requires(Subject.ACCESS_MANAGEMENT, Action.MANAGE)
-    async def create_grant(
-        target_user_id: str,
-        body: GrantRequest,
-        user_info: UserInfo = Depends(get_user_info),
-        service: IUserService = Depends(get_user_service),
-    ) -> GrantView:
-        try:
-            return await service.grant(user_info, target_user_id, body)
-        except UserNotProvisionedError as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not provisioned.") from exc
-
-    @router.post("/users/{target_user_id}/roles", response_model=list[GrantView], status_code=status.HTTP_201_CREATED, responses={
-        HTTPStatus.UNAUTHORIZED: {"model": InvalidTokenErrorResponse, "description": "Missing or invalid authentication token."},
-        HTTPStatus.FORBIDDEN: {"model": InsufficientPermissionsErrorResponse, "description": "Caller does not have the access:management permission."},
-        HTTPStatus.NOT_FOUND: {"model": UserNotProvisionedErrorResponse, "description": "The authenticated user has no provisioned profile."},
-        HTTPStatus.UNPROCESSABLE_ENTITY: {"model": UnknownRoleErrorResponse, "description": "The role name in the request body is not a known role."},
+        HTTPStatus.UNPROCESSABLE_ENTITY: {"model": None, "description": "The role_id in the request body does not match a known role."},
     })
     @requires(Subject.ACCESS_MANAGEMENT, Action.MANAGE)
     async def assign_role(
         target_user_id: str,
-        body: RoleRequest,
+        body: AssignRoleRequest,
         user_info: UserInfo = Depends(get_user_info),
         service: IUserService = Depends(get_user_service),
-    ) -> list[GrantView]:
+    ) -> UserRoleView:
         try:
             return await service.assign_role(user_info, target_user_id, body)
         except UserNotProvisionedError as exc:
@@ -106,23 +87,23 @@ def add_users_routes(app: FastAPI, auth: Authentication) -> None:
         except UnknownRoleError as exc:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Unknown role: {exc}") from exc
 
-    @router.delete("/users/{target_user_id}/grants/{grant_id}", status_code=status.HTTP_204_NO_CONTENT, responses={
+    @router.delete("/users/{target_user_id}/roles/{role_id}", status_code=status.HTTP_204_NO_CONTENT, responses={
         HTTPStatus.UNAUTHORIZED: {"model": InvalidTokenErrorResponse, "description": "Missing or invalid authentication token."},
-        HTTPStatus.FORBIDDEN: {"model": InsufficientPermissionsErrorResponse, "description": "Caller does not have the access:management permission."},
-        HTTPStatus.NOT_FOUND: {"model": GrantNotFoundErrorResponse, "description": "No grant with the given ID exists for the specified user."},
+        HTTPStatus.FORBIDDEN: {"model": None, "description": "Caller does not have access-management permission."},
+        HTTPStatus.NOT_FOUND: {"model": None, "description": "No assignment for this role and user exists."},
     })
     @requires(Subject.ACCESS_MANAGEMENT, Action.MANAGE)
-    async def revoke_grant(
+    async def revoke_role(
         target_user_id: str,
-        grant_id: str,
+        role_id: str,
         user_info: UserInfo = Depends(get_user_info),
         service: IUserService = Depends(get_user_service),
     ) -> None:
         try:
-            await service.revoke(user_info, target_user_id, grant_id)
+            await service.revoke_role(user_info, target_user_id, role_id)
         except UserNotProvisionedError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not provisioned.") from exc
         except GrantNotFoundError as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Grant not found.") from exc
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User role not found.") from exc
 
     app.include_router(router)

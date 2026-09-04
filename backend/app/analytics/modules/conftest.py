@@ -10,9 +10,9 @@ from app.analytics.reach.service import ReachService
 from app.analytics.routes import add_analytics_routes
 from app.auth.firebase import Authentication, UserInfo
 from app.casbin.enforcer import clear_enforcer_cache
-from app.grants.test_helpers import FakeGrantRepository
-from app.grants.types import GrantRequest, GrantView, ManagedUser, RoleRequest
-from app.users.dependencies import get_grant_repository
+from app.roles.test_helpers import FakeRoleRepository, FakeUserRoleRepository
+from app.roles.types import AssignRoleRequest, ManagedUser, UserRoleView
+from app.users.dependencies import get_role_repository, get_user_role_repository
 from app.users.service import IUserService, ScopeResolution
 from app.users.types import MeResponse
 from common_libs.http_client.base import AsyncHttpClient
@@ -39,13 +39,10 @@ class _FakeUserService(IUserService):
     async def list_managed_users(self, user_info: UserInfo) -> list[ManagedUser]:
         raise NotImplementedError
 
-    async def grant(self, user_info: UserInfo, target_user_id: str, request: GrantRequest) -> GrantView:
+    async def assign_role(self, user_info: UserInfo, target_user_id: str, request: AssignRoleRequest) -> UserRoleView:
         raise NotImplementedError
 
-    async def assign_role(self, user_info: UserInfo, target_user_id: str, request: RoleRequest) -> list[GrantView]:
-        raise NotImplementedError
-
-    async def revoke(self, user_info: UserInfo, target_user_id: str, grant_id: str) -> None:
+    async def revoke_role(self, user_info: UserInfo, target_user_id: str, user_role_id: str) -> None:
         raise NotImplementedError
 
 
@@ -68,11 +65,11 @@ def _make_modules_service(transport) -> ModulesService:
 def _make_app(monkeypatch, modules_service: ModulesService) -> FastAPI:
     monkeypatch.setenv("TARGET_ENVIRONMENT_TYPE", "local")
     app = FastAPI()
-    # Registers both the reach and modules routers.
     add_analytics_routes(app, Authentication())
     app.dependency_overrides[get_modules_service] = lambda: modules_service
     app.dependency_overrides[get_reach_service] = _make_reach_service_stub
-    app.dependency_overrides[get_grant_repository] = lambda: FakeGrantRepository()
+    app.dependency_overrides[get_role_repository] = lambda: FakeRoleRepository()
+    app.dependency_overrides[get_user_role_repository] = lambda: FakeUserRoleRepository()
     return app
 
 

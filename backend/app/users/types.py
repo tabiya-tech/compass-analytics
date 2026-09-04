@@ -23,27 +23,14 @@ class Action(str, Enum):
 
 
 
-class ScopeType(str, Enum):
-    """
-    How institution access is expressed when a caller's grants are aggregated:
-
-    - ALL: at least one grant covers every institution (via the ALL_INSTITUTIONS
-      sentinel) — the caller sees the whole deployment.
-    - INSTITUTIONS: the caller is limited to the explicit institution_ids list.
-    """
-
-    ALL = "all"
-    INSTITUTIONS = "institutions"
-
-
-# Sentinel institution_id on a grant meaning "every institution in the deployment".
+# Sentinel value used in Casbin policies for deployment-wide permissions.
 ALL_INSTITUTIONS = "*"
 
 
 class UserRecord(BaseModel):
     """
     A row in the `users` collection — holds a user's identity.
-    Access control lives in the separate `grants` collection (see app.grants.types.GrantRecord).
+    Access control lives in the `roles` and `user_roles` collections.
     Active modules are a deployment-level setting read from ApplicationConfig, not stored per-user.
     """
 
@@ -69,22 +56,24 @@ class RegisterRequest(BaseModel):
 
 
 class UserScope(BaseModel):
-    type: ScopeType
-    institution_ids: list[str] = Field(default_factory=list)
+    # null = deployment-wide (no filter); [] = no access; ["inst-a", ...] = scoped to those institutions.
+    institution_ids: Optional[list[str]] = None
 
     model_config = {"extra": "forbid"}
 
 
 class MeResponse(BaseModel):
     """
-    The caller's own access, derived from their grants. The frontend gates
+    The caller's own access, derived from their roles. The frontend gates
     purely on `permissions` (the "{subject}:{action}" strings) and `scope`.
+    `role` is the name of the user's primary role, or null if unassigned.
     """
 
     user_id: str
     email: Optional[str] = None
     name: Optional[str] = None
     organization: Optional[str] = None
+    role: Optional[str] = None
     permissions: list[str] = Field(default_factory=list)
     scope: UserScope
     active_modules: list[str] = Field(default_factory=list)

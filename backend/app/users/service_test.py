@@ -4,19 +4,52 @@ Unit tests for UserService.
 Fake repositories stand in for MongoDB. DB round-trips are covered by the
 route integration tests in routes_test.py.
 """
-import casbin
 import pytest
 
 from app.auth.firebase import SignInProvider, UserInfo
-from app.casbin.adapter import GrantsAdapter
-from app.casbin.model import build_model
-from app.grants.repository import IGrantRepository
-from app.grants.roles import ROLES
-from app.grants.types import GrantRecord, GrantRequest, RoleRequest
+from app.roles.repository import IRoleRepository, IUserRoleRepository
+from app.roles.types import AssignRoleRequest, PermissionEntry, RoleRecord, UserRoleRecord
 from app.users.repository import IUserRepository
-from app.users.errors import ForbiddenInstitutionError, GrantNotFoundError, UnknownRoleError, UserNotProvisionedError
+from app.users.errors import ForbiddenInstitutionError, UserNotProvisionedError
 from app.users.service import UserService
-from app.users.types import ALL_INSTITUTIONS, Action, RegisterRequest, ScopeType, Subject, UserRecord
+from app.users.types import Action, RegisterRequest, Subject, UserRecord
+
+
+def _make_role(role_id: str, name: str, permissions: list[PermissionEntry], assignable: bool = True) -> RoleRecord:
+    return RoleRecord(**{
+        "_id": role_id,
+        "name": name,
+        "label": name.capitalize(),
+        "description": "",
+        "permissions": [p.model_dump() for p in permissions],
+        "assignable": assignable,
+    })
+
+
+def _make_permission(subject: Subject, action: Action) -> PermissionEntry:
+    return PermissionEntry(subject=subject, action=action)
+
+
+_FUNDER_ROLE = _make_role(
+    "role-funder",
+    "funder",
+    [
+        _make_permission(Subject.DASHBOARD, Action.VIEW),
+        _make_permission(Subject.INSTITUTIONS, Action.VIEW),
+        _make_permission(Subject.ACCESS_MANAGEMENT, Action.MANAGE),
+        _make_permission(Subject.ACCOUNT, Action.VIEW),
+    ],
+)
+
+_IMPLEMENTER_ROLE = _make_role(
+    "role-impl",
+    "implementer",
+    [
+        _make_permission(Subject.DASHBOARD, Action.VIEW),
+        _make_permission(Subject.JOBSEEKERS, Action.VIEW),
+        _make_permission(Subject.ACCOUNT, Action.VIEW),
+    ],
+)
 
 
 class _FakeUserRepository(IUserRepository):
@@ -34,71 +67,65 @@ class _FakeUserRepository(IUserRepository):
         return record
 
 
-class _FakeGrantRepository(IGrantRepository):
-    def __init__(self, grants: list[GrantRecord] | None = None):
-        self._grants: list[GrantRecord] = grants or []
+class _FakeRoleRepository(IRoleRepository):
+    def __init__(self, roles: list[RoleRecord]):
+        self._roles = {r.id: r for r in roles}
+
+    async def list_all(self) -> list[RoleRecord]:
+        return list(self._roles.values())
+
+    async def get_by_id(self, role_id: str) -> RoleRecord | None:
+        return self._roles.get(role_id)
+
+    async def get_by_name(self, name: str) -> RoleRecord | None:
+        return next((r for r in self._roles.values() if r.name == name), None)
+
+class _FakeUserRoleRepository(IUserRoleRepository):
+    def __init__(self, user_roles: list[UserRoleRecord] | None = None):
+        self._user_roles: list[UserRoleRecord] = user_roles or []
         self._next_id = 0
 
     def _new_id(self) -> str:
         self._next_id += 1
-        return f"grant-{self._next_id}"
+        return f"ur-{self._next_id}"
 
-    async def list_all(self) -> list[GrantRecord]:
-        return list(self._grants)
+    async def list_all(self) -> list[UserRoleRecord]:
+        return list(self._user_roles)
 
-    async def list_for_user(self, user_id: str) -> list[GrantRecord]:
-        return [g for g in self._grants if g.user_id == user_id]
+    async def list_for_user(self, user_id: str) -> list[UserRoleRecord]:
+        return [ur for ur in self._user_roles if ur.user_id == user_id]
 
-    async def list_for_users(self, user_ids: list[str]) -> list[GrantRecord]:
-        return [g for g in self._grants if g.user_id in user_ids]
+    async def list_for_users(self, user_ids: list[str]) -> list[UserRoleRecord]:
+        return [ur for ur in self._user_roles if ur.user_id in user_ids]
 
-    async def create(self, user_id, subject, action, institution_id, granted_by) -> GrantRecord:
+    async def assign(self, user_id: str, role_id: str, institution_id: str | None, granted_by: str | None) -> UserRoleRecord:
         existing = next(
-            (g for g in self._grants if g.user_id == user_id and g.subject == subject
-             and g.action == action and g.institution_id == institution_id),
+            (ur for ur in self._user_roles if ur.user_id == user_id and ur.role_id == role_id and ur.institution_id == institution_id),
             None,
         )
         if existing:
             return existing
-        record = GrantRecord(
-            grant_id=self._new_id(),
-            user_id=user_id,
-            subject=subject,
-            action=action,
-            institution_id=institution_id,
-            granted_by=granted_by,
-        )
-        self._grants.append(record)
+        record = UserRoleRecord(**{
+            "_id": self._new_id(),
+            "user_id": user_id,
+            "role_id": role_id,
+            "institution_id": institution_id,
+            "granted_by": granted_by,
+            "granted_at": None,
+        })
+        self._user_roles.append(record)
         return record
 
-    async def get_by_tuple(self, user_id: str, subject: Subject, action: Action, institution_id: str) -> GrantRecord | None:
-        return next(
-            (g for g in self._grants if g.user_id == user_id and g.subject == subject
-             and g.action == action and g.institution_id == institution_id),
-            None,
-        )
+    async def revoke(self, role_id: str, user_id: str) -> bool:
+        before = len(self._user_roles)
+        self._user_roles = [ur for ur in self._user_roles if not (ur.role_id == role_id and ur.user_id == user_id)]
+        return len(self._user_roles) < before
 
-    async def get_by_grant_id(self, user_id: str, grant_id: str) -> GrantRecord | None:
-        return next((g for g in self._grants if g.user_id == user_id and g.grant_id == grant_id), None)
-
-    async def set_granted_by(self, user_id: str, subject: Subject, action: Action, institution_id: str, granted_by: str) -> None:
-        pass
-
-    async def delete(self, user_id: str, grant_id: str) -> bool:
-        before = len(self._grants)
-        self._grants = [g for g in self._grants if not (g.user_id == user_id and g.grant_id == grant_id)]
-        return len(self._grants) < before
-
-    async def delete_by_tuple(self, user_id: str, subject: Subject, action: Action, institution_id: str) -> bool:
-        before = len(self._grants)
-        self._grants = [
-            g for g in self._grants
-            if not (g.user_id == user_id and g.subject == subject and g.action == action and g.institution_id == institution_id)
-        ]
-        return len(self._grants) < before
+    async def revoke_all_for_user(self, user_id: str) -> None:
+        self._user_roles = [ur for ur in self._user_roles if ur.user_id != user_id]
 
 
-def _user_info(user_id: str = "u1") -> UserInfo:
+def _make_user_info(user_id: str = "u1") -> UserInfo:
     return UserInfo(
         user_id=user_id,
         name="Test User",
@@ -108,349 +135,247 @@ def _user_info(user_id: str = "u1") -> UserInfo:
     )
 
 
-def _record(user_id: str = "u1") -> UserRecord:
+def _make_user_record(user_id: str = "u1") -> UserRecord:
     return UserRecord(user_id=user_id, email=f"{user_id}@example.com", name="Test User")
 
 
-def _grant(user_id: str, subject: Subject, action: Action, institution_id: str, grant_id: str = "g1") -> GrantRecord:
-    return GrantRecord(grant_id=grant_id, user_id=user_id, subject=subject, action=action, institution_id=institution_id)
+def _make_user_role(user_id: str, role: RoleRecord, institution_id: str | None = None, ur_id: str = "ur-1") -> UserRoleRecord:
+    return UserRoleRecord(**{
+        "_id": ur_id,
+        "user_id": user_id,
+        "role_id": role.id,
+        "institution_id": institution_id,
+        "granted_by": None,
+        "granted_at": None,
+    })
 
 
-async def _service_with_grants(
+async def _make_service(
     records: list[UserRecord] | None = None,
-    grants: list[GrantRecord] | None = None,
-) -> tuple[UserService, _FakeGrantRepository]:
-    """Same as _service, but hands back the grant repo so a test can read what was actually stored."""
-    grant_repo = _FakeGrantRepository(grants or [])
-    enforcer = casbin.AsyncEnforcer(build_model(), GrantsAdapter(grant_repo))
-    await enforcer.load_policy()
-    service = UserService(
+    roles: list[RoleRecord] | None = None,
+    user_roles: list[UserRoleRecord] | None = None,
+) -> tuple[UserService, _FakeUserRoleRepository]:
+    role_repo = _FakeRoleRepository(roles or [_FUNDER_ROLE, _IMPLEMENTER_ROLE])
+    user_role_repo = _FakeUserRoleRepository(user_roles or [])
+    svc = UserService(
         repository=_FakeUserRepository(records or []),
-        grant_repository=grant_repo,
-        enforcer=enforcer,
+        role_repository=role_repo,
+        user_role_repository=user_role_repo,
     )
-    return service, grant_repo
-
-
-async def _service(
-    records: list[UserRecord] | None = None,
-    grants: list[GrantRecord] | None = None,
-) -> UserService:
-    service, _ = await _service_with_grants(records, grants)
-    return service
+    return svc, user_role_repo
 
 
 @pytest.mark.usefixtures("setup_application_config")
 class TestGetMe:
-    async def test_returns_permissions_derived_from_grants(self):
-        # GIVEN a user with two grants
-        grants = [
-            _grant("u1", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS, "g1"),
-            _grant("u1", Subject.ACCOUNT, Action.VIEW, ALL_INSTITUTIONS, "g2"),
-        ]
-        service = await _service(records=[_record()], grants=grants)
+    async def test_returns_permissions_derived_from_role(self):
+        # GIVEN a user assigned the funder role
+        ur = _make_user_role("u1", _FUNDER_ROLE)
+        svc, _ = await _make_service(records=[_make_user_record()], user_roles=[ur])
 
-        result = await service.get_me(_user_info())
+        result = await svc.get_me(_make_user_info())
 
         assert "dashboard:view" in result.permissions
-        assert "account:view" in result.permissions
+        assert "access-management:manage" in result.permissions
 
-    async def test_returns_all_scope_when_dashboard_grant_is_wildcard(self):
-        # GIVEN a wildcard dashboard:view grant
-        grants = [_grant("u1", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS)]
-        service = await _service(records=[_record()], grants=grants)
+    async def test_returns_all_scope_for_deployment_scoped_role(self):
+        ur = _make_user_role("u1", _FUNDER_ROLE)
+        svc, _ = await _make_service(records=[_make_user_record()], user_roles=[ur])
 
-        result = await service.get_me(_user_info())
+        result = await svc.get_me(_make_user_info())
 
-        assert result.scope.type == ScopeType.ALL
+        assert result.scope.institution_ids is None
 
-    async def test_returns_institutions_scope_when_dashboard_grant_is_scoped(self):
-        # GIVEN a dashboard:view grant scoped to inst-a
-        grants = [_grant("u1", Subject.DASHBOARD, Action.VIEW, "inst-a")]
-        service = await _service(records=[_record()], grants=grants)
+    async def test_returns_institutions_scope_for_institution_scoped_role(self):
+        ur = _make_user_role("u1", _IMPLEMENTER_ROLE, institution_id="inst-a")
+        svc, _ = await _make_service(records=[_make_user_record()], user_roles=[ur])
 
-        result = await service.get_me(_user_info())
+        result = await svc.get_me(_make_user_info())
 
-        assert result.scope.type == ScopeType.INSTITUTIONS
         assert result.scope.institution_ids == ["inst-a"]
 
-    async def test_prefers_jwt_identity_over_stored_copy(self):
-        # GIVEN a record with stale identity
-        record = UserRecord(user_id="u1", email="stale@example.com", name="Stale")
-        service = await _service(records=[record])
+    async def test_returns_role_name(self):
+        ur = _make_user_role("u1", _FUNDER_ROLE)
+        svc, _ = await _make_service(records=[_make_user_record()], user_roles=[ur])
 
-        result = await service.get_me(_user_info())
+        result = await svc.get_me(_make_user_info())
+
+        assert result.role == "funder"
+
+    async def test_returns_null_role_when_no_roles_assigned(self):
+        svc, _ = await _make_service(records=[_make_user_record()])
+
+        result = await svc.get_me(_make_user_info())
+
+        assert result.role is None
+
+    async def test_prefers_jwt_identity_over_stored_copy(self):
+        record = UserRecord(user_id="u1", email="stale@example.com", name="Stale")
+        svc, _ = await _make_service(records=[record])
+
+        result = await svc.get_me(_make_user_info())
 
         assert result.email == "user@example.com"
         assert result.name == "Test User"
 
     async def test_raises_not_provisioned_when_no_record(self):
-        service = await _service()
+        svc, _ = await _make_service()
         with pytest.raises(UserNotProvisionedError):
-            await service.get_me(_user_info())
+            await svc.get_me(_make_user_info())
 
-    async def test_returns_the_organization_recorded_at_registration(self):
-        # GIVEN a record carrying an organization — the JWT itself has nothing to prefer, unlike
-        # name/email, since Firebase identity has no notion of it
+    async def test_returns_organization_recorded_at_registration(self):
         record = UserRecord(user_id="u1", email="user@example.com", name="Test User", organization="Acme Corp")
-        service = await _service(records=[record])
+        svc, _ = await _make_service(records=[record])
 
-        result = await service.get_me(_user_info())
+        result = await svc.get_me(_make_user_info())
 
         assert result.organization == "Acme Corp"
 
-    async def test_returns_no_organization_when_none_was_ever_recorded(self):
-        service = await _service(records=[_record()])
-
-        result = await service.get_me(_user_info())
-
-        assert result.organization is None
-
 
 class TestResolveScope:
-    async def test_all_scope_with_no_drilldown_returns_none_filter(self):
-        # GIVEN deployment-wide dashboard access
-        grants = [_grant("u1", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS)]
-        service = await _service(records=[_record()], grants=grants)
+    async def test_deployment_role_with_no_drilldown_returns_none_filter(self):
+        ur = _make_user_role("u1", _FUNDER_ROLE)
+        svc, _ = await _make_service(records=[_make_user_record()], user_roles=[ur])
 
-        result = await service.resolve_scope(_user_info(), None)
+        result = await svc.resolve_scope(_make_user_info(), None)
 
         assert result.institution_ids is None
 
-    async def test_all_scope_drilldown_passes_through_institution(self):
-        grants = [_grant("u1", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS)]
-        service = await _service(records=[_record()], grants=grants)
+    async def test_deployment_role_drilldown_passes_through_institution(self):
+        ur = _make_user_role("u1", _FUNDER_ROLE)
+        svc, _ = await _make_service(records=[_make_user_record()], user_roles=[ur])
 
-        result = await service.resolve_scope(_user_info(), "inst-a")
+        result = await svc.resolve_scope(_make_user_info(), "inst-a")
 
         assert result.institution_ids == ["inst-a"]
 
-    async def test_institutions_scope_with_no_drilldown_returns_all_granted(self):
-        # GIVEN grants for two institutions
-        grants = [
-            _grant("u1", Subject.DASHBOARD, Action.VIEW, "inst-a", "g1"),
-            _grant("u1", Subject.DASHBOARD, Action.VIEW, "inst-b", "g2"),
-        ]
-        service = await _service(records=[_record()], grants=grants)
+    async def test_institution_scoped_role_with_no_drilldown_returns_assigned_institutions(self):
+        ur_a = _make_user_role("u1", _IMPLEMENTER_ROLE, institution_id="inst-a", ur_id="ur-1")
+        ur_b = _make_user_role("u1", _IMPLEMENTER_ROLE, institution_id="inst-b", ur_id="ur-2")
+        svc, _ = await _make_service(records=[_make_user_record()], user_roles=[ur_a, ur_b])
 
-        result = await service.resolve_scope(_user_info(), None)
+        result = await svc.resolve_scope(_make_user_info(), None)
 
         assert sorted(result.institution_ids) == ["inst-a", "inst-b"]
 
-    async def test_institutions_scope_drilldown_into_own_institution(self):
-        grants = [_grant("u1", Subject.DASHBOARD, Action.VIEW, "inst-a")]
-        service = await _service(records=[_record()], grants=grants)
+    async def test_institution_scoped_drilldown_into_own_institution(self):
+        ur = _make_user_role("u1", _IMPLEMENTER_ROLE, institution_id="inst-a")
+        svc, _ = await _make_service(records=[_make_user_record()], user_roles=[ur])
 
-        result = await service.resolve_scope(_user_info(), "inst-a")
+        result = await svc.resolve_scope(_make_user_info(), "inst-a")
 
         assert result.institution_ids == ["inst-a"]
 
-    async def test_institutions_scope_drilldown_into_foreign_institution_raises(self):
-        grants = [_grant("u1", Subject.DASHBOARD, Action.VIEW, "inst-a")]
-        service = await _service(records=[_record()], grants=grants)
+    async def test_institution_scoped_drilldown_into_foreign_institution_raises(self):
+        ur = _make_user_role("u1", _IMPLEMENTER_ROLE, institution_id="inst-a")
+        svc, _ = await _make_service(records=[_make_user_record()], user_roles=[ur])
 
         with pytest.raises(ForbiddenInstitutionError):
-            await service.resolve_scope(_user_info(), "inst-x")
+            await svc.resolve_scope(_make_user_info(), "inst-x")
 
     async def test_raises_not_provisioned_when_no_record(self):
-        service = await _service()
+        svc, _ = await _make_service()
         with pytest.raises(UserNotProvisionedError):
-            await service.resolve_scope(_user_info(), None)
+            await svc.resolve_scope(_make_user_info(), None)
 
 
 class TestListManagedUsers:
-    async def test_returns_all_users_with_their_grants(self):
-        records = [_record("u1"), _record("u2")]
-        grants = [
-            _grant("u1", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS, "g1"),
-            _grant("u2", Subject.INSTITUTIONS, Action.VIEW, "inst-a", "g2"),
-        ]
-        service = await _service(records=records, grants=grants)
+    async def test_returns_all_users_with_their_roles(self):
+        records = [_make_user_record("u1"), _make_user_record("u2")]
+        ur1 = _make_user_role("u1", _FUNDER_ROLE, ur_id="ur-1")
+        ur2 = _make_user_role("u2", _IMPLEMENTER_ROLE, institution_id="inst-a", ur_id="ur-2")
+        svc, _ = await _make_service(records=records, user_roles=[ur1, ur2])
 
-        result = await service.list_managed_users(_user_info())
+        result = await svc.list_managed_users(_make_user_info())
 
         assert {u.user_id for u in result} == {"u1", "u2"}
         u1 = next(u for u in result if u.user_id == "u1")
-        assert len(u1.grants) == 1
-        assert u1.grants[0].grant_id == "g1"
+        assert len(u1.roles) == 1
+        assert u1.roles[0].role_name == "funder"
 
-    async def test_returns_empty_grants_for_users_with_no_grants(self):
-        service = await _service(records=[_record("u1")])
+    async def test_returns_empty_roles_for_users_with_no_assignments(self):
+        svc, _ = await _make_service(records=[_make_user_record("u1")])
 
-        result = await service.list_managed_users(_user_info())
+        result = await svc.list_managed_users(_make_user_info())
 
-        assert result[0].grants == []
-
-    async def test_raises_not_provisioned_when_caller_has_no_record(self):
-        service = await _service()
-        with pytest.raises(UserNotProvisionedError):
-            await service.list_managed_users(_user_info())
-
-
-class TestGrant:
-    async def test_creates_and_returns_grant_view(self):
-        service = await _service(records=[_record()])
-        request = GrantRequest(subject=Subject.DASHBOARD, action=Action.VIEW, institution_id="inst-a")
-
-        result = await service.grant(_user_info(), "u2", request)
-
-        assert result.subject == Subject.DASHBOARD
-        assert result.action == Action.VIEW
-        assert result.institution_id == "inst-a"
+        assert result[0].roles == []
 
     async def test_raises_not_provisioned_when_caller_has_no_record(self):
-        service = await _service()
+        svc, _ = await _make_service()
         with pytest.raises(UserNotProvisionedError):
-            await service.grant(_user_info(), "u2", GrantRequest(
-                subject=Subject.DASHBOARD, action=Action.VIEW, institution_id="inst-a"
-            ))
+            await svc.list_managed_users(_make_user_info())
 
 
 class TestAssignRole:
-    async def test_expands_implementer_role_to_grants(self):
-        service = await _service(records=[_record()])
-        request = RoleRequest(role="implementer", institution_id="inst-a")
+    async def test_assigns_role_and_returns_view(self):
+        svc, ur_repo = await _make_service(records=[_make_user_record()])
+        request = AssignRoleRequest(role_id=_FUNDER_ROLE.id, institution_id=None)
 
-        result = await service.assign_role(_user_info(), "u2", request)
+        result = await svc.assign_role(_make_user_info(), "u2", request)
 
-        subjects = {g.subject for g in result}
-        assert Subject.DASHBOARD in subjects
-        assert Subject.JOBSEEKERS in subjects
-        assert Subject.ACCOUNT in subjects
-        assert all(g.institution_id == "inst-a" for g in result)
+        assert result.role_name == "funder"
+        stored = await ur_repo.list_for_user("u2")
+        assert len(stored) == 1
 
-    async def test_expands_funder_role_to_grants(self):
-        service = await _service(records=[_record()])
-        request = RoleRequest(role="funder", institution_id=ALL_INSTITUTIONS)
-
-        result = await service.assign_role(_user_info(), "u2", request)
-
-        subjects = {g.subject for g in result}
-        assert Subject.INSTITUTIONS in subjects
-        assert Subject.ACCESS_MANAGEMENT in subjects
-
-    async def test_replaces_the_grants_of_a_previously_assigned_role(self):
-        # GIVEN a user holding the funder role across every institution
-        held = [
-            _grant("u2", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS, "g1"),
-            _grant("u2", Subject.INSTITUTIONS, Action.VIEW, ALL_INSTITUTIONS, "g2"),
-            _grant("u2", Subject.ACCESS_MANAGEMENT, Action.MANAGE, ALL_INSTITUTIONS, "g3"),
-            _grant("u2", Subject.ACCOUNT, Action.VIEW, ALL_INSTITUTIONS, "g4"),
-        ]
-        service, grant_repo = await _service_with_grants(records=[_record()], grants=held)
-
-        # WHEN they are given the implementer role at one institution instead
-        await service.assign_role(_user_info(), "u2", RoleRequest(role="implementer", institution_id="inst-a"))
-
-        # THEN nothing of the old role is left — not its permissions, and not its wider scope
-        stored = await grant_repo.list_for_user("u2")
-        assert {(g.subject, g.action) for g in stored} == set(ROLES["implementer"])
-        assert all(g.institution_id == "inst-a" for g in stored)
-
-    async def test_rescopes_a_role_when_it_is_reassigned_to_another_institution(self):
-        # GIVEN an implementer scoped to one institution
-        service, grant_repo = await _service_with_grants(records=[_record()])
-        await service.assign_role(_user_info(), "u2", RoleRequest(role="implementer", institution_id="inst-a"))
-
-        # WHEN the same role is assigned against a different institution
-        await service.assign_role(_user_info(), "u2", RoleRequest(role="implementer", institution_id="inst-b"))
-
-        # THEN they hold that role at the new institution only, not at both
-        stored = await grant_repo.list_for_user("u2")
-        assert {g.institution_id for g in stored} == {"inst-b"}
-        assert len(stored) == len(ROLES["implementer"])
-
-    async def test_leaves_other_users_grants_untouched(self):
-        # GIVEN another user who already holds access
-        other = [_grant("u3", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS, "g9")]
-        service, grant_repo = await _service_with_grants(records=[_record()], grants=other)
-
-        # WHEN a role is assigned to a different user
-        await service.assign_role(_user_info(), "u2", RoleRequest(role="implementer", institution_id="inst-a"))
-
-        # THEN only the target's access is replaced
-        assert [g.grant_id for g in await grant_repo.list_for_user("u3")] == ["g9"]
-
-    async def test_raises_unknown_role_for_invalid_role_name(self):
-        service = await _service(records=[_record()])
+    async def test_raises_unknown_role_for_invalid_role_id(self):
+        svc, _ = await _make_service(records=[_make_user_record()])
+        from app.users.errors import UnknownRoleError
         with pytest.raises(UnknownRoleError):
-            await service.assign_role(_user_info(), "u2", RoleRequest(role="superadmin", institution_id="inst-a"))
-
-    async def test_leaves_existing_grants_alone_when_the_role_is_unknown(self):
-        # GIVEN a user holding access
-        held = [_grant("u2", Subject.DASHBOARD, Action.VIEW, ALL_INSTITUTIONS, "g1")]
-        service, grant_repo = await _service_with_grants(records=[_record()], grants=held)
-
-        # WHEN a role that does not exist is assigned
-        with pytest.raises(UnknownRoleError):
-            await service.assign_role(_user_info(), "u2", RoleRequest(role="superadmin", institution_id="inst-a"))
-
-        # THEN the access they had is not dropped on the way to the failure
-        assert [g.grant_id for g in await grant_repo.list_for_user("u2")] == ["g1"]
-
-    async def test_raises_not_provisioned_when_caller_has_no_record(self):
-        service = await _service()
-        with pytest.raises(UserNotProvisionedError):
-            await service.assign_role(_user_info(), "u2", RoleRequest(role="implementer", institution_id="inst-a"))
+            await svc.assign_role(_make_user_info(), "u2", AssignRoleRequest(role_id="no-such-id", institution_id=None))
 
 
-class TestRevoke:
-    async def test_deletes_grant_successfully(self):
-        grants = [_grant("u2", Subject.DASHBOARD, Action.VIEW, "inst-a", "g1")]
-        service = await _service(records=[_record()], grants=grants)
+class TestRevokeRole:
+    async def test_revokes_user_role_successfully(self):
+        ur = _make_user_role("u2", _FUNDER_ROLE)
+        svc, ur_repo = await _make_service(records=[_make_user_record()], user_roles=[ur])
 
-        await service.revoke(_user_info(), "u2", "g1")
+        await svc.revoke_role(_make_user_info(), "u2", _FUNDER_ROLE.id)
 
-    async def test_raises_grant_not_found_when_grant_not_found(self):
-        service = await _service(records=[_record()])
+        assert await ur_repo.list_for_user("u2") == []
+
+    async def test_raises_not_found_for_unassigned_role(self):
+        svc, _ = await _make_service(records=[_make_user_record()])
+        from app.users.errors import GrantNotFoundError
         with pytest.raises(GrantNotFoundError):
-            await service.revoke(_user_info(), "u2", "no-such-grant")
+            await svc.revoke_role(_make_user_info(), "u2", "no-such-role")
 
     async def test_raises_not_provisioned_when_caller_has_no_record(self):
-        service = await _service()
+        svc, _ = await _make_service()
         with pytest.raises(UserNotProvisionedError):
-            await service.revoke(_user_info(), "u2", "g1")
+            await svc.revoke_role(_make_user_info(), "u2", "some-role-id")
 
 
 class TestRegister:
     async def test_persists_the_organization_given_at_registration(self):
-        service = await _service()
+        svc, _ = await _make_service()
 
-        await service.register(_user_info(), RegisterRequest(organization="Acme Corp"))
+        await svc.register(_make_user_info(), RegisterRequest(organization="Acme Corp"))
 
-        stored = await service._repo.get_by_user_id("u1")  # pylint: disable=protected-access
+        stored = await svc._repo.get_by_user_id("u1")  # pylint: disable=protected-access
         assert stored.organization == "Acme Corp"
 
     async def test_persists_the_name_given_at_registration(self):
-        # GIVEN a password account, whose JWT carries no name claim
-        service = await _service()
+        svc, _ = await _make_service()
         no_name_claim = UserInfo(
             user_id="u1", name=None, email="user@example.com", token="tok", sign_in_provider=SignInProvider.PASSWORD  # nosec B106
         )
 
-        await service.register(no_name_claim, RegisterRequest(name="Kunda Tembo"))
+        await svc.register(no_name_claim, RegisterRequest(name="Kunda Tembo"))
 
-        stored = await service._repo.get_by_user_id("u1")  # pylint: disable=protected-access
+        stored = await svc._repo.get_by_user_id("u1")  # pylint: disable=protected-access
         assert stored.name == "Kunda Tembo"
 
     async def test_prefers_the_given_name_over_the_jwt_name_claim(self):
-        # GIVEN a JWT that itself carries a name claim
-        service = await _service()
+        svc, _ = await _make_service()
 
-        # WHEN an explicit name is also given — e.g. the person edited their name
-        await service.register(_user_info(), RegisterRequest(name="Kunda Tembo"))
+        await svc.register(_make_user_info(), RegisterRequest(name="Kunda Tembo"))
 
-        # THEN the deliberate value wins over whatever the token happens to say
-        stored = await service._repo.get_by_user_id("u1")  # pylint: disable=protected-access
+        stored = await svc._repo.get_by_user_id("u1")  # pylint: disable=protected-access
         assert stored.name == "Kunda Tembo"
 
     async def test_falls_back_to_the_jwt_name_claim_when_no_name_is_given(self):
-        # GIVEN a Google sign-up, which never submits a name of its own
-        service = await _service()
+        svc, _ = await _make_service()
 
-        await service.register(_user_info(), RegisterRequest())
+        await svc.register(_make_user_info(), RegisterRequest())
 
-        # THEN the name still gets captured, from the identity provider's own claim
-        stored = await service._repo.get_by_user_id("u1")  # pylint: disable=protected-access
+        stored = await svc._repo.get_by_user_id("u1")  # pylint: disable=protected-access
         assert stored.name == "Test User"
-
