@@ -20,6 +20,7 @@ export const DATA_TEST_ID = {
   CONTAINER: `user-access-container-${uniqueId}`,
   LIST: `user-access-list-${uniqueId}`,
   ERROR: `user-access-error-${uniqueId}`,
+  ROLES_ERROR: `user-access-roles-error-${uniqueId}`,
   FAILURE: `user-access-failure-${uniqueId}`,
 };
 
@@ -42,8 +43,15 @@ export function UserAccess() {
   const { state, pendingUserIds, failure, grantRole, revokeAccess } = useUserAccess(roles);
   const institutions = useInstitutionChoices();
   const [confirming, setConfirming] = useState<UserAccessEntry | null>(null);
-  const [selectedRole, setSelectedRole] = useState<RoleRecord | null>(assignableRoles[0] ?? null);
+  const [selectedRole, setSelectedRole] = useState<RoleRecord | null>(null);
   const [institutionId, setInstitutionId] = useState<string | null>(null);
+
+  // Seed the default role once the roles fetch resolves.
+  useEffect(() => {
+    if (selectedRole === null && assignableRoles.length > 0) {
+      setSelectedRole(assignableRoles[0]);
+    }
+  }, [assignableRoles, selectedRole]);
 
   const startConfirming = (entry: UserAccessEntry) => {
     setSelectedRole(assignableRoles[0] ?? null);
@@ -90,6 +98,16 @@ export function UserAccess() {
             icon={<TriangleAlert />}
             message={t("userAccess.error")}
             action={{ label: t("common.retry"), onClick: state.retry }}
+          />
+        </div>
+      )}
+
+      {rolesState.status === "error" && state.status !== "error" && (
+        <div data-testid={DATA_TEST_ID.ROLES_ERROR}>
+          <EmptyState
+            icon={<TriangleAlert />}
+            message={t("userAccess.rolesError")}
+            action={{ label: t("common.retry"), onClick: rolesState.retry }}
           />
         </div>
       )}

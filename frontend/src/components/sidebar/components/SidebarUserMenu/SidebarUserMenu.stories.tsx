@@ -5,7 +5,6 @@ import { SidebarUserMenu } from "./SidebarUserMenu";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AuthContext } from "@/auth/AuthContext";
 import { AccessProvider } from "@/access/AccessContext";
-import { Role } from "@/access/roles";
 
 // A stub, not the real AuthProvider — Storybook runs in a real browser, with no Firebase config to resolve against.
 const SIGNED_IN_USER = { displayName: "Taylor Kimathi", email: "taylor@example.com", photoURL: null } as User;
@@ -18,7 +17,7 @@ const meta = {
   decorators: [
     (Story) => (
       <AuthContext.Provider value={{ user: SIGNED_IN_USER, loading: false, getIdToken: async () => "storybook-token" }}>
-        <AccessProvider role={Role.Funder}>
+        <AccessProvider role="funder">
           <SidebarProvider>
             <div className="w-64 bg-sidebar p-2">
               <Story />
@@ -54,7 +53,7 @@ export const NoDisplayName: Story = {
           getIdToken: async () => "storybook-token",
         }}
       >
-        <AccessProvider role={Role.Funder}>
+        <AccessProvider role="funder">
           <SidebarProvider>
             <div className="w-64 bg-sidebar p-2">
               <Story />

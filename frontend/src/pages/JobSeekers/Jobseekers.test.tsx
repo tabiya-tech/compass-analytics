@@ -15,9 +15,12 @@ const GIVEN_JOBSEEKER_COUNT = 21;
 const GIVEN_PAGE_SIZE = 20;
 const GIVEN_FIRST_JOBSEEKER = "Aisha Mwansa"; // the roster opens sorted by name, A–Z
 
+/** Scope tests opt into when they don't care about scope — most of this file. */
+const ONE_INSTITUTION_SCOPE: AccessProviderProps["scope"] = { institutionIds: ["inst-1"] };
+
 function renderJobseekers(access?: AccessProviderProps) {
   return render(
-    <AccessProvider {...access}>
+    <AccessProvider scope={ONE_INSTITUTION_SCOPE} {...access}>
       <Jobseekers />
     </AccessProvider>
   );
@@ -95,7 +98,7 @@ describe("Jobseekers", () => {
       http.get("/api/jobseekers", ({ request }) => {
         lastRequestedPage = new URL(request.url).searchParams.get("page");
         const response = queryJobseekers({
-          scope: { type: "institutions", institutionIds: ["inst-1"] },
+          scope: { institutionIds: ["inst-1"] },
           sort: { by: "name", direction: "asc" },
           page: 1,
           page_size: 100,
@@ -121,7 +124,7 @@ describe("Jobseekers", () => {
       http.get("/api/jobseekers", () => {
         calls += 1;
         const response = queryJobseekers({
-          scope: { type: "institutions", institutionIds: ["inst-1"] },
+          scope: { institutionIds: ["inst-1"] },
           sort: { by: "name", direction: "asc" },
           page: 1,
           page_size: 100,
@@ -147,7 +150,7 @@ describe("Jobseekers", () => {
       http.get("/api/jobseekers", ({ request }) => {
         const requestedPage = Number(new URL(request.url).searchParams.get("page") ?? 1);
         const response = queryJobseekers({
-          scope: { type: "institutions", institutionIds: ["inst-1"] },
+          scope: { institutionIds: ["inst-1"] },
           sort: { by: "name", direction: "asc" },
           page: 1,
           page_size: requestedPage === 2 ? 1 : givenPageSize,

@@ -83,8 +83,8 @@ export class UserService {
     return response.json() as Promise<UserRoleView>;
   }
 
-  async revokeRole(userId: string, userRoleId: string, token: string): Promise<void> {
-    await this._send(`/users/${encodeURIComponent(userId)}/roles/${encodeURIComponent(userRoleId)}`, token, {
+  async revokeRole(userId: string, roleId: string, token: string): Promise<void> {
+    await this._send(`/users/${encodeURIComponent(userId)}/roles/${encodeURIComponent(roleId)}`, token, {
       method: "DELETE",
     });
   }

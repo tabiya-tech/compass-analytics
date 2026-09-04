@@ -34,6 +34,7 @@ const EDITABLE_FIELD_HIGHLIGHT = "border-tabiya-green focus-visible:ring-tabiya-
 
 function describeScope(t: Translate, scope: AccessScope): string {
   if (scope.institutionIds === null) return t("settings.profile.scopeAll");
+  if (scope.institutionIds.length === 0) return t("settings.profile.scopeNone");
   return scope.institutionIds.length === 1
     ? t("settings.profile.scopeOneInstitution")
     : t("settings.profile.scopeInstitutions", { count: scope.institutionIds.length });
@@ -213,7 +214,7 @@ export function Settings() {
                 />
                 {!isEditingProfile && (
                   <p data-testid={DATA_TEST_ID.PROFILE_ROLE_SUBTITLE} className="text-sm text-grey-text">
-                    {role ? t(ROLE_LABEL_KEYS[role]) : unknownValuePlaceholder}
+                    {role ?? unknownValuePlaceholder}
                   </p>
                 )}
               </div>
