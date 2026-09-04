@@ -55,7 +55,7 @@ class MongoRoleRepository(IRoleRepository):
 
     async def get_by_name(self, name: str) -> RoleRecord | None:
         try:
-            doc = await self._collection.find_one({"name": name})
+            doc = await self._collection.find_one({"name": {"$eq": name}})
             return RoleRecord.model_validate(_serialize_id(doc)) if doc else None
         except Exception:
             logger.exception("Failed to get role by name=%s", name)
@@ -100,7 +100,7 @@ class MongoUserRoleRepository(IUserRoleRepository):
 
     async def list_for_user(self, user_id: str) -> list[UserRoleRecord]:
         try:
-            return [UserRoleRecord.model_validate(_serialize_id(doc)) async for doc in self._collection.find({"user_id": user_id})]
+            return [UserRoleRecord.model_validate(_serialize_id(doc)) async for doc in self._collection.find({"user_id": {"$eq": user_id}})]
         except Exception:
             logger.exception("Failed to list user_roles for user_id=%s", user_id)
             raise
@@ -125,7 +125,7 @@ class MongoUserRoleRepository(IUserRoleRepository):
             doc["_id"] = str(result.inserted_id)
             return UserRoleRecord.model_validate(doc)
         except DuplicateKeyError:
-            existing = await self._collection.find_one({"user_id": user_id, "role_id": role_id, "institution_id": institution_id})
+            existing = await self._collection.find_one({"user_id": {"$eq": user_id}, "role_id": {"$eq": role_id}, "institution_id": {"$eq": institution_id}})
             return UserRoleRecord.model_validate(_serialize_id(existing))
 
     async def revoke(self, user_role_id: str, user_id: str) -> bool:
@@ -134,7 +134,7 @@ class MongoUserRoleRepository(IUserRoleRepository):
         except Exception:
             return False
         try:
-            result = await self._collection.delete_one({"_id": oid, "user_id": user_id})
+            result = await self._collection.delete_one({"_id": oid, "user_id": {"$eq": user_id}})
             return result.deleted_count > 0
         except Exception:
             logger.exception("Failed to revoke user_role_id=%s user_id=%s", user_role_id, user_id)
@@ -142,7 +142,7 @@ class MongoUserRoleRepository(IUserRoleRepository):
 
     async def revoke_all_for_user(self, user_id: str) -> None:
         try:
-            await self._collection.delete_many({"user_id": user_id})
+            await self._collection.delete_many({"user_id": {"$eq": user_id}})
         except Exception:
             logger.exception("Failed to revoke all user_roles for user_id=%s", user_id)
             raise

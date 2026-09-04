@@ -35,7 +35,7 @@ class MongoUserRepository(IUserRepository):
 
     async def get_by_user_id(self, user_id: str) -> UserRecord | None:
         try:
-            doc = await self._collection.find_one({"user_id": user_id})
+            doc = await self._collection.find_one({"user_id": {"$eq": user_id}})
             if doc is None:
                 return None
             return UserRecord.model_validate(doc)
@@ -53,7 +53,7 @@ class MongoUserRepository(IUserRepository):
     async def upsert(self, record: UserRecord) -> UserRecord:
         try:
             doc = record.model_dump(exclude_none=True)
-            await self._collection.update_one({"user_id": record.user_id}, {"$set": doc}, upsert=True)
+            await self._collection.update_one({"user_id": {"$eq": record.user_id}}, {"$set": doc}, upsert=True)
             return record
         except Exception:
             logger.exception("Failed to upsert user_id=%s", record.user_id)
