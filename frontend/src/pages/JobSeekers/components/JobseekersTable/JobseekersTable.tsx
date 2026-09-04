@@ -40,6 +40,7 @@ export interface JobseekersTableProps {
   onJobseekerSelect: (jobseeker: JobseekerSummary) => void;
   onSkillsSelect: (jobseeker: JobseekerSummary) => void;
   className?: string;
+  style?: React.CSSProperties;
 }
 
 /** Clicking the sorted column flips it; a new column starts A–Z for names, highest/latest first otherwise. */
@@ -84,6 +85,7 @@ export function JobseekersTable({
   onJobseekerSelect,
   onSkillsSelect,
   className,
+  style,
 }: Readonly<JobseekersTableProps>) {
   const { t } = useTranslation();
 
@@ -162,6 +164,7 @@ export function JobseekersTable({
     <Table
       data-testid={DATA_TEST_ID.CONTAINER}
       containerClassName={cn("w-full min-w-0 rounded-card border bg-card", className)}
+      containerStyle={style}
     >
       <TableCaption className="sr-only">{t("jobseekers.table.caption")}</TableCaption>
       <TableHeader>

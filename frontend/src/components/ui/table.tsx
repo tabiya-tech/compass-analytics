@@ -5,11 +5,16 @@ import { cn } from "@/lib/utils";
 function Table({
   className,
   containerClassName,
+  containerStyle,
   ...props
-}: React.ComponentProps<"table"> & { containerClassName?: string }) {
+}: React.ComponentProps<"table"> & { containerClassName?: string; containerStyle?: React.CSSProperties }) {
   return (
     // The scroll container is also the positioning context a sticky column sticks to.
-    <div data-slot="table-container" className={cn("relative w-full overflow-auto", containerClassName)}>
+    <div
+      data-slot="table-container"
+      className={cn("relative w-full overflow-auto", containerClassName)}
+      style={containerStyle}
+    >
       <table data-slot="table" className={cn("w-full caption-bottom text-sm", className)} {...props} />
     </div>
   );

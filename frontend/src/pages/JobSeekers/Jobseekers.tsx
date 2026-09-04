@@ -1,13 +1,15 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Download, Search, TriangleAlert } from "lucide-react";
 import { useAccess, type ModuleId } from "@/access/AccessContext";
 import { MODULE_LABEL_KEYS, MODULE_ORDER } from "@/access/moduleDisplay";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { usePagination } from "@/hooks/usePagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ScreenHead } from "@/components/shared/ScreenHead";
+import { TablePagination } from "@/components/shared/TablePagination";
 import type {
   JobseekerDetail,
   JobseekerSummary,
@@ -35,11 +37,8 @@ export const DATA_TEST_ID = {
   ERROR: `jobseekers-error-${uniqueId}`,
 };
 
-/** The roster is one institution's cohort — a page is a scroll, not a pager. */
-const PAGE_SIZE = 100;
-
+const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 250;
-
 const DEFAULT_SORT: JobseekersSort = { by: "name", direction: "asc" };
 
 /** Whichever skills list the user asked for — from a roster row, or from inside a profile. */
@@ -56,6 +55,13 @@ export function Jobseekers() {
   const [skillsSelection, setSkillsSelection] = useState<SkillsSelection>(null);
 
   const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS);
+  const [knownTotal, setKnownTotal] = useState<number | null>(null);
+  const pageCount = knownTotal === null ? Number.POSITIVE_INFINITY : Math.max(1, Math.ceil(knownTotal / PAGE_SIZE));
+
+  const { page, setPage } = usePagination({
+    listIdentity: JSON.stringify([scope, debouncedSearch, moduleStatusFilters, sort]),
+    pageCount,
+  });
   const query = useMemo<JobseekersQuery>(
     () => ({
       // The grant travels with every request, so the endpoint is never asked a wider question
@@ -64,13 +70,22 @@ export function Jobseekers() {
       search: debouncedSearch.trim() || undefined,
       module_status: moduleStatusFilters,
       sort,
-      page: 1,
+      page,
       page_size: PAGE_SIZE,
     }),
-    [scope, debouncedSearch, moduleStatusFilters, sort]
+    [scope, debouncedSearch, moduleStatusFilters, sort, page]
   );
   const state = useJobseekers(query);
   const detail = useJobseekerDetail(selectedId);
+
+  useEffect(() => {
+    if (state.status !== "success") return;
+
+    const isShortOfAFullPage = state.data.items.length < PAGE_SIZE;
+    const rosterSizeImpliedByThisPage = (state.data.page - 1) * PAGE_SIZE + state.data.items.length;
+
+    setKnownTotal(isShortOfAFullPage ? rosterSizeImpliedByThisPage : state.data.total);
+  }, [state]);
 
   const columns = useMemo(() => getJobseekerColumns(activeModules), [activeModules]);
   // Memoized so the export callback below has a stable identity between renders.
@@ -111,7 +126,7 @@ export function Jobseekers() {
     setSkillsSelection({ name: jobseeker.name, skills: jobseeker.skills });
 
   return (
-    <div className="flex h-svh min-w-0 flex-col gap-6 p-6 pb-8" data-testid={DATA_TEST_ID.CONTAINER}>
+    <div className="flex h-svh min-w-0 flex-col gap-6 p-6 pb-0" data-testid={DATA_TEST_ID.CONTAINER}>
       <ScreenHead
         className="shrink-0"
         eyebrow={t("jobseekers.eyebrow")}
@@ -172,9 +187,10 @@ export function Jobseekers() {
             </div>
           </div>
 
-          <div className="flex min-h-64 min-w-0 flex-1 flex-col">
+          <div className="flex min-w-0 flex-col gap-2">
             <JobseekersTable
-              className="min-h-0"
+              className="overflow-x-auto overflow-y-auto"
+              style={{ maxHeight: `calc(100svh - 272px)` }}
               jobseekers={jobseekers}
               columns={columns}
               sort={sort}
@@ -184,6 +200,13 @@ export function Jobseekers() {
               onClearFilters={clearFilters}
               onJobseekerSelect={(jobseeker) => setSelectedId(jobseeker.id)}
               onSkillsSelect={openSkills}
+            />
+            <TablePagination
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={knownTotal ?? state.data.total}
+              onPageChange={setPage}
+              className="shrink-0"
             />
           </div>
         </>

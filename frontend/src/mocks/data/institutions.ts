@@ -200,13 +200,11 @@ export function queryInstitutions(query: InstitutionsQuery): InstitutionsRespons
     return ((left as number) - (right as number)) * direction;
   });
 
-  const start = (query.page - 1) * query.page_size;
-
   return {
-    items: sorted.slice(start, start + query.page_size),
+    items: sorted,
     total: sorted.length,
-    page: query.page,
-    page_size: query.page_size,
+    page: 1,
+    page_size: Math.max(sorted.length, 1),
     totals: PORTFOLIO_TOTALS,
     available_regions: AVAILABLE_REGIONS,
   };

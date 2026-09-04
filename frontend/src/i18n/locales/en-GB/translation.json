@@ -387,6 +387,13 @@
     },
     "completionRing": {
       "label": "{{value}}% complete"
+    },
+    "pagination": {
+      "label": "Pagination",
+      "range": "Showing {{from}}–{{to}} of {{total}}",
+      "previous": "Previous page",
+      "next": "Next page",
+      "page": "Page {{value}}"
     }
   },
   "charts": {
