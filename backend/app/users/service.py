@@ -43,7 +43,7 @@ class IUserService(ABC):
     async def assign_role(self, user_info: UserInfo, target_user_id: str, request: AssignRoleRequest) -> UserRoleView: ...
 
     @abstractmethod
-    async def revoke_role(self, user_info: UserInfo, target_user_id: str, user_role_id: str) -> None: ...
+    async def revoke_role(self, user_info: UserInfo, target_user_id: str, role_id: str) -> None: ...
 
 
 class UserService(IUserService):
@@ -189,10 +189,10 @@ class UserService(IUserService):
             granted_at=ur.granted_at,
         )
 
-    async def revoke_role(self, user_info: UserInfo, target_user_id: str, user_role_id: str) -> None:
+    async def revoke_role(self, user_info: UserInfo, target_user_id: str, role_id: str) -> None:
         from app.users.errors import GrantNotFoundError
         await self._require_record(user_info)
-        removed = await self._user_roles.revoke(user_role_id, target_user_id)
+        removed = await self._user_roles.revoke(role_id, target_user_id)
         if not removed:
-            raise GrantNotFoundError(user_role_id)
+            raise GrantNotFoundError(role_id)
         await reload_policy()

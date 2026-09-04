@@ -364,9 +364,9 @@ class TestRevokeRole:
         role_id = await _seed_role(client.db, "admin", [{"subject": "access-management", "action": "manage"}])
         await _seed_user_role(client.db, "u1", role_id)
         impl_role_id = await _seed_role(client.db, "implementer", [{"subject": "dashboard", "action": "view"}])
-        user_role_id = await _seed_user_role(client.db, "u2", impl_role_id)
+        await _seed_user_role(client.db, "u2", impl_role_id)
 
-        response = await client.delete(f"/api/users/u2/roles/{user_role_id}", headers=_auth())
+        response = await client.delete(f"/api/users/u2/roles/{impl_role_id}", headers=_auth())
 
         assert response.status_code == 204
 
@@ -379,16 +379,16 @@ class TestRevokeRole:
 
         assert response.status_code == 404
 
-    async def test_returns_404_when_user_role_belongs_to_different_user(self, client):
+    async def test_returns_404_when_role_is_not_assigned_to_target_user(self, client):
         await _seed_user(client.db, "u1")
         await _seed_user(client.db, "u3")
         role_id = await _seed_role(client.db, "admin", [{"subject": "access-management", "action": "manage"}])
         await _seed_user_role(client.db, "u1", role_id)
         impl_role_id = await _seed_role(client.db, "implementer", [{"subject": "dashboard", "action": "view"}])
-        u3_role_id = await _seed_user_role(client.db, "u3", impl_role_id)
+        await _seed_user_role(client.db, "u3", impl_role_id)
 
-        # Attempt to revoke u3's role via the u2 path — must not succeed
-        response = await client.delete(f"/api/users/u2/roles/{u3_role_id}", headers=_auth())
+        # impl_role_id is assigned to u3 but not u2 — must not succeed
+        response = await client.delete(f"/api/users/u2/roles/{impl_role_id}", headers=_auth())
 
         assert response.status_code == 404
 
@@ -398,14 +398,14 @@ class TestRevokeRole:
         role_id = await _seed_role(client.db, "admin", [{"subject": "access-management", "action": "manage"}])
         await _seed_user_role(client.db, "u1", role_id)
         impl_role_id = await _seed_role(client.db, "implementer", [{"subject": "dashboard", "action": "view"}])
-        user_role_id = await _seed_user_role(client.db, "u2", impl_role_id)
+        await _seed_user_role(client.db, "u2", impl_role_id)
 
         # First confirm u2 has the permissions
         me_before = (await client.get("/api/me", headers=_auth(user_id="u2"))).json()
         assert "dashboard:view" in me_before["permissions"]
 
         # Revoke
-        await client.delete(f"/api/users/u2/roles/{user_role_id}", headers=_auth())
+        await client.delete(f"/api/users/u2/roles/{impl_role_id}", headers=_auth())
 
         # Now u2 has no permissions
         me_after = (await client.get("/api/me", headers=_auth(user_id="u2"))).json()
