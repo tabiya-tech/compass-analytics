@@ -79,7 +79,7 @@ class IUserRoleRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def revoke(self, user_role_id: str, user_id: str) -> bool:
+    async def revoke(self, role_id: str, user_id: str) -> bool:
         raise NotImplementedError
 
     @abstractmethod
@@ -128,16 +128,12 @@ class MongoUserRoleRepository(IUserRoleRepository):
             existing = await self._collection.find_one({"user_id": {"$eq": user_id}, "role_id": {"$eq": role_id}, "institution_id": {"$eq": institution_id}})
             return UserRoleRecord.model_validate(_serialize_id(existing))
 
-    async def revoke(self, user_role_id: str, user_id: str) -> bool:
+    async def revoke(self, role_id: str, user_id: str) -> bool:
         try:
-            oid = ObjectId(user_role_id)
-        except Exception:
-            return False
-        try:
-            result = await self._collection.delete_one({"_id": oid, "user_id": {"$eq": user_id}})
+            result = await self._collection.delete_one({"role_id": {"$eq": role_id}, "user_id": {"$eq": user_id}})
             return result.deleted_count > 0
         except Exception:
-            logger.exception("Failed to revoke user_role_id=%s user_id=%s", user_role_id, user_id)
+            logger.exception("Failed to revoke role_id=%s user_id=%s", role_id, user_id)
             raise
 
     async def revoke_all_for_user(self, user_id: str) -> None:
