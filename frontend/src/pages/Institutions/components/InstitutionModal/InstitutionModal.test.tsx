@@ -77,6 +77,26 @@ describe("InstitutionModal", () => {
     expect(screen.getByText("Chipata · Eastern · Lead: Isaac Chirwa")).toBeInTheDocument();
   });
 
+  it("should drop the subtitle line and profile score where there is no institution profile data", () => {
+    // GIVEN a drill-down with no city, region, lead or profile score
+    const givenDetailWithoutProfile: InstitutionDetail = {
+      ...GIVEN_DETAIL,
+      city: undefined,
+      region: undefined,
+      lead_pm: undefined,
+      profile_score_pct: null as unknown as undefined,
+    };
+
+    // WHEN the modal opens
+    renderModal({ status: "success", data: givenDetailWithoutProfile });
+
+    // THEN no subtitle line or profile score ring is shown, rather than placeholder dashes or "null"
+    expect(screen.queryByText(/Lead:/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.queryByText("Profile score")).not.toBeInTheDocument();
+    expect(screen.queryByText("null")).not.toBeInTheDocument();
+  });
+
   it("should show Build Your Profile completion as the header ring", () => {
     // GIVEN an institution 28% of the way through Build Your Profile
     // WHEN the modal opens

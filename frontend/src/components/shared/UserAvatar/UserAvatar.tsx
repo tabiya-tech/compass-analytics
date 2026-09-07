@@ -24,13 +24,14 @@ export interface UserAvatarProps {
   src?: string;
   size?: "sm" | "default" | "lg" | "xl";
   className?: string;
+  sizeClassName?: string;
 }
 
-export function UserAvatar({ name, src, size = "default", className }: Readonly<UserAvatarProps>) {
+export function UserAvatar({ name, src, size = "default", className, sizeClassName }: Readonly<UserAvatarProps>) {
   const initials = initialsOf(name);
 
   return (
-    <Avatar data-slot="user-avatar" data-testid={DATA_TEST_ID.CONTAINER} size={size}>
+    <Avatar data-slot="user-avatar" data-testid={DATA_TEST_ID.CONTAINER} size={size} className={sizeClassName}>
       {src && <AvatarImage src={src} alt="" />}
       <AvatarFallback
         aria-hidden="true"

@@ -92,9 +92,9 @@ class InstitutionDetail(BaseModel):
 
     id: str
     name: str
-    city: str = "—"
-    region: str = ""
-    lead_pm: str = "—"
+    city: Optional[str] = None
+    region: Optional[str] = None
+    lead_pm: Optional[str] = None
     profile_score_pct: Optional[float] = None
     reach: InstitutionReach
     login_activity: InstitutionLoginActivity

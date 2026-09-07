@@ -96,6 +96,27 @@ export const WithoutBuildYourProfile: Story = {
   },
 };
 
+// A deployment where the institution profile (city/region/lead/score) hasn't been filled in yet.
+export const WithoutInstitutionProfile: Story = {
+  args: {
+    state: {
+      status: "success",
+      data: {
+        ...DETAIL,
+        city: undefined,
+        region: undefined,
+        lead_pm: undefined,
+        profile_score_pct: undefined,
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const modal = dialog(canvasElement);
+    await expect(modal.queryByText(/Lead:/)).not.toBeInTheDocument();
+    await expect(modal.queryByRole("progressbar")).not.toBeInTheDocument();
+  },
+};
+
 // The dialog fades in, so these wait for the animation to settle before asserting visibility.
 export const Loading: Story = {
   args: { state: { status: "loading" } },
