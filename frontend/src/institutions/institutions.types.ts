@@ -80,9 +80,9 @@ export interface InstitutionOutputs {
 export interface InstitutionDetail {
   id: string;
   name: string;
-  city: string;
-  region: string;
-  lead_pm: string;
+  city?: string;
+  region?: string;
+  lead_pm?: string;
   profile_score_pct?: number;
   reach: InstitutionReach;
   login_activity: InstitutionLoginActivity;

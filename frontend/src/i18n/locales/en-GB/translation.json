@@ -139,7 +139,7 @@
     "modal": {
       "title": "Institution detail",
       "error": "Failed to load this institution.",
-      "subtitle": "{{city}} · {{region}} · Lead: {{lead}}",
+      "subtitleLead": "Lead: {{lead}}",
       "profileScore": "Profile score",
       "reach": {
         "title": "Reach & audience",
@@ -292,7 +292,7 @@
     "profileModal": {
       "title": "Jobseeker profile",
       "error": "Failed to load this jobseeker's profile.",
-      "subtitle": "{{id}} · {{institution}}",
+      "subtitle": "{{id}}\n{{institution}}",
       "profileScore": "Profile score",
       "identity": {
         "title": "Identity & profile",

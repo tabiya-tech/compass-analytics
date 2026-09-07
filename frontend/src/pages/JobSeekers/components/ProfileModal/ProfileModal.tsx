@@ -99,15 +99,20 @@ function DetailBody({ detail, onViewSkills }: Readonly<{ detail: JobseekerDetail
         data-testid={DATA_TEST_ID.HEADER}
         className="flex flex-wrap items-center gap-4 rounded-card bg-card p-6 shadow-sm"
       >
-        <UserAvatar name={detail.name} size="lg" />
-        <div className="grid min-w-0 gap-1">
-          <DialogTitle className="text-2xl font-bold tracking-tight">{detail.name}</DialogTitle>
-          <DialogDescription className="font-mono text-sm tracking-[1px]">
-            {t("jobseekers.profileModal.subtitle", { id: detail.id, institution: detail.institution_name })}
+        <UserAvatar name={detail.name} size="xl" sizeClassName="data-[size=xl]:size-[58px] self-start" />
+        <div className="grid max-w-md min-w-0 gap-1">
+          <DialogTitle className="text-[22px] font-bold tracking-tight">{detail.name}</DialogTitle>
+          <DialogDescription className="grid gap-0.5 font-mono text-[13px] break-all">
+            <span>{detail.id}</span>
+            <span>{detail.institution_name}</span>
           </DialogDescription>
         </div>
-        <div className="ml-auto grid justify-items-center gap-1">
-          <CompletionRing value={detail.profile_score_pct} label={String(detail.profile_score_pct)} />
+        <div className="ml-auto grid shrink-0 justify-items-center gap-1 pl-12">
+          <CompletionRing
+            value={detail.profile_score_pct}
+            label={String(detail.profile_score_pct)}
+            className="size-[66px]"
+          />
           <p className="font-mono text-xs tracking-[2px] text-muted-foreground uppercase">
             {t("jobseekers.profileModal.profileScore")}
           </p>

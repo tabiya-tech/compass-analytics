@@ -59,7 +59,8 @@ export const Loaded: Story = {
     // The dialog is portalled to the body, outside the story canvas.
     const modal = within(canvasElement.ownerDocument.body);
     await waitFor(async () => expect(modal.getByRole("heading", { name: "María González" })).toBeVisible());
-    await expect(modal.getByText("JS-10230 · Mazabuka Livelihoods Trust")).toBeVisible();
+    await expect(modal.getByText("JS-10230")).toBeVisible();
+    await expect(modal.getByText("Mazabuka Livelihoods Trust")).toBeVisible();
     await expect(modal.getByText("1/4 modules completed")).toBeVisible();
   },
 };

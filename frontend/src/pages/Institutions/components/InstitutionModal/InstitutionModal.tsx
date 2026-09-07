@@ -61,6 +61,14 @@ function DetailBody({ detail }: Readonly<{ detail: InstitutionDetail }>) {
   const { t } = useTranslation();
   const { reach, login_activity: login, outputs } = detail;
 
+  const subtitleParts = [
+    detail.city,
+    detail.region,
+    detail.lead_pm && t("institutions.modal.subtitleLead", { lead: detail.lead_pm }),
+  ].filter(Boolean);
+
+  const hasProfileScore = detail.profile_score_pct != null;
+
   return (
     <div className="grid gap-4">
       <section
@@ -75,17 +83,15 @@ function DetailBody({ detail }: Readonly<{ detail: InstitutionDetail }>) {
         </span>
         <div className="grid min-w-0 gap-1">
           <DialogTitle className="text-2xl font-bold tracking-tight">{detail.name}</DialogTitle>
-          <DialogDescription className="font-mono text-sm tracking-[1px]">
-            {t("institutions.modal.subtitle", {
-              city: detail.city,
-              region: detail.region,
-              lead: detail.lead_pm,
-            })}
-          </DialogDescription>
+          {subtitleParts.length > 0 && (
+            <DialogDescription className="font-mono text-sm tracking-[1px]">
+              {subtitleParts.join(" · ")}
+            </DialogDescription>
+          )}
         </div>
-        {detail.profile_score_pct !== undefined && (
+        {hasProfileScore && (
           <div className="ml-auto grid justify-items-center gap-1">
-            <CompletionRing value={detail.profile_score_pct} label={String(detail.profile_score_pct)} />
+            <CompletionRing value={detail.profile_score_pct as number} label={String(detail.profile_score_pct)} />
             <p className="font-mono text-xs tracking-[2px] text-muted-foreground uppercase">
               {t("institutions.modal.profileScore")}
             </p>

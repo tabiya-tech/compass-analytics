@@ -57,7 +57,8 @@ describe("ProfileModal", () => {
     // THEN the header names them, their id and their institution
     const header = within(screen.getByTestId(DATA_TEST_ID.HEADER));
     expect(header.getByRole("heading", { name: "María González" })).toBeInTheDocument();
-    expect(header.getByText("JS-10230 · Mazabuka Livelihoods Trust")).toBeInTheDocument();
+    expect(header.getByText("JS-10230")).toBeInTheDocument();
+    expect(header.getByText("Mazabuka Livelihoods Trust")).toBeInTheDocument();
     // AND their profile score is shown as a ring
     expect(header.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "70");
   });
