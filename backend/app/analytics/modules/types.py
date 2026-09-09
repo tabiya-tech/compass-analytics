@@ -161,7 +161,8 @@ class JobsSummary(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     jobs_sourced: int = Field(ge=0)
-    # Not tracked upstream yet — defaults so a jobs_sourced-only payload still validates.
+    # Defaulted so an upstream still running the jobs_sourced-only version of this payload
+    # validates rather than degrading the whole module.
     profiles_with_matches: int = Field(default=0, ge=0)
     profiles_with_matches_percentage: float = Field(default=0.0, ge=0)
     jobs_viewed_per_user: float = Field(default=0.0, ge=0)

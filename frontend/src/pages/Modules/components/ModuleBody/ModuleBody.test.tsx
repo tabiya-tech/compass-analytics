@@ -270,9 +270,47 @@ describe("ModuleBody for Jobs", () => {
 
     // THEN its figure is on its own tile
     expect(within(tileNamed("Jobs sourced")).getByTestId(STAT_TILE_TEST_ID.VALUE)).toHaveTextContent("30,610");
-    // AND no tile is shown for profilesWithMatches/jobsViewedPerUser — neither has a real data source yet
-    expect(screen.queryByText("Profiles with matches")).not.toBeInTheDocument();
-    expect(screen.queryByText("Jobs viewed per user")).not.toBeInTheDocument();
+  });
+
+  it("should report how many profiles were matched, as a share of users", () => {
+    // GIVEN 879 matched profiles, 21% of the users in scope
+    // WHEN the body is rendered
+    render(<ModuleBody metrics={JOBS} />);
+
+    // THEN the count is on its own tile, with the share in its caption
+    const tile = tileNamed("Profiles with matches");
+    expect(within(tile).getByTestId(STAT_TILE_TEST_ID.VALUE)).toHaveTextContent("879");
+    expect(tile).toHaveTextContent("21% of users");
+  });
+
+  it("should report how many listings a jobseeker who browses opens", () => {
+    // GIVEN 8.4 listings opened per visitor
+    // WHEN the body is rendered
+    render(<ModuleBody metrics={JOBS} />);
+
+    // THEN the average keeps its decimal — rounding 8.4 to 8 would lose the whole signal
+    const tile = tileNamed("Jobs viewed per user");
+    expect(within(tile).getByTestId(STAT_TILE_TEST_ID.VALUE)).toHaveTextContent("8.4");
+    expect(tile).toHaveTextContent("among visitors");
+  });
+
+  it("should show zeroes as real figures when nobody has been matched or viewed anything yet", () => {
+    // GIVEN a healthy response where the engagement figures are legitimately zero
+    // WHEN the body is rendered
+    render(
+      <ModuleBody
+        metrics={{
+          ...JOBS,
+          profilesWithMatches: 0,
+          profilesWithMatchesSharePercentage: 0,
+          jobsViewedPerUser: 0,
+        }}
+      />
+    );
+
+    // THEN the tiles still render — an empty module is a real answer, unlike a degraded one
+    expect(within(tileNamed("Profiles with matches")).getByTestId(STAT_TILE_TEST_ID.VALUE)).toHaveTextContent("0");
+    expect(within(tileNamed("Jobs viewed per user")).getByTestId(STAT_TILE_TEST_ID.VALUE)).toHaveTextContent("0");
   });
 
   it("should say the figures are unavailable rather than show zeroes when the upstream call failed", () => {
@@ -288,6 +326,8 @@ describe("ModuleBody for Jobs", () => {
     );
     // AND no zeroed tile is shown in its place — that would misread as real, bad news
     expect(screen.queryByText("Jobs sourced")).not.toBeInTheDocument();
+    expect(screen.queryByText("Profiles with matches")).not.toBeInTheDocument();
+    expect(screen.queryByText("Jobs viewed per user")).not.toBeInTheDocument();
   });
 
   it("should show a loading skeleton, not the unavailable message or fabricated zeroes, while the very first fetch is still pending", () => {
@@ -303,6 +343,8 @@ describe("ModuleBody for Jobs", () => {
     expect(screen.getByTestId(DATA_TEST_ID.LOADING)).toBeInTheDocument();
     expect(screen.queryByTestId(DATA_TEST_ID.DEGRADED)).not.toBeInTheDocument();
     expect(screen.queryByText("Jobs sourced")).not.toBeInTheDocument();
+    expect(screen.queryByText("Profiles with matches")).not.toBeInTheDocument();
+    expect(screen.queryByText("Jobs viewed per user")).not.toBeInTheDocument();
   });
 });
 

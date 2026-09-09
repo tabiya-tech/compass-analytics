@@ -180,10 +180,10 @@ export const CareerExplorerFirstLoad: Story = {
 export const JobsMatching: Story = {
   args: { metrics: JOBS },
   play: async ({ canvas }) => {
-    // Only jobsSourced has a real data source — profilesWithMatches/jobsViewedPerUser aren't shown.
     await expect(canvas.getByText("30,610")).toBeVisible();
-    await expect(canvas.queryByText("Profiles with matches")).not.toBeInTheDocument();
-    await expect(canvas.queryByText("Jobs viewed per user")).not.toBeInTheDocument();
+    await expect(canvas.getByText("879")).toBeVisible();
+    await expect(canvas.getByText("21% of users")).toBeVisible();
+    await expect(canvas.getByText("8.4")).toBeVisible();
   },
 };
 
@@ -194,6 +194,8 @@ export const JobsDegraded: Story = {
       canvas.getByText("Jobs figures aren't available right now — the upstream data source didn't respond.")
     ).toBeVisible();
     await expect(canvas.queryByText("Jobs sourced")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("Profiles with matches")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("Jobs viewed per user")).not.toBeInTheDocument();
   },
 };
 

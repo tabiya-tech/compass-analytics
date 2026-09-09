@@ -518,6 +518,7 @@ class TestJobsResponse:
         # THEN expect the summary values to match what the Compass API returned
         assert actual_summary["jobs_sourced"] == 30_610
         assert actual_summary["profiles_with_matches"] == 879
+        assert actual_summary["profiles_with_matches_percentage"] == 21.0
         assert actual_summary["jobs_viewed_per_user"] == 8.4
 
     async def test_should_resolve_jobs_to_the_correct_upstream_path(self, jobs_recording_upstream):
