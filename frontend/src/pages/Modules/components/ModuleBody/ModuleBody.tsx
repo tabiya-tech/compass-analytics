@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Briefcase, Clock, FileText } from "lucide-react";
+import { Briefcase, Clock, Eye, FileText, UserCheck } from "lucide-react";
 import { MODULE_IDS } from "@/access/AccessContext";
 import { Funnel } from "@/components/charts/Funnel";
 import { GaugeBar } from "@/components/charts/GaugeBar";
@@ -212,11 +212,12 @@ function JobsSkeleton() {
   return (
     <div data-testid={DATA_TEST_ID.LOADING} className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
       <Skeleton className="h-36 rounded-card" />
+      <Skeleton className="h-36 rounded-card" />
+      <Skeleton className="h-36 rounded-card" />
     </div>
   );
 }
 
-// profilesWithMatches/jobsViewedPerUser have no real data source yet — only jobsSourced renders.
 function JobsBody({ metrics, isLoading }: Readonly<{ metrics: JobsMetrics; isLoading: boolean }>) {
   const { t } = useTranslation();
 
@@ -243,6 +244,19 @@ function JobsBody({ metrics, isLoading }: Readonly<{ metrics: JobsMetrics; isLoa
         value={formatNumber(metrics.jobsSourced)}
         icon={<Briefcase />}
         caption={t("modules.jobs.tiles.sourced.caption")}
+      />
+      <StatTile
+        label={t("modules.jobs.tiles.matched.label")}
+        value={formatNumber(metrics.profilesWithMatches)}
+        icon={<UserCheck />}
+        caption={t("modules.jobs.tiles.matched.caption", { share: metrics.profilesWithMatchesSharePercentage })}
+      />
+      {/* Averaged over the jobseekers who opened a listing, not over everyone registered. */}
+      <StatTile
+        label={t("modules.jobs.tiles.viewed.label")}
+        value={formatNumber(metrics.jobsViewedPerUser)}
+        icon={<Eye />}
+        caption={t("modules.jobs.tiles.viewed.caption")}
       />
     </div>
   );
