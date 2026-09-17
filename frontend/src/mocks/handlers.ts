@@ -10,8 +10,8 @@ import type {
 import type { ManagedUser, MeResponse, RoleRecord } from "@/user/user.types";
 import { REACH_API_PATH } from "@/pages/Overview/services/OverviewMetrics.service";
 import { MODULES_API_BASE } from "@/pages/Modules/services/ModuleMetrics.service";
-import type { InstitutionSortKey, SortDirection } from "@/institutions/institutions.types";
-import { findInstitutionDetail, queryInstitutions } from "@/mocks/data/institutions";
+import type { SortDirection } from "@/institutions/institutions.types";
+import { findInstitutionDetail, getMockInstitutions } from "@/mocks/data/institutions";
 import type { ModuleId } from "@/access/AccessContext";
 import type { JobseekerSortKey, ModuleStatus, ModuleStatusFilters } from "@/jobseekers/jobseekers.types";
 import { findJobseekerDetail, queryJobseekers } from "@/mocks/data/jobseekers";
@@ -114,7 +114,7 @@ const stubMe: MeResponse = {
   name: "Dev Funder",
   organization: "Dev Fund",
   role: "funder",
-  permissions: ["dashboard:view", "institutions:view", "account:view", "access_management:manage"],
+  permissions: ["dashboard:view", "institutions:view", "account:view", "access-management:manage"],
   scope: { institution_ids: null },
   active_modules: ["build-your-profile", "job-readiness", "career-explorer", "jobs"],
 };
@@ -128,7 +128,7 @@ const stubRoles: RoleRecord[] = [
     permissions: [
       { subject: "dashboard", action: "view" },
       { subject: "institutions", action: "view" },
-      { subject: "access_management", action: "manage" },
+      { subject: "access-management", action: "manage" },
       { subject: "account", action: "view" },
     ],
     assignable: true,
@@ -176,22 +176,9 @@ const stubUsers: ManagedUser[] = [
   },
 ];
 
-/** Applies the query server-side, the way the real endpoint will: search, filter, sort, paginate. */
-export const institutionsHandler = http.get("/api/analytics/institutions", ({ request }) => {
-  const params = new URL(request.url).searchParams;
-  return HttpResponse.json(
-    queryInstitutions({
-      search: params.get("search") ?? undefined,
-      regions: params.getAll("region"),
-      sort: {
-        by: (params.get("sort_by") as InstitutionSortKey | null) ?? "registered_users",
-        direction: (params.get("sort_dir") as SortDirection | null) ?? "desc",
-      },
-      page: Number(params.get("page") ?? 1),
-      page_size: Number(params.get("page_size") ?? 30),
-    })
-  );
-});
+export const institutionsHandler = http.get("/api/analytics/institutions", () =>
+  HttpResponse.json(getMockInstitutions())
+);
 
 /** The drill-down behind a table row. */
 export const institutionDetailHandler = http.get("/api/analytics/institutions/:institutionId", ({ params }) => {

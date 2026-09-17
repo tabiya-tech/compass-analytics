@@ -11,7 +11,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  build-openapi-spec:
+    uses: ./.github/workflows/build-openapi-spec.yml
+    secrets: inherit
+
   frontend-ci:
+    needs: [build-openapi-spec]
     uses: ./.github/workflows/frontend-ci.yml
     secrets: inherit
 

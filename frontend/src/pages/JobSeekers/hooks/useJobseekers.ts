@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import * as Sentry from "@sentry/react";
 import { useAuth } from "@/auth/AuthContext";
-import { JobseekersService } from "@/jobseekers/services/Jobseekers.service";
-import type { JobseekersQuery, JobseekersResponse } from "@/jobseekers/jobseekers.types";
+import { JobseekersService, type GetJobseekersParams } from "@/jobseekers/services/Jobseekers.service";
+import type { JobseekersResponse } from "@/jobseekers/jobseekers.types";
 
 export type JobseekersState =
   { status: "loading" } | { status: "error"; retry: () => void } | { status: "success"; data: JobseekersResponse };
 
-/** Refetches whenever the query changes — pass a memoized query so sorting doesn't loop. */
-export function useJobseekers(query: JobseekersQuery): JobseekersState {
+// Pass memoized params — an unmemoized object here would refetch on every render.
+export function useJobseekers(params: GetJobseekersParams): JobseekersState {
   const { getIdToken } = useAuth();
   const [state, setState] = useState<JobseekersState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0); // bumped by retry() to run the same query again
@@ -22,7 +22,7 @@ export function useJobseekers(query: JobseekersQuery): JobseekersState {
     (async () => {
       try {
         const token = await getIdToken();
-        const data = await JobseekersService.getInstance().getJobseekers(query, token);
+        const data = await JobseekersService.getInstance().getJobseekers(params, token);
         if (!cancelled) setState({ status: "success", data });
       } catch (error) {
         Sentry.captureException(error);
@@ -33,7 +33,7 @@ export function useJobseekers(query: JobseekersQuery): JobseekersState {
     return () => {
       cancelled = true;
     };
-  }, [getIdToken, query, attempt, retry]);
+  }, [getIdToken, params, attempt, retry]);
 
   return state;
 }

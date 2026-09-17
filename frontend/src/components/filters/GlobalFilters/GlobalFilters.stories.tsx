@@ -35,28 +35,28 @@ export const NoFilters: Story = {
 };
 
 export const AllFilters: Story = {
-  decorators: [withState({ institutionDrillDownId: "inst-1", audienceSegment: "youth", loginMethod: "email" })],
+  decorators: [withState({ institutionDrillDownId: "inst-1", audienceSegment: "job-seekers", loginMethod: "email" })],
   play: async ({ canvas }) => {
     await expect(canvas.getByText("Institution: inst-1")).toBeVisible();
-    await expect(canvas.getByText("Audience segment: Youth")).toBeVisible();
+    await expect(canvas.getByText("Audience segment: Job seekers")).toBeVisible();
     await expect(canvas.getByText("Login method: Email")).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Clear all" })).toBeVisible();
   },
 };
 
 export const SingleFilter: Story = {
-  decorators: [withState({ audienceSegment: "women" })],
+  decorators: [withState({ audienceSegment: "job-seekers" })],
   play: async ({ canvas }) => {
-    await expect(canvas.getByText("Audience segment: Women")).toBeVisible();
+    await expect(canvas.getByText("Audience segment: Job seekers")).toBeVisible();
   },
 };
 
 export const SingleInstitutionScope: Story = {
   decorators: [
-    withState({ institutionDrillDownId: "inst-1", audienceSegment: "women" }, { institutionIds: ["inst-1"] }),
+    withState({ institutionDrillDownId: "inst-1", audienceSegment: "job-seekers" }, { institutionIds: ["inst-1"] }),
   ],
   play: async ({ canvas }) => {
     await expect(canvas.queryByText(/Institution:/)).not.toBeInTheDocument();
-    await expect(canvas.getByText("Audience segment: Women")).toBeVisible();
+    await expect(canvas.getByText("Audience segment: Job seekers")).toBeVisible();
   },
 };

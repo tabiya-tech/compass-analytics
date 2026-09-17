@@ -13,11 +13,11 @@ import { TablePagination } from "@/components/shared/TablePagination";
 import type {
   JobseekerDetail,
   JobseekerSummary,
-  JobseekersQuery,
   JobseekersSort,
   ModuleStatusFilters,
 } from "@/jobseekers/jobseekers.types";
 import { MODULE_STATUSES } from "@/jobseekers/jobseekers.types";
+import type { GetJobseekersParams } from "@/jobseekers/services/Jobseekers.service";
 import { buildJobseekersCsv, downloadCsv, jobseekersCsvFilename } from "@/pages/JobSeekers/csv";
 import { MODULE_STATUS_LABEL_KEYS } from "@/pages/JobSeekers/utils";
 import { getJobseekerColumns, JobseekersTable } from "@/pages/JobSeekers/components/JobseekersTable";
@@ -62,20 +62,20 @@ export function Jobseekers() {
     listIdentity: JSON.stringify([scope, debouncedSearch, moduleStatusFilters, sort]),
     pageCount,
   });
-  const query = useMemo<JobseekersQuery>(
+  const params = useMemo<GetJobseekersParams>(
     () => ({
       // The grant travels with every request, so the endpoint is never asked a wider question
       // than the user may have answered. It re-checks it against the token regardless.
       scope,
       search: debouncedSearch.trim() || undefined,
-      module_status: moduleStatusFilters,
+      moduleStatusFilters,
       sort,
       page,
-      page_size: PAGE_SIZE,
+      pageSize: PAGE_SIZE,
     }),
     [scope, debouncedSearch, moduleStatusFilters, sort, page]
   );
-  const state = useJobseekers(query);
+  const state = useJobseekers(params);
   const detail = useJobseekerDetail(selectedId);
 
   useEffect(() => {

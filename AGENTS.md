@@ -104,10 +104,14 @@ auth/token log text) that were a deliberate choice *not* to carry over here.
 FastAPI + Pydantic, modeled on the tooling conventions in the `compass` repo's backend (Poetry, pylint, bandit,
 pytest + in-memory Mongo), but scoped down: no LLM/chat code, and a single database instead of compass's four.
 
-- **Entrypoint**: [`backend/app/server.py`](backend/app/server.py) — builds a module-level `ApplicationConfig` from
-  environment variables (fails fast with a clear error if a required var is missing), sets it as a process-wide
-  singleton (`app/app_config.py`), configures logging and Sentry, then constructs the `FastAPI` app with a
-  `lifespan` that connects to Mongo and runs index initialization on startup.
+- **Entrypoint**: [`backend/app/server.py`](backend/app/server.py) builds the `ApplicationConfig`
+  from environment variables at module load time (`app/app_config.py`; fails fast with a clear
+  error if a required var is missing), sets it as a process-wide singleton, configures Sentry,
+  then constructs the module-level `app` with a `lifespan` that connects to Mongo and runs index
+  initialization on startup. `uvicorn app.server:app` runs this `app` in production. Because all
+  of this happens as a side effect of importing the module, anything else that needs the app
+  object — currently just `scripts/export_openapi.py` — has to satisfy the same required env vars
+  first (see "Frontend/backend type sync" below).
 - **Config**: two patterns coexist, matching compass — a hand-built `ApplicationConfig` (plain Pydantic `BaseModel`,
   populated from `os.getenv()` in `server.py`) for app-wide settings, and narrower `pydantic_settings.BaseSettings`
   subclasses (e.g. `common_libs/environment_settings/mongo_db_settings.py`) for settings a specific module owns —
@@ -132,6 +136,100 @@ pytest + in-memory Mongo), but scoped down: no LLM/chat code, and a single datab
   the final `python:3.11-slim` image just copies `site-packages` + `app/` + `common_libs/` and runs
   `uvicorn app.server:app`.
 
+## Frontend/backend type sync
+
+The backend's OpenAPI spec is the single source of truth for API request/response shapes — the
+frontend never hand-writes a type that duplicates a backend Pydantic model. This applies to real
+wire-format types only (a JSON request/response body); it does not extend to things the backend
+has no schema for at all, such as Firebase-derived auth types or a frontend-only UI state shape.
+
+- **Export**: [`backend/scripts/export_openapi.py`](backend/scripts/export_openapi.py) imports
+  the real `app.server:app` and dumps `app.openapi()` to a JSON file. Importing `app.server`
+  builds its `ApplicationConfig` from environment variables at module load time, failing fast on
+  any missing one — even though schema generation itself never touches a live database or
+  Firebase — so the script sets dummy values for all of them first (`_DUMMY_ENV`), then reads the
+  already-built `app` off the module. This is what lets the script run in CI's
+  `build-openapi-spec` job, which has no real secrets, and locally with no `.env` file. If
+  `server.py` starts requiring a new environment variable, add a matching dummy value to
+  `_DUMMY_ENV`.
+- **Generate**: `frontend/src/api-types/schema.d.ts` is produced from that JSON by
+  `openapi-typescript` (`yarn run generate:api-types`, in `frontend/package.json`). This file is
+  **gitignored, never committed** — every build (CI or local) generates it fresh.
+- **Consume via the barrel, not the raw file**: `frontend/src/api-types/index.ts` re-exports
+  named aliases (`JobseekerSummary`, `MeResponse`, `AnalyticsParams`, ...) built on top of
+  `schema.d.ts`. Domain `*.types.ts` files (e.g. `frontend/src/jobseekers/jobseekers.types.ts`)
+  import from this barrel, not from `schema.d.ts` directly, since a few of the raw generated
+  shapes need a small fix centralized in one place:
+  - **`RequiredDefaultFactoryFields<T, K>`** — a Pydantic field declared
+    `= Field(default_factory=list)` comes through the OpenAPI schema as optional, since FastAPI
+    can't tell "always sent, defaults to empty" apart from "may be absent." This type re-marks
+    such fields required, only after checking the actual Pydantic model uses default_factory —
+    never guessed. A genuinely optional field (`Optional[str] = None`) is left alone.
+  - A few backend fields are typed looser than what they actually contain (e.g.
+    `InstitutionModuleProgress.module_id` is a plain `str` in Pydantic, though its one caller only
+    ever populates it from a closed set of module ids) — these are narrowed with a comment citing
+    the backend code that guarantees it's safe. A field with no such guarantee (e.g.
+    `MeResponse.active_modules`, sourced from an unvalidated deployment env var) is **not**
+    narrowed — the frontend filters it against the known set where it enters strictly-typed code
+    instead (`AccessContext.tsx`'s `_toKnownModuleIds`).
+- **Query parameters have no single request schema to generate**: a `GET` endpoint's parameters
+  are individually typed in the spec, not as one component schema, so there's nothing to alias
+  for "the request" as a whole. Where the frontend's shape matches the wire params directly
+  (`AnalyticsParams`, `DemographicsParams`), the generated parameters type is used as-is. Where
+  the frontend needs a richer shape encoded into the wire format at the service boundary
+  (jobseekers' filters; the institutions table's search/sort, which run entirely client-side
+  since the backend only accepts an `institution_id` filter and always returns the full,
+  unsorted portfolio — see `frontend/src/pages/Institutions/Institutions.tsx`), there's no named
+  "query" type standing between the two — only the individual field vocabularies
+  (`JobseekerSortKey`, `ModuleStatus`, ...) are generated.
+
+### Local workflow
+
+`backend/build/openapi.json` and `frontend/src/api-types/schema.d.ts` are both gitignored — a
+fresh clone starts with neither. `yarn dev` regenerates both automatically first, via a `predev`
+hook (`poetry install`, in case backend deps aren't set up yet, then the export and codegen
+below) — so cloning and running `yarn dev` just works, with no manual step, at the cost of a few
+extra seconds on every `yarn dev` and a Poetry/Python dependency on that command.
+
+To regenerate without starting the dev server (e.g. before `yarn compile`/`yarn test` mid-edit,
+or after changing a backend model without restarting `yarn dev`):
+
+```
+cd backend && poetry run python -m scripts.export_openapi --output build/openapi.json
+cd frontend && yarn run generate:api-types
+```
+
+`run-before-merge.sh`'s frontend option also runs both automatically. If you're only iterating on
+the frontend and the backend contract hasn't changed, `yarn run generate:api-types` alone also
+works against a spec exported earlier in the session — the schema only needs to be re-exported
+after a backend model/route change.
+
+### Adding a new backend type
+
+1. Add the field/model to the Pydantic type or route as normal — no special handling needed.
+2. Re-run the two commands above to regenerate `schema.d.ts`.
+3. If the frontend needs the new type, alias it once in `frontend/src/api-types/index.ts`:
+   `export type YourNewType = components["schemas"]["YourNewType"];` — only alias types actually
+   consumed, not everything in the spec.
+4. Re-export it from the relevant domain `*.types.ts` file (e.g.
+   `frontend/src/jobseekers/jobseekers.types.ts`), not `schema.d.ts` directly.
+5. Update whatever service/component needs the new field. For an existing type, `yarn compile`
+   will fail at every call site a new required field breaks — that's the mechanism working, not
+   a bug to work around.
+6. If the new field is a Pydantic `Field(default_factory=list|dict)`, check whether it needs
+   wrapping in `RequiredDefaultFactoryFields` (see above) — the generated schema marks it
+   optional even though the backend always sends it.
+
+### CI enforcement
+
+[`build-openapi-spec.yml`](.github/workflows/build-openapi-spec.yml) exports the spec once, in
+its own job, and [`frontend-ci.yml`](.github/workflows/frontend-ci.yml) downloads it and
+regenerates `schema.d.ts` before `Compile`/`Unit tests`/`Storybook tests`/`Build`. There's no
+separate "types are in sync" check — regenerating unconditionally, before every other step,
+means a backend shape change with no matching frontend update just fails `Compile` at the call
+site, on the same PR. `build-openapi-spec` is kept separate from `backend-ci` (bandit, pylint,
+pytest, Docker build) so `frontend-ci` only waits on the small, fast export.
+
 ## Testing
 
 - **Unit tests** (`frontend/src/**/*.test.tsx`) run under jsdom via `yarn test`, with MSW's Node server intercepting
@@ -147,17 +245,20 @@ pytest + in-memory Mongo), but scoped down: no LLM/chat code, and a single datab
 
 ### Pipeline Flow
 
-Every push runs, in parallel: Frontend CI (format check, lint, compile, unit tests, Storybook tests, build) with a
-separate Accessibility job (Storybook tests with axe assertions set to fail), and Backend CI (bandit, pylint, pytest,
-Docker build). There is no deploy pipeline yet — `iac/` and a hosting target haven't been decided.
+Every push first runs `build-openapi-spec` (exports the backend's OpenAPI schema as an artifact — see
+"Frontend/backend type sync" above), then in parallel: Frontend CI (waits on `build-openapi-spec`;
+generates API types, format check, lint, compile, unit tests, Storybook tests, build) with a
+separate Accessibility job (also waits on `build-openapi-spec`; Storybook tests with axe assertions set
+to fail), and Backend CI (bandit, pylint, pytest, Docker build — does not wait on `build-openapi-spec`).
 
 ### Key Workflows
 
-| File               | Purpose                                    |
-| ------------------ | ------------------------------------------- |
-| `main.yml`         | Orchestrates CI jobs on every push           |
-| `frontend-ci.yml`  | Frontend checks (test job + accessibility job) |
-| `backend-ci.yml`   | Backend checks (bandit, pylint, pytest, Docker build) |
+| File                | Purpose                                                         |
+| ------------------- | ---------------------------------------------------------------- |
+| `main.yml`          | Orchestrates CI jobs on every push                                |
+| `build-openapi-spec.yml`  | Exports the backend's OpenAPI schema as a shared artifact          |
+| `frontend-ci.yml`   | Frontend checks (test job + accessibility job); generates API types from the `build-openapi-spec` artifact before compiling |
+| `backend-ci.yml`    | Backend checks (bandit, pylint, pytest, Docker build)             |
 
 ## Development Guidelines
 

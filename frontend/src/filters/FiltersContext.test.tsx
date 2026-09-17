@@ -16,7 +16,7 @@ function FiltersProbe() {
       <span data-testid="date-range">{`${filters.dateRange.start}..${filters.dateRange.end}`}</span>
       <span data-testid="granularity">{filters.granularity}</span>
       <span data-testid="active-count">{activeFilters.length}</span>
-      <button onClick={() => patchFilters({ audienceSegment: "youth", loginMethod: "email" })}>set two</button>
+      <button onClick={() => patchFilters({ audienceSegment: "job-seekers", loginMethod: "email" })}>set two</button>
       <button onClick={() => setDateRange({ start: "2026-01-01", end: "2026-10-28" })}>set long range</button>
       <button onClick={() => setDateRange({ start: "2026-06-01", end: "2026-06-10" })}>set short range</button>
       <button onClick={() => clearFilter("audienceSegment")}>clear segment</button>
@@ -53,7 +53,7 @@ describe("FiltersProvider", () => {
     await userEvent.click(screen.getByRole("button", { name: "set two" }));
 
     // THEN both are set and both count as active
-    expect(screen.getByTestId("audience-segment")).toHaveTextContent("youth");
+    expect(screen.getByTestId("audience-segment")).toHaveTextContent("job-seekers");
     expect(screen.getByTestId("login-method")).toHaveTextContent("email");
     expect(screen.getByTestId("active-count")).toHaveTextContent("2");
   });

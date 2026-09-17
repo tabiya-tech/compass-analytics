@@ -1,8 +1,8 @@
 import type { AccessScope } from "@/access/AccessContext";
 import type {
   JobseekerDetail,
-  JobseekersQuery,
   JobseekersResponse,
+  JobseekersSort,
   ModuleStatusFilters,
 } from "@/jobseekers/jobseekers.types";
 
@@ -17,6 +17,17 @@ export class JobseekersApiError extends Error {
   }
 }
 
+// One field per GET /api/jobseekers query parameter — no single request-body schema exists
+// for this endpoint to generate a combined type from.
+export interface GetJobseekersParams {
+  scope: AccessScope;
+  search?: string;
+  moduleStatusFilters?: ModuleStatusFilters;
+  sort: JobseekersSort;
+  page: number;
+  pageSize: number;
+}
+
 export class JobseekersService {
   private static instance: JobseekersService | null = null;
 
@@ -25,7 +36,7 @@ export class JobseekersService {
     return JobseekersService.instance;
   }
 
-  /** `all` asks the endpoint to resolve the grant itself; a list names the institutions outright. */
+  // `all` asks the endpoint to resolve the grant itself; a list names the institutions outright.
   private _appendScope(url: URL, scope: AccessScope): void {
     if (scope.institutionIds === null) {
       url.searchParams.set("scope", "all");
@@ -34,22 +45,22 @@ export class JobseekersService {
     for (const institutionId of scope.institutionIds) url.searchParams.append("institution_id", institutionId);
   }
 
-  /** One `module_status=<module>:<status>` per kept status, so any mix of modules can be filtered. */
+  // One `module_status=<module>:<status>` per kept status, so any mix of modules can be filtered.
   private _appendModuleStatus(url: URL, filters: ModuleStatusFilters): void {
     for (const [moduleId, statuses] of Object.entries(filters)) {
       for (const status of statuses ?? []) url.searchParams.append("module_status", `${moduleId}:${status}`);
     }
   }
 
-  private _buildUrl(query: JobseekersQuery): URL {
+  private _buildUrl(params: GetJobseekersParams): URL {
     const url = new URL(`${JOBSEEKERS_API_BASE}/jobseekers`, window.location.origin);
-    this._appendScope(url, query.scope);
-    if (query.search) url.searchParams.set("search", query.search);
-    this._appendModuleStatus(url, query.module_status ?? {});
-    url.searchParams.set("sort_by", query.sort.by);
-    url.searchParams.set("sort_dir", query.sort.direction);
-    url.searchParams.set("page", String(query.page));
-    url.searchParams.set("page_size", String(query.page_size));
+    this._appendScope(url, params.scope);
+    if (params.search) url.searchParams.set("search", params.search);
+    this._appendModuleStatus(url, params.moduleStatusFilters ?? {});
+    url.searchParams.set("sort_by", params.sort.by);
+    url.searchParams.set("sort_dir", params.sort.direction);
+    url.searchParams.set("page", String(params.page));
+    url.searchParams.set("page_size", String(params.pageSize));
     return url;
   }
 
@@ -62,8 +73,8 @@ export class JobseekersService {
     return response.json() as Promise<T>;
   }
 
-  async getJobseekers(query: JobseekersQuery, token: string): Promise<JobseekersResponse> {
-    return this._get<JobseekersResponse>(this._buildUrl(query).toString(), token);
+  async getJobseekers(params: GetJobseekersParams, token: string): Promise<JobseekersResponse> {
+    return this._get<JobseekersResponse>(this._buildUrl(params).toString(), token);
   }
 
   async getJobseeker(jobseekerId: string, token: string): Promise<JobseekerDetail> {

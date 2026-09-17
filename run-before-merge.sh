@@ -4,7 +4,10 @@ NC='\033[0m' # No Color
 function frontend() {
   local project="frontend"
   printTitle "${project}"
-  (cd frontend/ && yarn install && yarn run format:check && yarn run lint && yarn run compile && yarn run test && yarn run build)
+  # The frontend's types are generated from the backend's OpenAPI spec (see
+  # frontend/src/api-types/), so it's exported here even when only running the frontend checks.
+  (cd backend/ && poetry sync --no-interaction && poetry run python -m scripts.export_openapi --output build/openapi.json) && \
+  (cd frontend/ && yarn install && yarn run generate:api-types && yarn run format:check && yarn run lint && yarn run compile && yarn run test && yarn run build)
   if [ $? -ne 0 ]; then
     printError "${project}"
     exit 1

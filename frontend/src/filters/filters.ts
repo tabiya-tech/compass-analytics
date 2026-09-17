@@ -9,10 +9,7 @@ export interface DateRange {
 }
 
 export const AUDIENCE_SEGMENT_LABEL_KEYS = {
-  youth: "filters.audienceSegments.youth",
-  women: "filters.audienceSegments.women",
-  rural: "filters.audienceSegments.rural",
-  "first-time-jobseeker": "filters.audienceSegments.firstTimeJobseeker",
+  "job-seekers": "filters.audienceSegments.jobSeekers",
 } as const satisfies Record<string, TranslationKey>;
 
 export const LOGIN_METHOD_LABEL_KEYS = {

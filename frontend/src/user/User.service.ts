@@ -1,4 +1,11 @@
-import type { AssignRoleRequest, ManagedUser, MeResponse, RoleRecord, UserRoleView } from "@/user/user.types";
+import type {
+  AssignRoleRequest,
+  ManagedUser,
+  MeResponse,
+  RoleRecord,
+  UserRegisterRequest,
+  UserRoleView,
+} from "@/user/user.types";
 
 export const USER_API_BASE = "/api";
 
@@ -32,8 +39,8 @@ export class UserService {
     return response;
   }
 
-  async register(token: string, options?: { name?: string; organization?: string }): Promise<void> {
-    const body: Record<string, string> = {};
+  async register(token: string, options?: Pick<UserRegisterRequest, "name" | "organization">): Promise<void> {
+    const body: UserRegisterRequest = {};
     if (options?.name) body.name = options.name;
     if (options?.organization) body.organization = options.organization;
     const hasBody = Object.keys(body).length > 0;
