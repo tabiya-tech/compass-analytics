@@ -6,6 +6,7 @@ import type {
   AnalyticsParams,
   BuildYourProfileResponse,
   CareerExplorerResponse,
+  JobReadinessResponse,
   ReachResponse,
 } from "@/analytics/analytics.types";
 
@@ -15,7 +16,7 @@ const givenParams: AnalyticsParams = {
   start_date: "2026-01-01",
   end_date: "2026-06-30",
   granularity: "week",
-  audience_segment: "youth",
+  audience_segment: "job-seekers",
   login_method: "email",
   institution_id: "inst-1",
 };
@@ -52,6 +53,12 @@ const givenCareerExplorer: CareerExplorerResponse = {
   degraded: false,
 };
 
+const givenJobReadiness: JobReadinessResponse = {
+  started_percentage: 37,
+  sub_modules: [{ id: "cv-builder", name: "CV Builder", started: 300, completed: 210 }],
+  degraded: false,
+};
+
 /** Records how an endpoint was called, so a test can assert on the URL the service built. */
 function captureUrl(path: string, body: JsonBodyType): () => URL {
   let actualUrl: URL | undefined;
@@ -78,7 +85,7 @@ describe("AnalyticsService", () => {
     expect(actualUrl.searchParams.get("start_date")).toBe("2026-01-01");
     expect(actualUrl.searchParams.get("end_date")).toBe("2026-06-30");
     expect(actualUrl.searchParams.get("granularity")).toBe("week");
-    expect(actualUrl.searchParams.get("audience_segment")).toBe("youth");
+    expect(actualUrl.searchParams.get("audience_segment")).toBe("job-seekers");
     expect(actualUrl.searchParams.get("login_method")).toBe("email");
     expect(actualUrl.searchParams.get("institution_id")).toBe("inst-1");
   });
@@ -139,7 +146,7 @@ describe("AnalyticsService", () => {
     expect(actualUrl.searchParams.get("start_date")).toBe("2026-01-01");
     expect(actualUrl.searchParams.get("end_date")).toBe("2026-06-30");
     expect(actualUrl.searchParams.get("granularity")).toBe("week");
-    expect(actualUrl.searchParams.get("audience_segment")).toBe("youth");
+    expect(actualUrl.searchParams.get("audience_segment")).toBe("job-seekers");
     expect(actualUrl.searchParams.get("login_method")).toBe("email");
     expect(actualUrl.searchParams.get("institution_id")).toBe("inst-1");
   });
@@ -168,7 +175,7 @@ describe("AnalyticsService", () => {
     expect(actualUrl.searchParams.get("start_date")).toBe("2026-01-01");
     expect(actualUrl.searchParams.get("end_date")).toBe("2026-06-30");
     expect(actualUrl.searchParams.get("granularity")).toBe("week");
-    expect(actualUrl.searchParams.get("audience_segment")).toBe("youth");
+    expect(actualUrl.searchParams.get("audience_segment")).toBe("job-seekers");
     expect(actualUrl.searchParams.get("login_method")).toBe("email");
     expect(actualUrl.searchParams.get("institution_id")).toBe("inst-1");
   });
@@ -182,6 +189,20 @@ describe("AnalyticsService", () => {
 
     // THEN the payload is returned as-is
     expect(actual).toEqual(givenCareerExplorer);
+  });
+
+  it("should send the same filter set to the Job Readiness endpoint", async () => {
+    // GIVEN the module endpoint recording how it was called
+    const actualUrlOf = captureUrl("/api/modules/job-readiness", givenJobReadiness);
+
+    // WHEN Job Readiness is fetched with the full filter set
+    await AnalyticsService.getInstance().getJobReadiness(givenParams, givenToken);
+
+    // THEN it is called on its own path, carrying the same filters reach takes
+    const actualUrl = actualUrlOf();
+    expect(actualUrl.pathname).toBe("/api/modules/job-readiness");
+    expect(actualUrl.searchParams.get("audience_segment")).toBe("job-seekers");
+    expect(actualUrl.searchParams.get("login_method")).toBe("email");
   });
 
   it("should raise a typed error carrying the status when the endpoint rejects the filters", async () => {

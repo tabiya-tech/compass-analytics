@@ -2,17 +2,9 @@ import { describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "@/mocks/server";
 import { InstitutionsApiError, InstitutionsService } from "@/institutions/services/Institutions.service";
-import type { InstitutionsQuery, InstitutionsResponse } from "@/institutions/institutions.types";
+import type { InstitutionsResponse } from "@/institutions/institutions.types";
 
 const givenToken = "some-id-token";
-
-const givenQuery: InstitutionsQuery = {
-  search: "skills",
-  regions: ["Lusaka", "Copperbelt"],
-  sort: { by: "active_users", direction: "asc" },
-  page: 2,
-  page_size: 25,
-};
 
 const givenResponse: InstitutionsResponse = {
   items: [
@@ -27,15 +19,16 @@ const givenResponse: InstitutionsResponse = {
     },
   ],
   total: 1,
-  page: 2,
-  page_size: 25,
+  page: 1,
+  page_size: 1,
   totals: { jobseekers_reached: 3987, skills_reports: 1076, institutions: 1 },
   available_regions: ["Copperbelt", "Lusaka"],
 };
 
 describe("InstitutionsService", () => {
-  it("should ask the endpoint for the searched, filtered, sorted and paged slice of institutions", async () => {
-    // GIVEN an institutions endpoint that records how it was called
+  it("should ask the endpoint for the institutions, with no query parameters", async () => {
+    // GIVEN an institutions endpoint that records how it was called — the endpoint always
+    // returns the whole portfolio in one response, so there is nothing to parameterize
     let actualUrl: URL | undefined;
     server.use(
       http.get("/api/analytics/institutions", ({ request }) => {
@@ -44,18 +37,12 @@ describe("InstitutionsService", () => {
       })
     );
 
-    // WHEN the institutions are fetched for the given query
-    await InstitutionsService.getInstance().getInstitutions(givenQuery, givenToken);
+    // WHEN the institutions are fetched
+    await InstitutionsService.getInstance().getInstitutions(givenToken);
 
-    // THEN the search, sort and pagination travel as query parameters
+    // THEN the request carries no query parameters
     expect(actualUrl?.pathname).toBe("/api/analytics/institutions");
-    expect(actualUrl?.searchParams.get("search")).toBe("skills");
-    expect(actualUrl?.searchParams.get("sort_by")).toBe("active_users");
-    expect(actualUrl?.searchParams.get("sort_dir")).toBe("asc");
-    expect(actualUrl?.searchParams.get("page")).toBe("2");
-    expect(actualUrl?.searchParams.get("page_size")).toBe("25");
-    // AND every selected region travels as its own repeated parameter
-    expect(actualUrl?.searchParams.getAll("region")).toEqual(["Lusaka", "Copperbelt"]);
+    expect(actualUrl?.search).toBe("");
   });
 
   it("should send the caller's token as a bearer token", async () => {
@@ -69,7 +56,7 @@ describe("InstitutionsService", () => {
     );
 
     // WHEN the institutions are fetched
-    await InstitutionsService.getInstance().getInstitutions(givenQuery, givenToken);
+    await InstitutionsService.getInstance().getInstitutions(givenToken);
 
     // THEN the token is presented as a bearer token
     expect(actualAuthorization).toBe(`Bearer ${givenToken}`);
@@ -80,7 +67,7 @@ describe("InstitutionsService", () => {
     server.use(http.get("/api/analytics/institutions", () => HttpResponse.json(givenResponse)));
 
     // WHEN the institutions are fetched
-    const actual = await InstitutionsService.getInstance().getInstitutions(givenQuery, givenToken);
+    const actual = await InstitutionsService.getInstance().getInstitutions(givenToken);
 
     // THEN the response comes back untouched
     expect(actual).toEqual(givenResponse);
@@ -91,7 +78,7 @@ describe("InstitutionsService", () => {
     server.use(http.get("/api/analytics/institutions", () => new HttpResponse(null, { status: 403 })));
 
     // WHEN the institutions are fetched
-    const actualPromise = InstitutionsService.getInstance().getInstitutions(givenQuery, givenToken);
+    const actualPromise = InstitutionsService.getInstance().getInstitutions(givenToken);
 
     // THEN the failure surfaces as an API error carrying the status
     await expect(actualPromise).rejects.toThrow(InstitutionsApiError);

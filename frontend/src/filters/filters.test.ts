@@ -95,7 +95,7 @@ describe("getActiveFilters", () => {
       ...createInitialFilters(GIVEN_TODAY),
       loginMethod: "email" as const,
       institutionDrillDownId: "inst-1",
-      audienceSegment: "youth" as const,
+      audienceSegment: "job-seekers" as const,
     };
 
     // WHEN reading the active filters
@@ -104,19 +104,19 @@ describe("getActiveFilters", () => {
     // THEN they come back in the stable display order
     expect(actual).toEqual([
       { key: "institutionDrillDownId", value: "inst-1" },
-      { key: "audienceSegment", value: "youth" },
+      { key: "audienceSegment", value: "job-seekers" },
       { key: "loginMethod", value: "email" },
     ]);
   });
 
   it("should omit a filter that isn't set", () => {
     // GIVEN a state with only the audience segment set
-    const givenState = { ...createInitialFilters(GIVEN_TODAY), audienceSegment: "women" as const };
+    const givenState = { ...createInitialFilters(GIVEN_TODAY), audienceSegment: "job-seekers" as const };
 
     // WHEN reading the active filters
     const actual = getActiveFilters(givenState);
 
     // THEN only that one is present
-    expect(actual).toEqual([{ key: "audienceSegment", value: "women" }]);
+    expect(actual).toEqual([{ key: "audienceSegment", value: "job-seekers" }]);
   });
 });

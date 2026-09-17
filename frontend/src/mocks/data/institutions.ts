@@ -3,7 +3,6 @@ import { MODULE_ORDER } from "@/access/moduleDisplay";
 import type {
   InstitutionDetail,
   InstitutionSummary,
-  InstitutionsQuery,
   InstitutionsResponse,
   InstitutionsTotals,
 } from "@/institutions/institutions.types";
@@ -166,45 +165,13 @@ export function findInstitutionDetail(institutionId: string): InstitutionDetail 
   return institution && buildInstitutionDetail(institution);
 }
 
-function sortValueOf(institution: InstitutionSummary, key: InstitutionsQuery["sort"]["by"]): string | number {
-  switch (key) {
-    case "name":
-      return institution.name;
-    case "registered_users":
-      return institution.registered_users;
-    case "active_users":
-      return institution.active_users;
-    case "skills_reports":
-      return institution.skills_reports ?? 0;
-    default:
-      return institution.module_started_pct[key] ?? 0;
-  }
-}
-
-/** Stands in for the real endpoint's query: search, region filter, sort, then pagination. */
-export function queryInstitutions(query: InstitutionsQuery): InstitutionsResponse {
-  const search = query.search?.trim().toLowerCase() ?? "";
-  const regions = query.regions ?? [];
-
-  const matching = MOCK_INSTITUTIONS.filter((institution) => {
-    const matchesSearch = !search || institution.name.toLowerCase().includes(search);
-    const matchesRegion = regions.length === 0 || regions.includes(institution.region);
-    return matchesSearch && matchesRegion;
-  });
-
-  const direction = query.sort.direction === "asc" ? 1 : -1;
-  const sorted = [...matching].sort((a, b) => {
-    const left = sortValueOf(a, query.sort.by);
-    const right = sortValueOf(b, query.sort.by);
-    if (typeof left === "string" && typeof right === "string") return left.localeCompare(right) * direction;
-    return ((left as number) - (right as number)) * direction;
-  });
-
+// Client-side search/region-filter/sort/pagination for this: pages/Institutions/Institutions.tsx.
+export function getMockInstitutions(): InstitutionsResponse {
   return {
-    items: sorted,
-    total: sorted.length,
+    items: [...MOCK_INSTITUTIONS],
+    total: MOCK_INSTITUTIONS.length,
     page: 1,
-    page_size: Math.max(sorted.length, 1),
+    page_size: MOCK_INSTITUTIONS.length,
     totals: PORTFOLIO_TOTALS,
     available_regions: AVAILABLE_REGIONS,
   };

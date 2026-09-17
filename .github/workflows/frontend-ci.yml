@@ -21,6 +21,16 @@ jobs:
         run: yarn install --frozen-lockfile
         working-directory: frontend
 
+      - name: Download OpenAPI spec
+        uses: actions/download-artifact@v4
+        with:
+          name: openapi.spec.json
+          path: backend/build/
+
+      - name: Generate API types
+        run: yarn run generate:api-types
+        working-directory: frontend
+
       - name: Check Format
         run: yarn run format:check
         working-directory: frontend
@@ -70,6 +80,16 @@ jobs:
 
       - name: Install node packages
         run: yarn install --frozen-lockfile
+        working-directory: frontend
+
+      - name: Download OpenAPI spec
+        uses: actions/download-artifact@v4
+        with:
+          name: openapi.spec.json
+          path: backend/build/
+
+      - name: Generate API types
+        run: yarn run generate:api-types
         working-directory: frontend
 
       - name: Fix apt mirrors

@@ -1,6 +1,10 @@
 import type { MODULE_IDS, ModuleId } from "@/access/AccessContext";
 import type { AudienceSegmentId, DateRange, LoginMethodId } from "@/filters/filters";
 import type { MetricsScope, RequestedInstitutions } from "@/pages/Overview/overview.types";
+import type { SubModuleProgress } from "@/analytics/analytics.types";
+
+// Which steps a deployment runs is its own configuration, so the name travels with the payload.
+export type { SubModuleProgress };
 
 /** No granularity: every figure is a single total over the window, not a time series. */
 export interface ModuleMetricsRequest {
@@ -35,14 +39,6 @@ export interface BuildYourProfileMetrics extends ModuleMetricsBase {
   targetMinutes: number;
   phases: readonly ConversationPhaseMetric[];
   degraded: boolean; // true when the fetch failed, or the backend itself reported a degraded upstream
-}
-
-/** A step within Job Readiness. Which steps a deployment runs is its own configuration, so the name travels with it. */
-export interface SubModuleProgress {
-  id: string;
-  name: string;
-  started: number;
-  completed: number;
 }
 
 export interface JobReadinessMetrics extends ModuleMetricsBase {

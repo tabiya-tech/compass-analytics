@@ -1,18 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "@/mocks/server";
-import { JobseekersApiError, JobseekersService } from "@/jobseekers/services/Jobseekers.service";
-import type { JobseekerDetail, JobseekersQuery, JobseekersResponse } from "@/jobseekers/jobseekers.types";
+import {
+  JobseekersApiError,
+  JobseekersService,
+  type GetJobseekersParams,
+} from "@/jobseekers/services/Jobseekers.service";
+import type { JobseekerDetail, JobseekersResponse } from "@/jobseekers/jobseekers.types";
 
 const givenToken = "some-id-token";
 
-const givenQuery: JobseekersQuery = {
+const givenParams: GetJobseekersParams = {
   scope: { institutionIds: ["inst-1", "inst-2"] },
   search: "maría",
-  module_status: { "build-your-profile": ["completed"], "job-readiness": ["not_started", "in_progress"] },
+  moduleStatusFilters: { "build-your-profile": ["completed"], "job-readiness": ["not_started", "in_progress"] },
   sort: { by: "profile_score_pct", direction: "desc" },
   page: 2,
-  page_size: 25,
+  pageSize: 25,
 };
 
 const givenJobseeker: JobseekersResponse["items"][number] = {
@@ -60,7 +64,7 @@ describe("JobseekersService", () => {
     );
 
     // WHEN the roster is fetched for the given query
-    await JobseekersService.getInstance().getJobseekers(givenQuery, givenToken);
+    await JobseekersService.getInstance().getJobseekers(givenParams, givenToken);
 
     // THEN the search, sort and pagination travel as query parameters
     expect(actualUrl?.pathname).toBe("/api/jobseekers");
@@ -88,7 +92,7 @@ describe("JobseekersService", () => {
     );
 
     // WHEN the roster is fetched for a grant covering two institutions
-    await JobseekersService.getInstance().getJobseekers(givenQuery, givenToken);
+    await JobseekersService.getInstance().getJobseekers(givenParams, givenToken);
 
     // THEN each institution travels as its own repeated parameter
     expect(actualUrl?.searchParams.getAll("institution_id")).toEqual(["inst-1", "inst-2"]);
@@ -106,7 +110,10 @@ describe("JobseekersService", () => {
     );
 
     // WHEN the roster is fetched for a deployment-wide grant
-    await JobseekersService.getInstance().getJobseekers({ ...givenQuery, scope: { institutionIds: null } }, givenToken);
+    await JobseekersService.getInstance().getJobseekers(
+      { ...givenParams, scope: { institutionIds: null } },
+      givenToken
+    );
 
     // THEN no institution is named, and the scope says so outright
     expect(actualUrl?.searchParams.get("scope")).toBe("all");
@@ -124,7 +131,7 @@ describe("JobseekersService", () => {
     );
 
     // WHEN the roster is fetched
-    await JobseekersService.getInstance().getJobseekers(givenQuery, givenToken);
+    await JobseekersService.getInstance().getJobseekers(givenParams, givenToken);
 
     // THEN the token is presented as a bearer token
     expect(actualAuthorization).toBe(`Bearer ${givenToken}`);
@@ -135,7 +142,7 @@ describe("JobseekersService", () => {
     server.use(http.get("/api/jobseekers", () => HttpResponse.json(givenResponse)));
 
     // WHEN the roster is fetched
-    const actualResponse = await JobseekersService.getInstance().getJobseekers(givenQuery, givenToken);
+    const actualResponse = await JobseekersService.getInstance().getJobseekers(givenParams, givenToken);
 
     // THEN the response comes back as served
     expect(actualResponse).toEqual(givenResponse);
@@ -165,7 +172,7 @@ describe("JobseekersService", () => {
     server.use(http.get("/api/jobseekers", () => new HttpResponse(null, { status: givenStatus })));
 
     // WHEN the roster is fetched
-    const actualCall = JobseekersService.getInstance().getJobseekers(givenQuery, givenToken);
+    const actualCall = JobseekersService.getInstance().getJobseekers(givenParams, givenToken);
 
     // THEN the refusal surfaces as an API error carrying the status
     await expect(actualCall).rejects.toThrow(JobseekersApiError);

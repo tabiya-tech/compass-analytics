@@ -34,13 +34,13 @@ describe("GlobalFilters", () => {
   it("should render a chip per active filter, with translated values", () => {
     // GIVEN all three chip filters set, for a cross-institution grant
     renderGlobalFilters(
-      { audienceSegment: "youth", loginMethod: "email", institutionDrillDownId: "inst-1" },
+      { audienceSegment: "job-seekers", loginMethod: "email", institutionDrillDownId: "inst-1" },
       ALL_INSTITUTIONS
     );
 
     // THEN each renders as a chip — the institution id as-is, the others translated
     expect(screen.getByText("Institution: inst-1")).toBeInTheDocument();
-    expect(screen.getByText("Audience segment: Youth")).toBeInTheDocument();
+    expect(screen.getByText("Audience segment: Job seekers")).toBeInTheDocument();
     expect(screen.getByText("Login method: Email")).toBeInTheDocument();
   });
 
@@ -54,16 +54,19 @@ describe("GlobalFilters", () => {
 
   it("should suppress the institution chip for a single-institution grant", () => {
     // GIVEN an institution drill-down set, but the grant covers only one institution
-    renderGlobalFilters({ institutionDrillDownId: "inst-1", audienceSegment: "women" }, { institutionIds: ["inst-1"] });
+    renderGlobalFilters(
+      { institutionDrillDownId: "inst-1", audienceSegment: "job-seekers" },
+      { institutionIds: ["inst-1"] }
+    );
 
     // THEN the institution chip is hidden while the others still show
     expect(screen.queryByText(/Institution:/)).not.toBeInTheDocument();
-    expect(screen.getByText("Audience segment: Women")).toBeInTheDocument();
+    expect(screen.getByText("Audience segment: Job seekers")).toBeInTheDocument();
   });
 
   it("should remove only the clicked filter, preserving the others", async () => {
     // GIVEN two chip filters set
-    renderGlobalFilters({ audienceSegment: "youth", loginMethod: "email" });
+    renderGlobalFilters({ audienceSegment: "job-seekers", loginMethod: "email" });
 
     // WHEN removing the audience segment chip
     await userEvent.click(screen.getByRole("button", { name: "Remove Audience segment filter" }));
@@ -75,7 +78,7 @@ describe("GlobalFilters", () => {
 
   it("should clear every chip filter when Clear all is clicked", async () => {
     // GIVEN two chip filters set
-    renderGlobalFilters({ audienceSegment: "youth", loginMethod: "email" });
+    renderGlobalFilters({ audienceSegment: "job-seekers", loginMethod: "email" });
 
     // WHEN clicking Clear all
     await userEvent.click(screen.getByRole("button", { name: "Clear all" }));

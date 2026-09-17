@@ -1,0 +1,49 @@
+name: Build OpenAPI Spec
+
+on:
+  workflow_call:
+
+jobs:
+  build:
+    name: Build OpenAPI Spec
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache Poetry install
+        uses: actions/cache@v4
+        with:
+          path: ~/.local
+          key: poetry-0
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 2.1.4
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry
+          key: venv-${{ runner.os }}-${{ hashFiles('backend/poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+        working-directory: backend
+
+      - name: Export OpenAPI spec
+        run: poetry run python -m scripts.export_openapi --output build/openapi.json
+        working-directory: backend
+
+      - name: Archive OpenAPI spec
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi.spec.json
+          path: backend/build/openapi.json
+          retention-days: 1

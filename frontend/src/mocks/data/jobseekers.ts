@@ -1,12 +1,25 @@
-import { MODULE_IDS, type ModuleId } from "@/access/AccessContext";
+import type { AccessScope, ModuleId } from "@/access/AccessContext";
+import { MODULE_IDS } from "@/access/AccessContext";
 import { MODULE_ORDER } from "@/access/moduleDisplay";
 import type {
   JobseekerDetail,
+  JobseekerSortKey,
   JobseekerSummary,
-  JobseekersQuery,
   JobseekersResponse,
   ModuleStatus,
+  ModuleStatusFilters,
 } from "@/jobseekers/jobseekers.types";
+import type { SortDirection } from "@/institutions/institutions.types";
+
+// Built by the mock handler from the parsed request URL, then handed here.
+export interface JobseekersWireQuery {
+  scope: AccessScope;
+  search?: string;
+  module_status?: ModuleStatusFilters;
+  sort: { by: JobseekerSortKey; direction: SortDirection };
+  page: number;
+  page_size: number;
+}
 
 /**
  * A deterministic stand-in roster: 28 jobseekers across the first two mocked institutions, so a
@@ -200,7 +213,7 @@ export function findJobseekerDetail(jobseekerId: string): JobseekerDetail | unde
 }
 
 /** A jobseeker with no recorded date sorts as the earliest one, rather than breaking the compare. */
-function sortValueOf(jobseeker: JobseekerSummary, key: JobseekersQuery["sort"]["by"]): string | number {
+function sortValueOf(jobseeker: JobseekerSummary, key: JobseekersWireQuery["sort"]["by"]): string | number {
   switch (key) {
     case "profile_score_pct":
       return jobseeker.profile_score_pct;
@@ -220,7 +233,7 @@ function sortValueOf(jobseeker: JobseekerSummary, key: JobseekersQuery["sort"]["
  * rather than the request, but the shape of the guarantee is the same: no row from an institution
  * outside the grant ever reaches the response.
  */
-export function queryJobseekers(query: JobseekersQuery): JobseekersResponse {
+export function queryJobseekers(query: JobseekersWireQuery): JobseekersResponse {
   const search = query.search?.trim().toLowerCase() ?? "";
   const filters = Object.entries(query.module_status ?? {}).filter(([, statuses]) => statuses && statuses.length > 0);
 

@@ -21,6 +21,7 @@ poetry run uvicorn app.server:app --reload --port 8080
 | `poetry run bandit -c bandit.yaml -r .` | Security scan |
 | `poetry run pytest -m "not smoke_test"` | Run unit/integration tests |
 | `poetry run pytest -m smoke_test` | Run smoke tests against a deployed environment |
+| `poetry run python -m scripts.export_openapi --output build/openapi.json` | Export the OpenAPI schema the frontend's `openapi-typescript` codegen reads to generate its types |
 
 ## Granting yourself access (bootstrap users)
 

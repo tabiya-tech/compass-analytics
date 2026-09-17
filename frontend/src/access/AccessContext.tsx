@@ -98,7 +98,14 @@ export function AccessProvider({
 }
 
 function _buildScope(me: MeResponse): AccessScope {
-  return { institutionIds: me.scope.institution_ids };
+  return { institutionIds: me.scope.institution_ids ?? null };
+}
+
+const _KNOWN_MODULE_IDS: ReadonlySet<string> = new Set(Object.values(MODULE_IDS));
+
+// Backend source: ApplicationConfig.active_modules in app_config.py, an unvalidated env var.
+function _toKnownModuleIds(rawModuleIds: readonly string[]): ModuleId[] {
+  return rawModuleIds.filter((id): id is ModuleId => _KNOWN_MODULE_IDS.has(id));
 }
 
 /**
@@ -129,7 +136,7 @@ export function AccessGate({ children }: Readonly<{ children: ReactNode }>) {
     <AccessProvider
       ability={buildAbility(me.data.permissions)}
       scope={_buildScope(me.data)}
-      activeModules={me.data.active_modules}
+      activeModules={_toKnownModuleIds(me.data.active_modules)}
       role={me.data.role}
       name={me.data.name}
       organization={me.data.organization}

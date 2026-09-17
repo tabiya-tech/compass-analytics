@@ -25,3 +25,6 @@ dist-ssr
 
 *storybook.log
 storybook-static
+
+# generated from ../backend/build/openapi.json, see "generate:api-types"
+src/api-types/schema.d.ts

@@ -339,10 +339,7 @@
       "loginMethod": "Login method"
     },
     "audienceSegments": {
-      "youth": "Youth",
-      "women": "Women",
-      "rural": "Rural",
-      "firstTimeJobseeker": "First-time jobseeker"
+      "jobSeekers": "Job seekers"
     },
     "loginMethods": {
       "email": "Email",

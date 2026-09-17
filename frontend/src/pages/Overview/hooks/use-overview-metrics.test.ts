@@ -47,7 +47,7 @@ describe("toOverviewMetricsRequest", () => {
       ...GIVEN_FILTERS,
       dateRange: { start: "2025-07-08", end: "2026-07-07" },
       granularity: "month",
-      audienceSegment: "youth",
+      audienceSegment: "job-seekers",
       loginMethod: "google",
     };
 
@@ -59,7 +59,7 @@ describe("toOverviewMetricsRequest", () => {
       institutions: ["inst-1"],
       dateRange: { start: "2025-07-08", end: "2026-07-07" },
       granularity: "month",
-      audienceSegment: "youth",
+      audienceSegment: "job-seekers",
       loginMethod: "google",
     });
   });

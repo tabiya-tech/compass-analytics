@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { TablePagination } from "@/components/shared/TablePagination";
 import { ScreenHead } from "@/components/shared/ScreenHead";
 import { StatTile } from "@/components/shared/StatTile";
-import type { InstitutionsQuery, InstitutionsSort } from "@/institutions/institutions.types";
+import type { InstitutionSortKey, InstitutionsSort, InstitutionSummary } from "@/institutions/institutions.types";
 import { getInstitutionColumns } from "@/pages/Institutions/components/InstitutionsTable/columns";
 import { InstitutionsTable } from "@/pages/Institutions/components/InstitutionsTable";
 import { InstitutionModal } from "@/pages/Institutions/components/InstitutionModal";
@@ -33,6 +33,53 @@ const SEARCH_DEBOUNCE_MS = 250;
 
 const DEFAULT_SORT: InstitutionsSort = { by: "registered_users", direction: "desc" };
 
+// GET /api/analytics/institutions always returns the full, unfiltered, unsorted portfolio in
+// one page (see InstitutionsService) — search, region filtering and sorting for this table
+// happen here, client-side, against that full response, the same way pagination already does.
+function matchesSearch(institution: InstitutionSummary, search: string): boolean {
+  if (!search) return true;
+  const needle = search.toLowerCase();
+  return institution.name.toLowerCase().includes(needle) || institution.id.toLowerCase().includes(needle);
+}
+
+function matchesRegionFilter(institution: InstitutionSummary, regions: readonly string[]): boolean {
+  return regions.length === 0 || regions.includes(institution.region);
+}
+
+function sortValue(institution: InstitutionSummary, key: InstitutionSortKey): string | number {
+  switch (key) {
+    case "name":
+      return institution.name;
+    case "registered_users":
+      return institution.registered_users;
+    case "active_users":
+      return institution.active_users;
+    case "skills_reports":
+      return institution.skills_reports ?? 0;
+    default:
+      return institution.module_started_pct[key] ?? 0;
+  }
+}
+
+function filterAndSortInstitutions(
+  institutions: readonly InstitutionSummary[],
+  search: string,
+  regions: readonly string[],
+  sort: InstitutionsSort
+): InstitutionSummary[] {
+  const filtered = institutions.filter(
+    (institution) => matchesSearch(institution, search) && matchesRegionFilter(institution, regions)
+  );
+
+  const direction = sort.direction === "asc" ? 1 : -1;
+  return filtered.sort((a, b) => {
+    const left = sortValue(a, sort.by);
+    const right = sortValue(b, sort.by);
+    if (typeof left === "string" && typeof right === "string") return left.localeCompare(right) * direction;
+    return ((left as number) - (right as number)) * direction;
+  });
+}
+
 export function Institutions() {
   const { t } = useTranslation();
   const { activeModules } = useAccess();
@@ -43,22 +90,25 @@ export function Institutions() {
   const [selectedId, setSelectedId] = useState<string | null>(null); // null closes the modal
 
   const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS);
-  const query = useMemo<InstitutionsQuery>(
-    () => ({ search: debouncedSearch.trim() || undefined, regions, sort, page: 1, page_size: PAGE_SIZE }),
-    [debouncedSearch, regions, sort]
-  );
-  const state = useInstitutions(query);
+  const state = useInstitutions();
   const detail = useInstitutionDetail(selectedId);
 
-  const portfolioSize = state.status === "success" ? state.data.items.length : 0;
+  const filteredAndSorted = useMemo(
+    () =>
+      state.status === "success"
+        ? filterAndSortInstitutions(state.data.items, debouncedSearch.trim(), regions, sort)
+        : [],
+    [state, debouncedSearch, regions, sort]
+  );
+  const portfolioSize = filteredAndSorted.length;
   const { page, setPage } = usePagination({
     listIdentity: JSON.stringify([debouncedSearch, regions, sort]),
     pageCount:
       state.status === "success" ? Math.max(1, Math.ceil(portfolioSize / PAGE_SIZE)) : Number.POSITIVE_INFINITY,
   });
   const institutionsOnPage = useMemo(
-    () => (state.status === "success" ? state.data.items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : []),
-    [state, page]
+    () => filteredAndSorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filteredAndSorted, page]
   );
 
   const columns = useMemo(() => getInstitutionColumns(activeModules), [activeModules]);
@@ -143,9 +193,7 @@ export function Institutions() {
               className="font-mono text-xs tracking-[2px] text-muted-foreground uppercase"
             >
               {/* Two keys rather than a plural rule, so a single match doesn't read "1 institutions". */}
-              {state.data.total === 1
-                ? t("institutions.countOne")
-                : t("institutions.count", { value: state.data.total })}
+              {portfolioSize === 1 ? t("institutions.countOne") : t("institutions.count", { value: portfolioSize })}
             </p>
           </div>
 

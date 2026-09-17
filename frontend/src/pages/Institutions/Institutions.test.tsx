@@ -95,7 +95,7 @@ describe("Institutions", () => {
     expect(screen.getByTestId(DATA_TEST_ID.COUNT)).toHaveTextContent("1 institution");
   });
 
-  it("should search on one request rather than one per keystroke", async () => {
+  it("should search without making any further requests, since it filters the already-loaded portfolio", async () => {
     // GIVEN the loaded portfolio, with the institutions endpoint counting its calls
     await renderAndWaitForInstitutions();
     let calls = 0;
@@ -109,8 +109,9 @@ describe("Institutions", () => {
 
     // THEN the table settles on the match
     await waitFor(() => expect(institutionNames()).toEqual(["Mazabuka Livelihoods Trust"]));
-    // AND the eight keystrokes cost a single request
-    expect(calls).toBe(1);
+    // AND no keystroke asked the endpoint for anything — the search ran against the response
+    // already on hand, the same one fetched on mount
+    expect(calls).toBe(0);
     server.events.removeListener("request:start", countCall);
   });
 
