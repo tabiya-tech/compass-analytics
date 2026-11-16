@@ -9,7 +9,7 @@ visibility into deployment reach, module engagement, and jobseeker outcomes acro
 
 Compass Analytics reads the analytics endpoints of a [Compass Connect](https://github.com/tabiya-tech/compass-connect) deployment
 (`COMPASS_BASE_URL`) with an API key. Compass Connect is Tabiya's open-source career guidance platform. Its README
-lists the other components of the platform.
+lists the other Tabiya tools it uses.
 
 ## Table of Contents
 
