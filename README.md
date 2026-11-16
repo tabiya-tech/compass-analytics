@@ -5,6 +5,12 @@
 Compass Analytics is the partner-facing analytics dashboard for Tabiya Compass — giving implementers and funders
 visibility into deployment reach, module engagement, and jobseeker outcomes across the institutions they run Compass in.
 
+## Related Repositories
+
+Compass Analytics reads the analytics endpoints of a [Compass Connect](https://github.com/tabiya-tech/compass-connect) deployment
+(`COMPASS_BASE_URL`) with an API key. Compass Connect is Tabiya's open-source career guidance platform. Its README
+lists the other components of the platform.
+
 ## Table of Contents
 
 - **[Frontend](frontend)**: Explore the Frontend directory for detailed insights about the frontend React project.
